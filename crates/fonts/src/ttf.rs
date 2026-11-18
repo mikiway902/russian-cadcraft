@@ -1,4 +1,4 @@
-//! TrueType/OpenType text: system fonts found at run time (never bundled), glyph outlines as
+//! TrueType/OpenType text: installed fonts and the embedded OpenGost face, glyph outlines as
 //! closed polylines in CAD text units (text height = cap height).
 //!
 //! Fonts are found by file stem (`arial.ttf`, `msjh.ttc`) and, failing that, by family name
@@ -318,6 +318,8 @@ fn lock() -> MutexGuard<'static, Db> {
                 g.paths.insert(stem, Source::Static(f.bytes));
             }
         }
+        // The fork's default face is deterministic, even without installed fonts.
+        g.paths.insert("opengosttypeb-regular".into(), Source::Static(crate::GOST_BYTES));
     }
     g
 }

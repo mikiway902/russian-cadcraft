@@ -231,6 +231,11 @@ fn run_new(s: &mut Session, p: &Value) -> Result<Value> {
         Some(n) => check_name("layout.new", d, n, None)?,
         None => next_layout_name(d),
     };
+    if p.get("viewport").is_none() && d.header.str("TEXTSTYLE", "") == "GOST" {
+        let spec = find_command("gost.sheet").ok_or_else(|| bad("layout.new", "GOST sheet generator unavailable"))?;
+        let sheet = (spec.run)(s, &json!({"layout": name}))?;
+        return Ok(json!({"name": name, "viewport": null, "gost": sheet}));
+    }
     let page = default_page(d);
     let order = d.layouts.iter().map(|l| l.tab_order).max().unwrap_or(0).saturating_add(1);
     s.doc_mut()?.layouts.push(Layout { page, ..Layout::new(&name, order) });

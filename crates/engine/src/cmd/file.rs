@@ -291,8 +291,14 @@ fn run_new(s: &mut Session, p: &Value) -> Result<Value> {
     if let Some(r) = template::run_new(s, p)? {
         return Ok(r);
     }
-    let metric = s.settings.measureinit;
-    let i = s.new_drawing(bool_or(p, "metric", metric));
+    let metric = bool_or(p, "metric", true);
+    let i = s.new_drawing(metric);
+    if metric {
+        s.state_mut()?.space = cadcraft_doc::Space::Paper("GOST1".into());
+        s.zoom_extents()?;
+        let st = s.state_mut()?;
+        st.saved = st.doc.clone();
+    }
     Ok(json!({ "index": i, "title": s.docs.get(i).map(|d| d.title.clone()) }))
 }
 

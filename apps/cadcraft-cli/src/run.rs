@@ -177,7 +177,7 @@ pub(crate) fn run_cmds(a: &RunArgs, io: &mut Streams) -> Result {
         });
     }
     if s.docs.is_empty() {
-        s.new_drawing(false);
+        s.new_drawing(true);
     }
     let before = model_views(&s);
     let mut last_handle: Option<Handle> = None;

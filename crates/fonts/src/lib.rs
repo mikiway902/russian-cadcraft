@@ -36,6 +36,12 @@ pub use craft_fonts::{CRAFT_FONTS, CraftFont};
 /// Name of the built-in font.
 pub const BUILTIN_FONT: &str = "CADCraft Stroke";
 
+/// Unmodified OpenGost Type B (OFL-1.1), embedded for offline ESKD documents.
+pub const GOST_FONT: &str = "OpenGost Type B";
+pub(crate) const GOST_BYTES: &[u8] = include_bytes!("../../../assets/fonts/opengost/OpenGostTypeB-Regular.ttf");
+/// Included in binaries as well as distribution notices.
+pub const GOST_FONT_LICENSE: &str = include_str!("../../../assets/fonts/opengost/OFL.txt");
+
 /// One laid-out run of text: strokes in local coordinates (baseline at y = 0, x from 0).
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Run {

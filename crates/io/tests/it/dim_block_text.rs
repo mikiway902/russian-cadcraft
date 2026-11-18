@@ -14,7 +14,7 @@ fn block_mtext_height(dxf: &str) -> f64 {
     lines[h + 1].parse().unwrap()
 }
 
-fn height_written(style_scale: f64, overrides: serde_json::Value) -> f64 {
+fn linear_drawing(style_scale: f64, overrides: serde_json::Value) -> Drawing {
     let mut d = Drawing::new_imperial();
     d.dim_styles.iter_mut().for_each(|s| s.scale = style_scale);
     let dm = Dimension {
@@ -37,7 +37,11 @@ fn height_written(style_scale: f64, overrides: serde_json::Value) -> f64 {
         insertion_point: Vec3::ZERO,
     };
     d.add(&Space::Model, Common::default(), EntityKind::Dimension(dm)).unwrap();
-    block_mtext_height(&cadcraft_io::write_dxf(&d))
+    d
+}
+
+fn height_written(style_scale: f64, overrides: serde_json::Value) -> f64 {
+    block_mtext_height(&cadcraft_io::write_dxf(&linear_drawing(style_scale, overrides)))
 }
 
 #[test]
@@ -127,5 +131,25 @@ fn dwg_angular_block_text_keeps_the_decimal_separator() {
             })
             .collect();
         assert_eq!(texts, [expected], "DIMDSEP override: {separator_override:?}");
+    }
+}
+
+#[test]
+fn dimension_stroke_weights_survive_dxf_block_rendering() {
+    let mut d = linear_drawing(1.0, serde_json::json!({}));
+    d.layer_mut("0").unwrap().lineweight = cadcraft_doc::Lineweight::Mm100(50);
+    let style = d.dim_styles.iter_mut().find(|s| s.name == "Standard").unwrap();
+    style.dim_lineweight = 25;
+    style.ext_lineweight = 35;
+    let reopened = cadcraft_io::read_dxf(cadcraft_io::write_dxf(&d).as_bytes()).unwrap();
+    let opts = cadcraft_render::Options { lineweights: true, ..Default::default() };
+    for doc in [&d, &reopened] {
+        let rendered = cadcraft_render::build_plot(doc, &Space::Model, &opts);
+        for expected in [0.25_f32, 0.35] {
+            assert!(
+                rendered.prims.iter().any(|p| p.kind == cadcraft_render::Kind::Polyline && (p.lw - expected).abs() < 1e-6),
+                "dimension stroke {expected} mm disappeared; layer weight must not replace DIMLWD/DIMLWE"
+            );
+        }
     }
 }

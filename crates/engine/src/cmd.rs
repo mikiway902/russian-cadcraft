@@ -14,6 +14,7 @@ mod draworder;
 mod edit;
 mod exchange;
 pub mod file;
+pub(crate) mod gost;
 mod gripcmds;
 mod griphot;
 pub(crate) mod groups;
@@ -201,6 +202,7 @@ pub fn command_specs() -> &'static [CommandSpec] {
         v.extend(file::compare::specs());
         v.extend(layer::specs());
         v.extend(layout::specs());
+        v.extend(gost::specs());
         v.extend(exchange::specs());
         v.extend(image::specs());
         v.extend(props::specs());

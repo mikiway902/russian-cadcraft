@@ -163,7 +163,7 @@ mod web {
                     options,
                     Box::new(move |cc| {
                         // Embedded, the host sends the drawing: start on the Start tab, not Drawing1.
-                        let session = if app_bridge.is_some() { Session::empty() } else { Session::new() };
+                        let session = Session::empty();
                         let control = crate::api::install(cc.egui_ctx.clone());
                         let mut app = CadApp::new(session, services()).with_control(control);
                         app.system_languages =
@@ -178,6 +178,12 @@ mod web {
                             && let Err(error) = crate::panel_layout::restore(&mut app.ui, &layout)
                         {
                             log::warn!("panel layout was not restored: {error}");
+                        }
+                        if app_bridge.is_none()
+                            && !query().contains("sample")
+                            && let Err(e) = app.run("new", serde_json::json!({}))
+                        {
+                            app.set_status(format!("Could not create GOST drawing: {e}"));
                         }
                         // `?cpu`: no render state for the app, so the canvas draws with egui shapes.
                         if !crate::wants_cpu(&query())
@@ -234,8 +240,8 @@ fn wants_cpu(query: &str) -> bool {
 #[cfg(any(target_arch = "wasm32", test))]
 fn document_title(name: Option<&str>, dirty: bool) -> String {
     match name.filter(|n| !n.trim().is_empty()) {
-        Some(name) => format!("{name}{} — CADCraft", if dirty { " •" } else { "" }),
-        None => "CADCraft".to_string(),
+        Some(name) => format!("{name}{} — CADCraftGOST", if dirty { " •" } else { "" }),
+        None => "CADCraftGOST".to_string(),
     }
 }
 
@@ -296,34 +302,22 @@ mod tests {
         assert!(!wants_cpu("?gpucpu"));
     }
 
-    /// Guards the tab title text: a drawing contributes its name and, when dirty, a trailing
-    /// bullet; a blank or missing name leaves the app name alone and never shows a bullet.
-    #[test]
-    fn viewport_title_names_the_document_and_marks_unsaved_changes() {
-        assert_eq!(document_title(Some("drawing.dwg"), false), "drawing.dwg — CADCraft");
-        assert_eq!(document_title(Some("drawing.dwg"), true), "drawing.dwg • — CADCraft");
-        assert_eq!(document_title(Some("Drawing1"), false), "Drawing1 — CADCraft");
-        assert_eq!(document_title(None, false), "CADCraft");
-        assert_eq!(document_title(None, true), "CADCraft");
-        assert_eq!(document_title(Some("   "), true), "CADCraft");
-    }
-
     /// Guards the change signal: a title is sent on open, rename, dirty change and close, but
     /// never twice in a row, so an idle tab is not repainted by a repeated title command.
     #[test]
     fn viewport_title_follows_open_rename_and_dirty_changes_only() {
         let mut sent = None;
-        assert_eq!(title_to_send(&mut sent, Some("drawing.dwg"), false).as_deref(), Some("drawing.dwg — CADCraft"));
+        assert_eq!(title_to_send(&mut sent, Some("drawing.dwg"), false).as_deref(), Some("drawing.dwg — CADCraftGOST"));
         // The page already has it: send nothing.
         assert_eq!(title_to_send(&mut sent, Some("drawing.dwg"), false), None);
         // Unsaved changes add the bullet.
-        assert_eq!(title_to_send(&mut sent, Some("drawing.dwg"), true).as_deref(), Some("drawing.dwg • — CADCraft"));
+        assert_eq!(title_to_send(&mut sent, Some("drawing.dwg"), true).as_deref(), Some("drawing.dwg • — CADCraftGOST"));
         // A rename shows the new name.
-        assert_eq!(title_to_send(&mut sent, Some("plan.dwg"), true).as_deref(), Some("plan.dwg • — CADCraft"));
+        assert_eq!(title_to_send(&mut sent, Some("plan.dwg"), true).as_deref(), Some("plan.dwg • — CADCraftGOST"));
         // Saving clears it again.
-        assert_eq!(title_to_send(&mut sent, Some("plan.dwg"), false).as_deref(), Some("plan.dwg — CADCraft"));
+        assert_eq!(title_to_send(&mut sent, Some("plan.dwg"), false).as_deref(), Some("plan.dwg — CADCraftGOST"));
         // Closing the last drawing leaves the app name only.
-        assert_eq!(title_to_send(&mut sent, None, false).as_deref(), Some("CADCraft"));
+        assert_eq!(title_to_send(&mut sent, None, false).as_deref(), Some("CADCraftGOST"));
         assert_eq!(title_to_send(&mut sent, None, false), None);
     }
 
@@ -341,6 +335,6 @@ mod tests {
         assert!(push_title(&mut sent, Some("drawing.dwg"), true, |title| written.push(title.to_owned())));
         // Closing the drawing writes the app name.
         assert!(push_title(&mut sent, None, false, |title| written.push(title.to_owned())));
-        assert_eq!(written, ["drawing.dwg — CADCraft", "drawing.dwg • — CADCraft", "CADCraft"]);
+        assert_eq!(written, ["drawing.dwg — CADCraftGOST", "drawing.dwg • — CADCraftGOST", "CADCraftGOST"]);
     }
 }

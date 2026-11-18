@@ -495,7 +495,7 @@ mod tests {
 
     #[test]
     fn layer_states_save_list_restore_delete() {
-        let mut s = Session::new();
+        let mut s = crate::legacy_test_session();
         s.execute("layer.new", &json!({ "name": "A", "color": 1 })).unwrap();
         s.execute("layerstate.save", &json!({ "name": "base" })).unwrap();
         s.execute("layer.set", &json!({ "name": "A", "on": false, "color": 3 })).unwrap();
@@ -518,7 +518,7 @@ mod tests {
 
     #[test]
     fn rejected_layer_set_changes_nothing() {
-        let mut s = Session::new();
+        let mut s = crate::legacy_test_session();
         // Layer 0 is current; freezing it is rejected and must not apply the colour either.
         let before = s.doc().unwrap().layer("0").unwrap().clone();
         let undo = s.state().unwrap().undo.len();
@@ -536,7 +536,7 @@ mod tests {
 
     #[test]
     fn delete_and_purge_keep_layers_used_by_block_definitions() {
-        let mut s = Session::new();
+        let mut s = crate::legacy_test_session();
         s.execute("layer.new", &json!({ "name": "A", "color": 1 })).unwrap();
         s.execute("layer.current", &json!({ "name": "A" })).unwrap();
         let l = s.execute("line", &json!({ "points": [[0, 0], [1, 1]] })).unwrap()["handles"][0].as_str().unwrap().to_string();
@@ -550,7 +550,7 @@ mod tests {
 
     #[test]
     fn rename_repoints_paper_space_and_block_entities() {
-        let mut s = Session::new();
+        let mut s = crate::legacy_test_session();
         s.execute("layer.new", &json!({ "name": "A", "color": "red", "current": true })).unwrap();
         s.execute("line", &json!({ "points": [[0, 0], [1, 1]] })).unwrap();
         s.execute("selectall", &json!({})).unwrap();

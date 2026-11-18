@@ -17,6 +17,7 @@ use crate::{CadApp, Pick};
 
 /// The Block Attribute Manager (BATTMAN).
 mod battman;
+mod gost;
 /// Named Viewports (View > Viewports > Named Viewports...).
 mod named_vports;
 
@@ -27,6 +28,9 @@ pub fn route(app: &mut CadApp, id: &str, params: &Value) -> Option<Result<Value,
         return None;
     }
     let dialog = match id {
+        "gost.setup" => "gostsetup",
+        "gost.sheet" => "gostsheet",
+        "gost.check" => "gostcheck",
         "battman" => "battman",
         "linetype" | "lt" | "ltype" => "linetype",
         "ddptype" | "ptype" => "ptype",
@@ -49,6 +53,7 @@ pub fn route(app: &mut CadApp, id: &str, params: &Value) -> Option<Result<Value,
 /// Show the dialog named `name`; closes it (`open = false`) if it isn't one of these.
 pub fn dialog(app: &mut CadApp, ctx: &egui::Context, name: &str, open: &mut bool) {
     let action = match name {
+        "gostsetup" | "gostsheet" | "gostcheck" => gost::dialog(app, ctx, name, open),
         "battman" => battman::dialog(app, ctx, open),
         "linetype" => linetype(app, ctx, open),
         "ptype" => point_style(app, ctx, open),

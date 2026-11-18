@@ -11,7 +11,7 @@
   <img src="assets/app-icon/hicolor/256x256/apps/ai.storyteller.cadcraft.png" width="128" height="128" alt="CADCraft icon: a drafting set square and compass arc on a blue grid tile">
 </p>
 
-<h1 align="center">CADCraft</h1>
+<h1 align="center">CADCraftGOST</h1>
 
 <p align="center">
   <b>Computer-aided design and drafting; an open-source, modern 2D and 3D CAD application, built in pure Rust.</b>
@@ -142,15 +142,31 @@ zoom e                          zoom to extents
 
 The web build: `cd apps/cadcraft-web && trunk serve` (needs [trunk](https://github.com/trunk-rs/trunk)).
 
+### Оформление по ГОСТ / ЕСКД
+
+Новые документы по умолчанию: миллиметры, профиль ЕСКД, встроенный OpenGost Type B,
+размеры с десятичной запятой и лист A4 с рамкой и основной надписью.
+Основано на CADCraft; открытые файлы и пользовательские шаблоны автоматически не изменяются.
+
+Меню **Формат → ГОСТ / ЕСКД**: настройка линий, текста и размеров, листы A4–A0
+с рамкой и редактируемыми основными надписями форм 1/2а по ГОСТ Р 2.104-2023,
+осевые линии, обозначения секущих плоскостей, штриховка металла и отчёт проверки.
+Те же команды `gost.setup`, `gost.sheet`, `gost.center`, `gost.section`, `gost.view`,
+`gost.hatch`, `gost.check` доступны через CLI/MCP.
+
+Это средства оформления, а не удостоверение полного соответствия ГОСТ:
+ассоциативные виды и разрезы из 3D не строятся, шрифт и содержание документа
+требуют проверки. [Инструкция, нормативные источники и ограничения](docs/gost.md).
+
 ### Fonts
 
-CADCraft has no fonts in its repository; it uses the TrueType/OpenType fonts installed on your
-system. Builds made with the optional [craft-fonts](https://github.com/storytold/craft-fonts)
+CADCraftGOST embeds unmodified OpenGost Type B under SIL OFL 1.1 for offline ESKD
+lettering. Other installed TrueType/OpenType fonts remain available. Builds made with the optional [craft-fonts](https://github.com/storytold/craft-fonts)
 input (`CRAFT_FONTS_DIR=<absolute path to a checkout> cargo build --release`) also embed its
 fonts: BIZ UDPGothic, BIZ UDMincho and Shippori Mincho (Japanese) and Noto Sans Arabic (the web
 build, which has no system fonts, only BIZ UDPGothic Regular and Noto Sans Arabic). A text style
 can use them by family name, and they draw characters a text's font lacks when no installed
-wide-coverage CJK font has them. Without `CRAFT_FONTS_DIR` nothing is embedded. SHX
+wide-coverage CJK font has them. Without `CRAFT_FONTS_DIR`, OpenGost is still embedded. SHX
 fonts (including big fonts such as `chineset.shx`) aren't read yet: text in an SHX style is drawn
 with our own stroke font, and any character a text's font lacks (CJK, for example) is drawn from
 an installed font that has it, preferring wide-coverage fonts such as Noto Sans CJK, Source Han

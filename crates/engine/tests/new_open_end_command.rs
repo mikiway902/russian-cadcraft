@@ -7,7 +7,13 @@ use cadcraft_engine::doc::Drawing;
 use serde_json::json;
 
 fn count(s: &Session) -> usize {
-    s.doc().unwrap().entity_count()
+    let d = s.doc().unwrap();
+    // Count the geometry under test, not the new document's title-block reference.
+    d.model
+        .iter()
+        .chain(d.layouts.iter().flat_map(|l| l.entities.iter()))
+        .filter(|e| matches!(e.kind, cadcraft_engine::doc::EntityKind::Line(_) | cadcraft_engine::doc::EntityKind::Circle(_)))
+        .count()
 }
 
 /// LINE with one segment drawn, still asking for the next point.

@@ -16,6 +16,12 @@ fn add_center_line(s: &mut Session, a: Vec2, b: Vec2) -> Result<Handle> {
     }
     let h = s.add_entity(line(a, b))?;
     s.doc_mut()?.modify_entity(h, |e| e.common.linetype = "CENTER".into())?;
+    if s.doc()?.header.str("CENTERLAYER", "") == "GOST-CENTER" {
+        s.doc_mut()?.modify_entity(h, |e| {
+            e.common.layer = "GOST-CENTER".into();
+            e.common.linetype = "GOST-CENTER".into();
+        })?;
+    }
     Ok(h)
 }
 
@@ -60,6 +66,10 @@ fn center_line(s: &mut Session, h1: Handle, h2: Handle) -> Result<Handle> {
 }
 
 pub(super) fn run_centermark(s: &mut Session, p: &Value) -> Result<Value> {
+    if s.doc()?.header.str("CENTERLAYER", "") == "GOST-CENTER" {
+        let spec = crate::cmd::find_command("gost.center").ok_or_else(|| bad("centermark", "GOST axes command unavailable"))?;
+        return (spec.run)(s, p);
+    }
     let hs = targets(s, p)?;
     if hs.is_empty() {
         return Err(bad("centermark", "`handle` or `handles` is required"));

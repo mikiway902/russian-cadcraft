@@ -68,7 +68,7 @@ impl App {
         };
         if let Err(error) = result {
             if self.workspace_error.as_ref() != Some(&error) {
-                eprintln!("CADCraft workspace: {error}");
+                eprintln!("CADCraftGOST workspace: {error}");
                 self.cad.set_status(format!("Workspace could not be saved: {error}"));
                 self.workspace_error = Some(error);
             }
@@ -243,7 +243,7 @@ fn restores_window() -> bool {
 fn window_options(restoring: bool) -> eframe::NativeOptions {
     eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_title("CADCraft")
+            .with_title("CADCraftGOST")
             .with_inner_size([1600.0, 1000.0])
             .with_min_inner_size([900.0, 560.0])
             .with_drag_and_drop(true)
@@ -301,7 +301,7 @@ fn main() -> eframe::Result {
     #[cfg(not(target_arch = "wasm32"))]
     if let Some(done) = craft_update::self_update::finish(&cadcraft_ui_egui::UPDATE_APP, &std::env::args_os().skip(1).collect::<Vec<_>>()) {
         if let Err(e) = done {
-            eprintln!("CADCraft update helper failed: {e}");
+            eprintln!("CADCraftGOST update helper failed: {e}");
             std::process::exit(1);
         }
         return Ok(());
@@ -388,7 +388,7 @@ fn main() -> eframe::Result {
         }));
     }
     eframe::run_native(
-        "CADCraft",
+        "CADCraftGOST",
         options,
         Box::new(move |cc| {
             let mut app = CadApp::new(Session::empty(), services());
@@ -404,7 +404,7 @@ fn main() -> eframe::Result {
             }
             app.set_system_cursor_default(vars.system_cursor == Switch::On);
             if let Some(error) = &workspace_error {
-                eprintln!("CADCraft workspace: {error}");
+                eprintln!("CADCraftGOST workspace: {error}");
                 app.set_status(error);
             }
             app.system_languages = vars.locale.map(|s| vec![s]).unwrap_or_else(|| sys_locale::get_locales().collect());
@@ -448,9 +448,10 @@ fn main() -> eframe::Result {
                 app.open_path(f);
             }
             if app.session.docs.is_empty() {
-                // In the units the profile asks for (MEASUREINIT, restored above).
-                let metric = app.session.settings.measureinit;
-                app.session.new_drawing(metric);
+                // New native drawings use the fork's ESKD baseline, independent of old profiles.
+                if let Err(e) = app.run("new", serde_json::json!({})) {
+                    app.set_status(format!("Could not create GOST drawing: {e}"));
+                }
             }
             if let Some(server) = &instance {
                 let ctx = cc.egui_ctx.clone();

@@ -170,7 +170,7 @@ impl Default for Session {
 impl Session {
     pub fn new() -> Self {
         let mut s = Session::empty();
-        s.new_drawing(false);
+        s.new_drawing(true);
         s
     }
     /// A session with no open drawing (the Start tab).
@@ -357,6 +357,14 @@ impl Session {
             "settings": self.drafting_settings(),
         })
     }
+}
+
+/// Explicit raw-file fixture for command tests independent of product startup defaults.
+#[cfg(test)]
+pub(crate) fn legacy_test_session() -> Session {
+    let mut s = Session::empty();
+    s.new_drawing(false);
+    s
 }
 
 #[cfg(test)]

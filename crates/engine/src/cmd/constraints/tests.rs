@@ -18,7 +18,7 @@ fn ends(s: &Session, h: &str) -> (Vec2, Vec2) {
 
 #[test]
 fn json_geometric_and_dimensional_constraints() {
-    let mut s = Session::new();
+    let mut s = crate::legacy_test_session();
     let a = line(&mut s, [0.0, 0.0], [10.0, 0.5]);
     let b = line(&mut s, [10.2, 0.3], [10.5, 6.0]);
     s.execute("gchorizontal", &json!({ "h1": a })).unwrap();
@@ -58,7 +58,7 @@ fn json_geometric_and_dimensional_constraints() {
 
 #[test]
 fn renaming_a_parameter_rewrites_the_expressions_that_use_it() {
-    let mut s = Session::new();
+    let mut s = crate::legacy_test_session();
     let a = line(&mut s, [0.0, 0.0], [10.0, 0.0]);
     let b = line(&mut s, [0.0, 5.0], [10.0, 5.0]);
     s.execute("parameters", &json!({ "name": "user1", "expr": "4" })).unwrap();
@@ -94,7 +94,7 @@ fn renaming_a_parameter_rewrites_the_expressions_that_use_it() {
 
 #[test]
 fn edits_are_resolved_and_erase_purges() {
-    let mut s = Session::new();
+    let mut s = crate::legacy_test_session();
     let a = line(&mut s, [0.0, 0.0], [10.0, 0.0]);
     let b = line(&mut s, [10.0, 0.0], [10.0, 5.0]);
     s.execute("gccoincident", &json!({ "h1": a, "p1": "end", "h2": b, "p2": "start" })).unwrap();
@@ -114,7 +114,7 @@ fn edits_are_resolved_and_erase_purges() {
 
 #[test]
 fn interactive_prompts() {
-    let mut s = Session::new();
+    let mut s = crate::legacy_test_session();
     s.viewport_px = (1000.0, 1000.0);
     let a = line(&mut s, [0.0, 0.0], [8.0, 0.4]);
     let b = line(&mut s, [0.0, 3.0], [8.0, 3.9]);
@@ -160,7 +160,7 @@ fn interactive_prompts() {
 
 #[test]
 fn bars_settings_and_autoconstrain_json() {
-    let mut s = Session::new();
+    let mut s = crate::legacy_test_session();
     let a = line(&mut s, [0.0, 0.0], [10.0, 0.0]);
     s.execute("constraintbar.hideall", &json!({})).unwrap();
     let r = s.execute("constraintbar", &json!({ "mode": "show", "handles": [a] })).unwrap();
@@ -181,7 +181,7 @@ fn bars_settings_and_autoconstrain_json() {
 #[test]
 fn auto_types_spellings_are_stored_canonically() {
     for spelling in ["gcParallel", " Parallel ", "parallel"] {
-        let mut s = Session::new();
+        let mut s = crate::legacy_test_session();
         let a = line(&mut s, [0.0, 0.0], [10.0, 10.0]);
         let b = line(&mut s, [0.0, 3.0], [10.0, 13.01]);
         let r = s.execute("constraintsettings", &json!({ "autoTypes": [spelling], "angleTolerance": 1 })).unwrap();
@@ -190,7 +190,7 @@ fn auto_types_spellings_are_stored_canonically() {
         assert_eq!(r["added"], 1, "{spelling}");
         assert_eq!(s.doc().unwrap().constraints[0].kind, ConstraintKind::Parallel);
         // The per-command `types` override accepts the same spellings.
-        let mut s = Session::new();
+        let mut s = crate::legacy_test_session();
         let a = line(&mut s, [0.0, 0.0], [10.0, 10.0]);
         let b = line(&mut s, [0.0, 3.0], [10.0, 13.01]);
         let r = s.execute("autoconstrain", &json!({ "handles": [a, b], "types": [spelling], "angleTolerance": 1 })).unwrap();
@@ -201,7 +201,7 @@ fn auto_types_spellings_are_stored_canonically() {
 
 #[test]
 fn hostile_constraint_params_never_panic() {
-    let mut s = Session::new();
+    let mut s = crate::legacy_test_session();
     let a = line(&mut s, [0.0, 0.0], [10.0, 0.0]);
     let c = {
         s.execute("circle", &json!({ "center": [0, 5], "radius": 2 })).unwrap();
@@ -250,7 +250,7 @@ fn hostile_constraint_params_never_panic() {
 
 #[test]
 fn delconstraint_rejects_referenced_dimension() {
-    let mut s = Session::new();
+    let mut s = crate::legacy_test_session();
     let a = line(&mut s, [0.0, 0.0], [10.0, 0.0]);
     let b = line(&mut s, [0.0, 5.0], [4.0, 5.0]);
     s.execute("dimconstraint", &json!({ "type": "horizontal", "h1": a, "expr": "8" })).unwrap();
@@ -282,7 +282,7 @@ fn drawn_angle(s: &Session, a: &str, b: &str) -> f64 {
 fn dcangular_constrains_the_drawn_angle_whichever_way_the_lines_run() {
     // #1134: the second line drawn towards the shared vertex got the supplement of the value.
     for b_pts in [[[2.0, 10.0], [0.0, 0.0]], [[0.0, 0.0], [2.0, 10.0]]] {
-        let mut s = Session::new();
+        let mut s = crate::legacy_test_session();
         s.viewport_px = (1000.0, 1000.0);
         let a = line(&mut s, [0.0, 0.0], [10.0, 0.0]);
         let b = line(&mut s, b_pts[0], b_pts[1]);
@@ -307,7 +307,7 @@ fn dim_shown(s: &Session, h: &str) -> bool {
 
 #[test]
 fn settings_dims_checkbox_clears_exceptions() {
-    let mut s = Session::new();
+    let mut s = crate::legacy_test_session();
     let a = line(&mut s, [0.0, 0.0], [10.0, 0.0]);
     s.execute("dclinear", &json!({ "h1": a, "expr": "10" })).unwrap();
     s.execute("dcdisplay.hideall", &json!({})).unwrap();
@@ -327,7 +327,7 @@ fn settings_dims_checkbox_clears_exceptions() {
 
 #[test]
 fn settings_bars_checkbox_clears_exceptions() {
-    let mut s = Session::new();
+    let mut s = crate::legacy_test_session();
     let a = line(&mut s, [0.0, 0.0], [10.0, 0.0]);
     s.execute("gchorizontal", &json!({ "h1": a })).unwrap();
     s.execute("constraintbar.hideall", &json!({})).unwrap();

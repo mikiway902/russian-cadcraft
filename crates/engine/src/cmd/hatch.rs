@@ -459,6 +459,10 @@ fn add_hatches(s: &mut Session, st: &HatchSettings, groups: Vec<Vec<HatchLoop>>)
     let mut out = Vec::new();
     for loops in groups.into_iter().filter(|g| !g.is_empty()) {
         let h = s.add_entity(st.hatch(loops))?;
+        let layer = s.doc()?.header.str("HPLAYER", "");
+        if !layer.is_empty() && s.doc()?.layer(&layer).is_some() {
+            s.doc_mut()?.modify_entity(h, |e| e.common.layer = layer)?;
+        }
         // Hatches go under other objects (HPDRAWORDER = behind boundary).
         let space = s.space();
         if let Some(store) = s.doc_mut()?.space_mut(&space) {

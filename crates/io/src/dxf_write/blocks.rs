@@ -71,7 +71,10 @@ pub(super) fn dim_block_entities(d: &Drawing, dm: &Dimension, layer: &str) -> Ve
     // as AutoCAD writes them: readers that draw the block drew every part ByBlock, i.e. in the
     // dimension's own colour (#1052).
     let in_color = |color: Color| Common { layer: layer.into(), color, ..Common::default() };
-    let (dim_c, ext_c, text_c) = (in_color(style.dim_line_color), in_color(style.ext_line_color), in_color(style.text_color));
+    let (mut dim_c, mut ext_c, text_c) = (in_color(style.dim_line_color), in_color(style.ext_line_color), in_color(style.text_color));
+    // Consumers may display the anonymous block instead of regenerating the dimension.
+    dim_c.lineweight = cadcraft_doc::Lineweight::from_dxf(style.dim_lineweight);
+    ext_c.lineweight = cadcraft_doc::Lineweight::from_dxf(style.ext_lineweight);
     let line_entities = |i: usize, l: &[Vec2]| -> Vec<Entity> {
         let c = match g.line_roles.get(i) {
             Some(cadcraft_render::LineRole::Ext) => &ext_c,

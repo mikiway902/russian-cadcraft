@@ -26,7 +26,7 @@ fn near(a: Vec2, b: Vec2) -> bool {
 
 #[test]
 fn linear_dimension_follows_line_endpoint() {
-    let mut s = Session::new();
+    let mut s = crate::legacy_test_session();
     let l = line(&mut s, [0.0, 0.0], [10.0, 0.0]);
     let d = h(&s.execute("dimlinear", &json!({ "p1": [0, 0], "p2": [10, 0], "at": [5, -2] })).unwrap());
     let dm = dim(&s, d);
@@ -48,7 +48,7 @@ fn linear_dimension_follows_line_endpoint() {
 
 #[test]
 fn moving_the_object_carries_the_dimension() {
-    let mut s = Session::new();
+    let mut s = crate::legacy_test_session();
     let l = line(&mut s, [0.0, 0.0], [10.0, 0.0]);
     let d = h(&s.execute("dimaligned", &json!({ "p1": [0, 0], "p2": [10, 0], "at": [5, -2] })).unwrap());
     s.execute("move", &json!({ "handles": [l.hex()], "from": [0, 0], "to": [3, 4] })).unwrap();
@@ -64,7 +64,7 @@ fn moving_the_object_carries_the_dimension() {
 
 #[test]
 fn moving_the_object_keeps_the_ordinate_datum() {
-    let mut s = Session::new();
+    let mut s = crate::legacy_test_session();
     let l = line(&mut s, [5.0, 0.0], [5.0, 5.0]);
     let d = h(&s.execute("dimordinate", &json!({ "feature": [5, 5], "leader": [5, 8] })).unwrap());
     s.execute("move", &json!({ "handles": [l.hex()], "from": [5, 5], "to": [8, 5] })).unwrap();
@@ -77,7 +77,7 @@ fn moving_the_object_keeps_the_ordinate_datum() {
 
 #[test]
 fn moving_the_line_keeps_a_free_continued_origin() {
-    let mut s = Session::new();
+    let mut s = crate::legacy_test_session();
     let l = line(&mut s, [0.0, 0.0], [10.0, 0.0]);
     s.execute("dimlinear", &json!({ "p1": [0, 0], "p2": [10, 0], "at": [5, -2] })).unwrap();
     s.execute("dimcontinue", &json!({ "points": [[25, 0]] })).unwrap();
@@ -95,7 +95,7 @@ fn moving_the_line_keeps_a_free_continued_origin() {
 
 #[test]
 fn interactive_dimlinear_select_object_is_associative() {
-    let mut s = Session::new();
+    let mut s = crate::legacy_test_session();
     s.cmdline("line 0,0 6,0").unwrap();
     s.cmdline("").unwrap();
     let l = s.doc().unwrap().model.last().unwrap().handle;
@@ -113,7 +113,7 @@ fn interactive_dimlinear_select_object_is_associative() {
 
 #[test]
 fn radius_and_diameter_follow_circle() {
-    let mut s = Session::new();
+    let mut s = crate::legacy_test_session();
     s.execute("circle", &json!({ "center": [0, 0], "radius": 2 })).unwrap();
     let c = s.doc().unwrap().model.last().unwrap().handle;
     let r = h(&s.execute("dimradius", &json!({ "handle": c.hex(), "at": [5, 0] })).unwrap());
@@ -131,7 +131,7 @@ fn radius_and_diameter_follow_circle() {
 
 #[test]
 fn angular_between_lines_follows_rotation() {
-    let mut s = Session::new();
+    let mut s = crate::legacy_test_session();
     let a = line(&mut s, [0.0, 0.0], [10.0, 0.0]);
     let b = line(&mut s, [0.0, 0.0], [0.0, 10.0]);
     let d = h(&s.execute("dimangular", &json!({ "lines": [a.hex(), b.hex()], "at": [3, 3] })).unwrap());
@@ -148,7 +148,7 @@ fn angular_between_lines_follows_rotation() {
 #[test]
 fn interactive_angular_picks_polyline_segments() {
     // Rectangle sides are polyline segments, not lines (issue #10).
-    let mut s = Session::new();
+    let mut s = crate::legacy_test_session();
     s.cmdline("rectang 0,0 10,5").unwrap();
     s.cmdline("dimangular").unwrap();
     s.cmdline("5,0").unwrap();
@@ -173,7 +173,7 @@ fn interactive_angular_picks_polyline_segments() {
 #[test]
 fn interactive_angular_picks_circle() {
     // Circle: the pick is the first endpoint, the center the vertex.
-    let mut s = Session::new();
+    let mut s = crate::legacy_test_session();
     s.cmdline("circle 0,0 5").unwrap();
     s.cmdline("dimangular").unwrap();
     s.cmdline("5,0").unwrap();
@@ -188,7 +188,7 @@ fn interactive_angular_picks_circle() {
 
 #[test]
 fn erase_disassociate_and_reassociate() {
-    let mut s = Session::new();
+    let mut s = crate::legacy_test_session();
     let l = line(&mut s, [0.0, 0.0], [4.0, 0.0]);
     let d = h(&s.execute("dimlinear", &json!({ "p1": [0, 0], "p2": [4, 0], "at": [2, 1] })).unwrap());
     s.execute("dimdisassociate", &json!({ "handles": [d.hex()] })).unwrap();
@@ -209,7 +209,7 @@ fn erase_disassociate_and_reassociate() {
 
 #[test]
 fn dimassoc_zero_makes_plain_dimensions() {
-    let mut s = Session::new();
+    let mut s = crate::legacy_test_session();
     line(&mut s, [0.0, 0.0], [4.0, 0.0]);
     s.doc_mut().unwrap().header.set_i64("DIMASSOC", 0);
     let d = h(&s.execute("dimlinear", &json!({ "p1": [0, 0], "p2": [4, 0], "at": [2, 1] })).unwrap());
@@ -218,7 +218,7 @@ fn dimassoc_zero_makes_plain_dimensions() {
 
 #[test]
 fn dimstyle_commands() {
-    let mut s = Session::new();
+    let mut s = crate::legacy_test_session();
     let r = s.execute("dimstyle", &json!({ "name": "Arch", "DIMTSZ": 0.1, "DIMBLK": "_ARCHTICK", "DIMLUNIT": 4, "DIMTAD": 1, "bogus": 3 })).unwrap();
     assert_eq!(r["ignored"], json!(["bogus"]));
     let st = s.doc().unwrap().dim_style("Arch").unwrap().clone();
@@ -244,7 +244,7 @@ fn dimstyle_commands() {
 
 #[test]
 fn dimstyle_rename_updates_block_dimensions() {
-    let mut s = Session::new();
+    let mut s = crate::legacy_test_session();
     s.execute("dimstyle", &json!({ "name": "DS", "DIMTXT": 2 })).unwrap();
     s.execute("dimlinear", &json!({ "p1": [0, 0], "p2": [10, 0], "at": [5, 3] })).unwrap();
     s.execute("selectall", &json!({})).unwrap();
@@ -261,7 +261,7 @@ fn dimstyle_rename_updates_block_dimensions() {
 
 #[test]
 fn dimension_overrides() {
-    let mut s = Session::new();
+    let mut s = crate::legacy_test_session();
     let d = h(&s.execute("dimlinear", &json!({ "p1": [0, 0], "p2": [10, 0], "at": [5, 2] })).unwrap());
     s.execute("dimoverride", &json!({ "handles": [d.hex()], "DIMDEC": 1, "DIMPOST": "<> mm" })).unwrap();
     let dm = dim(&s, d);
@@ -286,7 +286,7 @@ fn dimension_overrides() {
 
 #[test]
 fn dimension_override_text_with_variables() {
-    let mut s = Session::new();
+    let mut s = crate::legacy_test_session();
     let d = h(&s.execute("dimlinear", &json!({ "p1": [0, 0], "p2": [10, 0], "at": [5, 2] })).unwrap());
     s.execute("dimoverride", &json!({ "handles": [d.hex()], "text": "<> OLD" })).unwrap();
     s.execute("dimoverride", &json!({ "handles": [d.hex()], "DIMTXT": 0.4 })).unwrap();
@@ -303,7 +303,7 @@ fn dimension_override_text_with_variables() {
 
 #[test]
 fn dimtedit_and_dimspace() {
-    let mut s = Session::new();
+    let mut s = crate::legacy_test_session();
     let a = h(&s.execute("dimlinear", &json!({ "p1": [0, 0], "p2": [10, 0], "at": [5, 1] })).unwrap());
     let b = h(&s.execute("dimlinear", &json!({ "p1": [0, 0], "p2": [6, 0], "at": [3, 1.3] })).unwrap());
     s.execute("dimtedit.left", &json!({ "handles": [a.hex()] })).unwrap();
@@ -320,7 +320,7 @@ fn dimtedit_and_dimspace() {
 
 #[test]
 fn text_style_rename_follows_block_definition_text() {
-    let mut s = Session::new();
+    let mut s = crate::legacy_test_session();
     s.execute("style", &json!({ "name": "SRC", "height": 1, "backwards": true })).unwrap();
     let t = h(&s.execute("text", &json!({ "at": [0, 0], "text": "abc" })).unwrap());
     let m = h(&s.execute("mtext", &json!({ "at": [0, 2], "text": "def", "style": "SRC" })).unwrap());
@@ -349,7 +349,7 @@ fn text_style_rename_follows_block_definition_text() {
 
 #[test]
 fn dimspace_prompts_for_its_inputs() {
-    let mut s = Session::new();
+    let mut s = crate::legacy_test_session();
     let a = h(&s.execute("dimlinear", &json!({ "p1": [0, 0], "p2": [10, 0], "at": [0, 5] })).unwrap());
     let b = h(&s.execute("dimlinear", &json!({ "p1": [0, 0], "p2": [20, 0], "at": [0, 9] })).unwrap());
     // The menu / typed start used to fail with "`base` dimension is required".
@@ -368,7 +368,7 @@ fn dimspace_prompts_for_its_inputs() {
 
 #[test]
 fn text_style_commands() {
-    let mut s = Session::new();
+    let mut s = crate::legacy_test_session();
     let r = s
         .execute(
             "style",
@@ -397,7 +397,7 @@ fn text_style_commands() {
 
 #[test]
 fn table_create_edit_merge() {
-    let mut s = Session::new();
+    let mut s = crate::legacy_test_session();
     let t = h(&s
         .execute(
             "table",
@@ -442,7 +442,7 @@ fn table_create_edit_merge() {
 
 #[test]
 fn table_interactive() {
-    let mut s = Session::new();
+    let mut s = crate::legacy_test_session();
     s.cmdline("table").unwrap();
     s.cmdline("3").unwrap();
     s.cmdline("2").unwrap();
@@ -459,7 +459,7 @@ fn table_interactive() {
 
 #[test]
 fn hostile_annotation_params_never_panic() {
-    let mut s = Session::new();
+    let mut s = crate::legacy_test_session();
     for (id, p) in [
         ("dimstyle", json!({ "name": "X", "DIMDEC": -5, "DIMTAD": 1e300, "DIMCLRD": "nonsense", "DIMBLK": 7 })),
         ("dimoverride", json!({ "handles": ["zz"], "DIMDEC": 1 })),
@@ -483,7 +483,7 @@ fn hostile_annotation_params_never_panic() {
 
 #[test]
 fn mtext_rejects_nonpositive_height() {
-    let mut s = Session::new();
+    let mut s = crate::legacy_test_session();
     for height in [0.0, -2.0] {
         assert!(s.execute("mtext", &json!({ "at": [0, 0], "text": "hi", "height": height })).is_err(), "height {height}");
     }
@@ -495,7 +495,7 @@ fn mtext_rejects_nonpositive_height() {
 #[test]
 fn setvar_dim_variables_apply_to_new_dimensions() {
     // Issue #66: a DIM* variable set with SETVAR is a style override that new dimensions take on.
-    let mut s = Session::new();
+    let mut s = crate::legacy_test_session();
     let linear = |s: &mut Session, y: f64| h(&s.execute("dimlinear", &json!({ "p1": [0, 0], "p2": [100, 0], "at": [50, y] })).unwrap());
     let text_height = |s: &Session, hd: Handle| {
         let d = s.doc().unwrap();
@@ -551,7 +551,7 @@ fn linetype_rename_updates_references() {
         let r = s.execute("line", &json!({ "points": [[0.0, y], [10.0, y]] })).unwrap();
         Handle::parse_hex(r["handles"][0].as_str().unwrap()).unwrap()
     }
-    let mut s = Session::new();
+    let mut s = crate::legacy_test_session();
     s.execute("linetype", &json!({ "load": "DASHED" })).unwrap();
     s.execute("layer.new", &json!({ "name": "A", "linetype": "DASHED", "current": true })).unwrap();
     let by_layer = line(&mut s, 0.0);

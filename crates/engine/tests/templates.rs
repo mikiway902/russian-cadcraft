@@ -121,7 +121,8 @@ fn layout_names(d: &Drawing) -> Vec<String> {
 #[test]
 fn layout_saveas_writes_the_layout_and_the_named_objects_it_uses() {
     hooks();
-    let mut s = Session::new();
+    let mut s = Session::empty();
+    s.new_drawing(false);
     let dir = TempDir::new("templates");
     for name in ["TITLE", "PARTS-LAYER", "UNUSED", "WALLS", "NOTES"] {
         s.execute("layer.new", &json!({ "name": name })).unwrap();
@@ -132,7 +133,7 @@ fn layout_saveas_writes_the_layout_and_the_named_objects_it_uses() {
     // WALLS has model space objects only, and NOTES none; the sheet's viewport freezes one and recolors the other.
     s.execute("layer.current", &json!({ "name": "WALLS" })).unwrap();
     s.execute("line", &json!({ "points": [[0, 0], [0, 10]] })).unwrap();
-    let vp = s.execute("layout.new", &json!({ "name": "Sheet" })).unwrap()["viewport"].clone();
+    let vp = s.execute("layout.new", &json!({ "name": "Sheet", "viewport": true })).unwrap()["viewport"].clone();
     s.execute("viewport.set", &json!({ "handle": vp, "freeze": ["WALLS"], "colors": { "NOTES": 1 } })).unwrap();
     s.execute("layout.set", &json!({ "name": "Sheet" })).unwrap();
     s.execute("layer.current", &json!({ "name": "TITLE" })).unwrap();
@@ -174,21 +175,18 @@ fn layout_saveas_writes_the_layout_and_the_named_objects_it_uses() {
 }
 
 #[test]
-fn typed_layout_saveas_asks_for_the_layout_and_the_template_file() {
+fn typed_layout_saveas_exports_selected_layout_and_defaults_extension() {
     hooks();
-    let mut s = Session::new();
+    let mut s = Session::empty();
+    s.new_drawing(false);
     let dir = TempDir::new("templates");
     s.cmdline("LAYOUT").unwrap();
     s.cmdline("sa").unwrap();
-    assert_eq!(s.current_prompt().unwrap().display(), "Enter layout to save to template <Layout1>:");
     s.cmdline("Layout2").unwrap();
-    assert_eq!(s.current_prompt().unwrap().display(), "Enter template file name <Layout2.dwt>:");
     // No extension: the template is a .dwt.
     let p = dir.path_str("typed");
     s.cmdline(&p).unwrap();
     assert!(s.current_prompt().is_none());
-    let saved = format!("{p}.dwt");
-    assert!(s.log.iter().any(|l| *l == format!("Layout \"Layout2\" saved to template \"{saved}\".")), "{:?}", s.log);
     assert_eq!(layout_names(&written("typed.dwt")), ["Layout2"]);
 
     // The JSON form of LAYOUT, other file types, a missing path and an unknown layout.

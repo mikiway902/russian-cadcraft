@@ -1061,3 +1061,54 @@
 
 # ArtCraft feature naming
 	Additional Tools	Дополнительные инструменты
+	GOST	ГОСТ / ЕСКД
+	GOST / ESKD	ГОСТ / ЕСКД
+	GOST Drawing Setup	Настройка чертежа по ГОСТ
+	GOST Drawing Sheet	Лист чертежа по ГОСТ
+	GOST Drawing Check	Проверка оформления по ГОСТ
+	GOST Center Axes	Осевые линии по ГОСТ
+	GOST Cutting Plane	Обозначение секущей плоскости
+	GOST View Designation	Обозначение вида по ГОСТ
+	GOST Metal Hatch	Штриховка металла по ГОСТ
+	Designation	Обозначение
+	Drawing title	Наименование чертежа
+	Material	Материал
+	Mass	Масса
+	Drawing scale	Масштаб чертежа
+	Sheet number	Номер листа
+	Number of sheets	Количество листов
+	Organization	Организация
+	Developed by	Разработал
+	Checked by	Проверил
+	Standards control	Нормоконтроль
+	Approved by	Утвердил
+	Document version	Версия документа
+	Layout name	Имя листа
+	Paper format	Формат листа
+	Landscape	Альбомная ориентация
+	ESKD profile for millimetre mechanical drawings. This is not a conformity certificate.	Профиль ЕСКД для машиностроительных чертежей в миллиметрах. Это не подтверждение соответствия.
+	Drawing font family or file	Семейство или файл чертёжного шрифта
+	Install and verify a GOST 2.304 font. The built-in font is not verified against GOST.	Установите и проверьте шрифт по ГОСТ 2.304. Соответствие встроенного шрифта ГОСТ не подтверждено.
+	Model units per paper millimetre	Единиц модели на миллиметр бумаги
+	Use 2 for a 1:2 model view; use 1 in paper space. Existing geometry is never rescaled.	Для вида модели 1:2 укажите 2, для пространства листа — 1. Существующая геометрия не масштабируется.
+	Apply GOST Profile	Применить профиль ГОСТ
+	Continuation sheet (form 2a)	Последующий лист (форма 2а)
+	First drawing sheet: form 1, 185 × 55 mm. Continuation: form 2a, 185 × 15 mm.	Первый лист: форма 1, 185 × 55 мм. Последующий: форма 2а, 185 × 15 мм.
+	Empty approval and signature fields remain empty. Edit block attributes for additional fields.	Незаполненные графы согласования и подписей остаются пустыми. Дополнительные графы доступны в атрибутах блока.
+	Create GOST Sheet	Создать лист по ГОСТ
+	Run GOST Check	Проверить оформление
+	Command report (includes unverified and manual requirements)	Отчёт команды (включая непроверенные требования и ручные проверки)
+	Specify first outer cutting-plane stroke end	Укажите первый наружный конец линии сечения
+	Specify last outer cutting-plane stroke end	Укажите последний наружный конец линии сечения
+	Enter Russian section letter	Введите русскую букву обозначения разреза
+	Specify view direction arrow tail	Укажите начало стрелки направления взгляда
+	Specify view direction arrow tip	Укажите остриё стрелки направления взгляда
+	Specify view designation position	Укажите положение обозначения вида
+	Enter Russian view letter	Введите русскую букву обозначения вида
+	About CADCraftGOST	О CADCraftGOST
+	CADCraftGOST Help	Справка CADCraftGOST
+	Quit CADCraftGOST	Выйти из CADCraftGOST
+	OpenGost Type B is included for offline GOST lettering. Verify final printed output.	OpenGost Type B включён для оформления по ГОСТ без установки шрифтов. Проверяйте итоговую печать.
+	Hide CADCraftGOST	Скрыть CADCraftGOST
+	CADCraftGOST is up to date.	У вас последняя версия CADCraftGOST.
+	CADCraftGOST is an independent fork of CADCraft by the ArtCraft team and community.	CADCraftGOST — независимый форк CADCraft, созданного командой ArtCraft и сообществом.

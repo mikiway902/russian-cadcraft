@@ -8,7 +8,7 @@ pub(super) fn session() -> Session {
     set_entity_codec(EntityCodec { groups: cadcraft_io::entity_groups, entity: cadcraft_io::entity_from_groups });
     // ... and non-graphic objects (tables, dictionaries, layouts) as DXF records.
     set_object_records(cadcraft_io::object_records);
-    Session::new()
+    crate::legacy_test_session()
 }
 
 /// Evaluate `code` to the end; its value as `prin1` shows it, or the error message.
@@ -1299,7 +1299,7 @@ fn an_empty_block_has_no_first_entity() {
 
 #[test]
 fn angtof_reads_the_string_in_the_given_units() {
-    let mut s = Session::new();
+    let mut s = crate::legacy_test_session();
     assert_eq!(ok(&mut s, "(angtof \"1.5\" 3)"), "1.5");
     assert_eq!(ok(&mut s, "(angtof \"180\" 0)"), "3.14159");
     assert_eq!(ok(&mut s, "(angtof \"180\" 7)"), "nil");
@@ -1333,7 +1333,7 @@ fn a_lisp_value_at_a_prompt_is_not_evaluated_again() {
 
 #[test]
 fn atof_out_of_range_exponent_reads_whole_token() {
-    let mut s = Session::new();
+    let mut s = crate::legacy_test_session();
     // Overflow must not fall back to a shorter prefix such as "1e40".
     assert_eq!(ok(&mut s, "(> (atof \"1e400\") 1e300)"), "T");
     assert_eq!(ok(&mut s, "(< (atof \"-1e400\") -1e300)"), "T");

@@ -64,7 +64,7 @@ fn convert_long_about() -> &'static str {
     })
 }
 
-/// cadcraft-cli: headless CADCraft
+/// CADCraftGOST headless drawing and automation
 #[derive(Parser)]
 #[command(name = "cadcraft-cli", version = cadcraft_engine::build_version(), arg_required_else_help = true)]
 pub(crate) struct Cli {
@@ -176,8 +176,8 @@ pub(crate) enum ViewMode {
 
 /// Open drawings (or start a new one), run scripts and commands in order, save or export the result
 ///
-/// Drawings open in the order given, and the last one is current; without any, a new imperial
-/// drawing is used. --script, --script-file and --cmd steps run in the order given, and each
+/// Drawings open in the order given, and the last one is current; without any, a new metric
+/// GOST drawing is used. --script, --script-file and --cmd steps run in the order given, and each
 /// --cmd prints its JSON result on one line (JSON lines); a command with no result prints nothing.
 /// An image --export (png 2400x1600, svg, pdf) shows model space:
 /// the current view if the steps changed it (zoom, pan, view.set…), otherwise the drawing
@@ -197,7 +197,7 @@ pub(crate) struct RunArgs {
     /// Open the built-in sample drawing
     #[arg(long)]
     pub(crate) sample: bool,
-    /// Start a new metric drawing
+    /// Start a new metric GOST drawing
     #[arg(long)]
     pub(crate) metric: bool,
     /// Command-line script text to run (`\n` separates lines)

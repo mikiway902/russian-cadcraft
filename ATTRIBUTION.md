@@ -8,9 +8,9 @@ an asset file is missing from this table.
 artwork, fonts, hatch patterns, linetypes, templates or presets.** Every asset is original work by
 CADCraft contributors or third-party material under an open licence (OSI open source, public domain
 / CC0, or Creative Commons that allows redistribution). Screenshots of Autodesk software are never
-committed. Font files are not added here: shared fonts live in
-[storytold/craft-fonts](https://github.com/storytold/craft-fonts), an optional build input. The one
-exception is the ArtCraft brand in `docs/brand/`: ArtCraft trademarks, not open source, used under
+committed. The owner-approved CADCraftGOST exception embeds unmodified OpenGost Type B
+under OFL-1.1; other shared fonts use [craft-fonts](https://github.com/storytold/craft-fonts).
+The other exception is the ArtCraft brand in `docs/brand/`: ArtCraft trademarks, not open source, used under
 `docs/brand/LICENSE-brand.txt`.
 
 Generated-in-code assets are original and have no file to list:
@@ -20,9 +20,11 @@ Generated-in-code assets are original and have no file to list:
   names, our own dash/spacing values);
 - the colour index palette, generated from its structure (`crates/color/src/lib.rs`);
 - the sample drawings (`crates/engine/src/sample.rs`).
+- ESKD sheet geometry and annotation definitions (`crates/engine/src/cmd/gost/`), independently implemented from the public standards linked in `docs/gost.md`; no third-party template or font files copied.
 
 | Asset | Author | Source | Licence | Notes |
 |---|---|---|---|---|
+| `assets/fonts/opengost/OpenGostTypeB-Regular.ttf`, `assets/fonts/opengost/OFL.txt` | Nikita Volchenkov, Valek Filippov, Nadeŭka | [OpenGost Fonts v0.4.0](https://codeberg.org/nadevko/opengostfonts/releases/tag/v0.4.0) | OFL-1.1 | Unmodified plain TTF, embedded offline; SHA-256 `032fc0cf2108d726cfdd2299f542175940929f39cead71756263633a6df1a867`. Not a KOMPAS font. |
 | `licenses/jpeg-encoder-0.6.1/` | jpeg-encoder contributors and Independent JPEG Group | [jpeg-encoder 0.6.1](https://crates.io/crates/jpeg-encoder/0.6.1) | (MIT OR Apache-2.0) AND IJG | Dependency license and SIMD notices; source hashes in SOURCE.json. |
 | `epaint_default_fonts::EGUI_ICONS`, `epaint_default_fonts::EMOJI_ICON` (dependency font inputs) | John Slegers | [egui 173cc737](https://github.com/storytold/egui/tree/6d518fc799681571963842f95b55a6b68431b15a/crates/epaint_default_fonts/fonts), [emoji-icon-font](https://github.com/jslegers/emoji-icon-font) | MIT (Copyright (c) 2014 John Slegers; full upstream text in `NOTICE`) | egui-icons.ttf is the five-glyph subset; emoji-icon-font.ttf is the full monochrome fallback. Registered by the production default font definitions; dependency assets unmodified here, no font file copied into this repository. |
 | `krilla 0.8.2 / icc/sGrey-v2-magic.icc` (dependency-embedded) | Clinton Ingram | [craft-libs 9f89fe8 vendor/krilla/icc/sGrey-v2-magic.icc](https://github.com/storytold/craft-libs/blob/9f89fe8f6d72ab4db4cc06f186381a6a254463ab/vendor/krilla/icc/sGrey-v2-magic.icc) (Krilla 0.8.2 upstream 3ffdf0588cf98050aad6edba51ca70162e1fb5b5) | CC0-1.0 | Embedded by the pinned PDF writer (`craft-pdf` 0.1.0, Krilla 0.8.2); unmodified dependency asset, no file copied into this repository. SHA-256 `4110169287e5f1b5149ca9f1da1814d32943905bba8030e849d1a3b729a19481`. |
@@ -46,6 +48,7 @@ Generated-in-code assets are original and have no file to list:
 | `packaging/macos/dmg/background.svg` | @XusBadia | original work for this repository (2026-10-08), "CADCraft macOS DMG window background"; derived from the CADCraft app icon (`assets/app-icon/`, referenced via `<image>`, not copied); text is outlined Inter / JetBrains Mono glyph paths (OFL fonts the project already uses); no third-party material modified | MIT OR Apache-2.0 (same as the code: `LICENSE-MIT`, `LICENSE-APACHE`) | Finder window background of the macOS DMG; `packaging/macos/dmg/generate.py` renders it to `background.tiff` (see `packaging/macos/dmg/README.md`) |
 | `packaging/macos/dmg/background.tiff` | @XusBadia | Rendered from `packaging/macos/dmg/background.svg` by `packaging/macos/dmg/generate.py` | MIT OR Apache-2.0 (same as the code: `LICENSE-MIT`, `LICENSE-APACHE`) | 1x + 2x HiDPI TIFF for the macOS DMG window; includes the app icon (see its row) and LittleCMS's built-in sRGB profile ("No copyright, use freely") |
 | `examples/apartment.dxf` | CADCraft contributors | sample drawing made with cadcraft-cli commands | MIT OR Apache-2.0 | Original |
+| `examples/gost-a4.scr` | CADCraft contributors | Original command script invoking the native ESKD sheet generator; normative references in `docs/gost.md` | MIT OR Apache-2.0 | Empty A4 form-1 template; no third-party drawing or asset copied |
 | `docs/images/ui-apartment.png` | CADCraft contributors | screenshot of CADCraft itself (examples/apartment.dxf) | MIT OR Apache-2.0 | Original; no Autodesk UI |
 | `docs/images/ui-layout.png` | CADCraft contributors | screenshot of CADCraft itself (a layout of examples/apartment.dxf) | MIT OR Apache-2.0 | Original; no Autodesk UI |
 | `docs/images/ui-bracket.png` | CADCraft contributors | screenshot of CADCraft itself (sample drawing generated in code) | MIT OR Apache-2.0 | Original; no Autodesk UI |

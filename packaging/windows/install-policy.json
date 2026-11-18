@@ -1,6 +1,6 @@
 {
   "id": "cadcraft",
-  "name": "CADCraft",
+  "name": "CADCraftGOST",
   "upgradeCode": "119D7D76-0167-4A9E-8F37-09DA0235F68E",
   "sources": [
     "cadcraft.wxs"
