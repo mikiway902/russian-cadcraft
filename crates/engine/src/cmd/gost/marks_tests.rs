@@ -118,15 +118,17 @@ fn weld_edits_rebuild_side_type_flags_leader_and_segment_label() {
     let r = weld(&mut s, &json!({"at":[0,0],"type":"fillet","size":4})).unwrap();
     let h = handle(&r);
     let before = block(&s, h);
-    let r = edit(&mut s, &json!({"handle":h.hex(),"patch":{"type":"butt","size":8,"length":30,"pitch":60,"continuous":false,"side":"other","field":true,"allAround":true,"leader":[-25,-14]}})).unwrap();
+    let r = edit(&mut s, &json!({"handle":h.hex(),"patch":{"type":"butt","size":null,"length":30,"pitch":60,"continuous":false,"side":"other","field":true,"allAround":true,"leader":[-25,-14]}})).unwrap();
     let after = block(&s, h);
-    assert_eq!(labels(&before), vec!["4"]);
-    assert_eq!(labels(&after), vec!["8-30/60"]);
+    assert!(labels(&before).join("").contains("ГОСТ 5264-80-Т1-"));
+    let designation = labels(&after).join("");
+    assert!(designation.contains("ГОСТ 5264-80-С1-") && designation.contains("30") && designation.ends_with("60"));
     assert_ne!(kinds(&before), kinds(&after));
     assert!(after.entities.iter().any(|e| matches!(e.kind, EntityKind::Circle(_))));
     assert_eq!(r["parameters"]["continuous"], false);
     edit(&mut s, &json!({"handle":h.hex(),"patch":{"continuous":true,"pitch":null}})).unwrap();
-    assert_eq!(labels(&block(&s, h)), vec!["8-30"]);
+    let designation = labels(&block(&s, h)).join("");
+    assert!(designation.contains("ГОСТ 5264-80-С1-") && designation.ends_with("30"));
 }
 
 #[test]

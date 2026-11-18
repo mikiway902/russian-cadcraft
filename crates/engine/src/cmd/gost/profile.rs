@@ -263,7 +263,7 @@ fn finding(findings: &mut Vec<Value>, severity: &str, code: &str, location: &str
     findings.push(json!({ "severity": severity, "code": code, "location": location, "message": message, "actual": actual, "expected": expected }));
 }
 
-fn check_dimension_style(st: &DimStyle, location: &str, findings: &mut Vec<Value>) {
+fn check_dimension_style(st: &DimStyle, location: &str, findings: &mut Vec<Value>, expected_factor: f64) {
     // Exact-value findings below are deviations from THIS preset, not a claim that
     // alternative valid GOST sizes or precision choices violate the standard.
     macro_rules! preset {
@@ -299,7 +299,7 @@ fn check_dimension_style(st: &DimStyle, location: &str, findings: &mut Vec<Value
     preset!(dim_line_color, Color::Index(7));
     preset!(ext_line_color, Color::Index(7));
     preset!(text_color, Color::Index(7));
-    preset!(linear_factor, 1.0);
+    preset!(linear_factor, expected_factor);
     preset!(linear_unit, 2);
     preset!(angular_unit, 0);
     preset!(tick_size, 0.0);
@@ -456,7 +456,7 @@ fn run_check(s: &mut Session, _p: &Value) -> Result<Value> {
     }
     check_text_style(d, &mut findings);
     if let Some(st) = d.dim_style(NAME) {
-        check_dimension_style(st, "dimStyle.GOST", &mut findings);
+        check_dimension_style(st, "dimStyle.GOST", &mut findings, 1.0);
     }
     for &(name, _, pattern) in LINETYPES {
         if let Some(lt) = d.linetype(name)
@@ -534,6 +534,7 @@ fn run_check(s: &mut Session, _p: &Value) -> Result<Value> {
         }
     }
     let (sheets, mut truncated) = check_sheets(d, &mut findings);
+    findings.extend(super::projection::link_findings(d));
     let mut dimensions = 0usize;
     let entities = d.model.iter().chain(d.layouts.iter().flat_map(|l| l.entities.iter())).chain(d.blocks.values().flat_map(|b| b.entities.iter()));
     // Finding output is bounded independently of the number of imported entities.
@@ -556,6 +557,7 @@ fn run_check(s: &mut Session, _p: &Value) -> Result<Value> {
                 json!(NAME),
             );
         }
+        let projection_factor = super::projection::dimension_factor(d, entity);
         if let Some(base) = d.dim_style(&dim.style) {
             let effective;
             let style = if dim.overrides.is_empty() {
@@ -564,7 +566,7 @@ fn run_check(s: &mut Session, _p: &Value) -> Result<Value> {
                 effective = base.with_overrides(&dim.overrides);
                 &effective
             };
-            check_dimension_style(style, &location, &mut findings);
+            check_dimension_style(style, &location, &mut findings, projection_factor.unwrap_or(1.0));
         } else {
             finding(
                 &mut findings,
@@ -587,7 +589,7 @@ fn run_check(s: &mut Session, _p: &Value) -> Result<Value> {
                 json!("measured value or <> placeholder"),
             );
         }
-        if dim.assoc.is_empty() {
+        if dim.assoc.is_empty() && projection_factor.is_none() {
             finding(
                 &mut findings,
                 "warning",

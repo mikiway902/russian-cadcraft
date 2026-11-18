@@ -20,7 +20,7 @@ const TOL: &str = "gost.tolerance";
 const LIMITS: &[&str] = &[
     "Native 2D drafting geometry, not manufacturing verification or an associative attachment to a part.",
     "Thread geometry is a conventional symbolic representation, never a modeled 3D helix; basic metric profile only, without fits or runout.",
-    "Welds support generic fillet/butt indications; process-specific standard/joint codes and inspection requirements must be specified separately by the author.",
+    "Weld notation includes a joint standard/code and optional process; the selected joint, materials and inspection requirements still require engineering verification against that standard.",
 ];
 
 pub(super) fn specs() -> Vec<CommandSpec> {
@@ -31,7 +31,7 @@ pub(super) fn specs() -> Vec<CommandSpec> {
             .interactive(|_| Ok(Box::new(CreateM::new("gost.roughness", "GOST.ROUGHNESS")))),
         CommandSpec::new("gost.weld", "GOST Weld", weld)
             .menu(&["Format", "GOST", "GOST Weld"])
-            .params("{at:[x,y]: shelf/leader junction, type:fillet|butt, size:positive mm (fillet leg/butt thickness), length?:positive mm|null, pitch?:positive mm|null, side?:arrow|other, continuous?:bool (true; false requires length<pitch), field?:bool, allAround?:bool, leader?:[dx,dy] in local PAPER mm from junction (default [-12,-10]), scale?,textHeight?,rotation?} → native editable 2D symbol; no process-specific joint code inferred")
+            .params("{at:[x,y]: shelf/leader junction,type:fillet|butt,size?:positive fillet leg (required for fillet, absent for butt),standard?:ГОСТ 5264-80,joint?:Cyrillic letter+number (default Т1 for fillet, С1 for butt),method?:string,length?,pitch?,staggered?:bool,side?:arrow|other,continuous?:bool,field?:bool,allAround?:bool,leader?:[dx,dy] in paper mm ([-12,-10]),scale?,textHeight?,rotation?}; GOST 2.312 notation, engineer must verify selected joint/process standard")
             .interactive(|_| Ok(Box::new(CreateM::new("gost.weld", "GOST.WELD")))),
         CommandSpec::new("gost.thread", "GOST Symbolic Thread", thread)
             .menu(&["Format", "GOST", "GOST Symbolic Thread"])
@@ -151,7 +151,16 @@ struct Roughness {
 struct Weld {
     #[serde(rename = "type")]
     weld_type: WeldType,
-    size: f64,
+    #[serde(default)]
+    size: Option<f64>,
+    #[serde(default = "weld_standard")]
+    standard: String,
+    #[serde(default)]
+    joint: Option<String>,
+    #[serde(default)]
+    method: Option<String>,
+    #[serde(default)]
+    staggered: bool,
     #[serde(default)]
     length: Option<f64>,
     #[serde(default)]
@@ -170,6 +179,17 @@ struct Weld {
     scale: f64,
     #[serde(default = "height")]
     text_height: f64,
+}
+fn weld_standard() -> String {
+    "ГОСТ 5264-80".into()
+}
+impl Weld {
+    fn joint(&self) -> &str {
+        self.joint.as_deref().unwrap_or(match self.weld_type {
+            WeldType::Fillet => "Т1",
+            WeldType::Butt => "С1",
+        })
+    }
 }
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -287,7 +307,33 @@ impl Symbol {
                 }
             }
             Self::Weld(q) => {
-                number(cmd, "size", q.size, 0.01, 10000.0)?;
+                match (q.weld_type, q.size) {
+                    (WeldType::Fillet, Some(size)) => number(cmd, "fillet leg", size, 0.01, 10000.0)?,
+                    (WeldType::Butt, None) => {}
+                    _ => return Err(bad(cmd, "fillet welds require size; butt welds must omit the fillet-leg size")),
+                }
+                if q.standard.chars().count() > 64 || !q.standard.starts_with("ГОСТ ") || q.standard.chars().any(char::is_control) {
+                    return Err(bad(cmd, "standard must be a single-line ГОСТ reference, at most 64 characters"));
+                }
+                let mut joint = q.joint().chars();
+                let first = joint.next();
+                let digits = joint.as_str();
+                if digits.is_empty()
+                    || digits.len() > 3
+                    || !digits.bytes().all(|c| c.is_ascii_digit())
+                    || match q.weld_type {
+                        WeldType::Fillet => !matches!(first, Some('Т' | 'У' | 'Н')),
+                        WeldType::Butt => first != Some('С'),
+                    }
+                {
+                    return Err(bad(cmd, "joint must be С+digits for butt, Т/У/Н+digits for fillet (Cyrillic)"));
+                }
+                if q.method.as_ref().is_some_and(|s| s.is_empty() || s.chars().count() > 16 || !s.chars().all(|c| c.is_alphanumeric())) {
+                    return Err(bad(cmd, "method must be a nonempty alphanumeric process code, at most 16 characters"));
+                }
+                if q.staggered && q.continuous {
+                    return Err(bad(cmd, "staggered arrangement requires an intermittent weld"));
+                }
                 for (name, v) in [("length", q.length), ("pitch", q.pitch)] {
                     if let Some(v) = v {
                         number(cmd, name, v, 0.01, 1e6)?;
@@ -471,41 +517,63 @@ impl Geometry {
         let h = q.text_height * q.scale;
         let tip = Vec2::new(q.leader[0], q.leader[1]) * q.scale;
         self.line(tip, Vec2::ZERO, false);
-        self.arrow(tip, Vec2::ZERO, h);
+        // GOST 2.312 §1.1: one-sided arrow, not a symmetric dimension arrow.
+        let u = (-tip).normalized();
+        let a = tip + u * h;
+        let b = a + u.perp() * (h * 0.36);
+        self.push("GOST-THIN", EntityKind::Solid(Solid { corners: [tip.to3(0.0), a.to3(0.0), b.to3(0.0), b.to3(0.0)] }));
         let y = if q.side == WeldSide::Arrow { h * 0.35 } else { -h * 1.35 };
-        let x = h * 0.8;
-        let mut label = decimal(q.size);
-        if let Some(l) = q.length {
-            label.push('-');
-            label.push_str(&decimal(l));
+        let mut prefix = format!("{}-{}", q.standard, q.joint());
+        if let Some(method) = &q.method {
+            prefix.push('-');
+            prefix.push_str(method);
         }
-        if let Some(p) = q.pitch {
-            label.push('/');
-            label.push_str(&decimal(p));
+        let mut x = h * 0.8;
+        let start = x;
+        if q.size.is_some() || q.length.is_some() {
+            prefix.push('-');
         }
-        let width = self.text(Vec2::new(x + h * 1.4, y), label, h);
-        let base = Vec2::new(x, if q.side == WeldSide::Arrow { 0.0 } else { -h });
-        match q.weld_type {
-            WeldType::Fillet => {
-                self.line(base, base + Vec2::new(0.0, h), false);
-                self.line(base + Vec2::new(0.0, h), base + Vec2::new(h, 0.0), false);
-                self.line(base + Vec2::new(h, 0.0), base, false);
-            }
-            WeldType::Butt => {
-                for dx in [0.0, h * 0.6] {
-                    self.line(base + Vec2::new(dx, 0.0), base + Vec2::new(dx, h), false);
-                }
+        x += self.text(Vec2::new(x, y), prefix, h);
+        if let Some(size) = q.size {
+            let base = Vec2::new(x, y);
+            self.line(base, base + Vec2::new(0.0, h), false);
+            self.line(base + Vec2::new(0.0, h), base + Vec2::new(h, 0.0), false);
+            self.line(base + Vec2::new(h, 0.0), base, false);
+            x += h * 1.25;
+            x += self.text(Vec2::new(x, y), decimal(size), h);
+            if q.length.is_some() {
+                x += self.text(Vec2::new(x, y), "-".into(), h);
             }
         }
-        self.line(Vec2::ZERO, Vec2::new(x + 2.2 * h + width, 0.0), false);
+        if let Some(length) = q.length {
+            x += self.text(Vec2::new(x, y), decimal(length), h);
+        }
+        if let Some(pitch) = q.pitch {
+            x += h * 0.2;
+            if q.staggered {
+                let a = Vec2::new(x, y + h);
+                let b = Vec2::new(x + h * 0.7, y + h);
+                let c = Vec2::new(x, y);
+                let d = Vec2::new(x + h * 0.7, y);
+                self.line(a, b, false);
+                self.line(b, c, false);
+                self.line(c, d, false);
+                x += h * 0.9;
+            } else {
+                let dx = h / 3.0_f64.sqrt();
+                self.line(Vec2::new(x, y), Vec2::new(x + dx, y + h), false);
+                x += dx + h * 0.2;
+            }
+            x += self.text(Vec2::new(x, y), decimal(pitch), h);
+        }
+        self.line(Vec2::ZERO, Vec2::new(x + start, 0.0), false);
         if q.all_around {
-            self.circle(Vec2::ZERO, h * 0.3, false);
+            self.circle(Vec2::ZERO, 2.0 * q.scale, false);
         }
         if q.field {
-            let top = Vec2::new(0.0, 2.5 * h);
+            let top = Vec2::new(0.0, h);
             self.line(Vec2::ZERO, top, false);
-            self.line(top, top + Vec2::new(h, -h * 0.4), false);
-            self.line(top + Vec2::new(h, -h * 0.4), top + Vec2::new(0.0, -h * 0.8), false);
+            self.line(top, top + Vec2::new(-h * 0.7, 0.0), false);
         }
     }
     fn thread(&mut self, q: &Thread) {

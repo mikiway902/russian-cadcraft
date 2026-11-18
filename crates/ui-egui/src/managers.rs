@@ -18,6 +18,12 @@ use crate::{CadApp, Pick};
 /// The Block Attribute Manager (BATTMAN).
 mod battman;
 mod gost;
+mod gost_book;
+mod gost_marks;
+mod gost_position;
+mod gost_projection;
+mod gost_requirements;
+mod gost_specification;
 /// Named Viewports (View > Viewports > Named Viewports...).
 mod named_vports;
 
@@ -31,6 +37,21 @@ pub fn route(app: &mut CadApp, id: &str, params: &Value) -> Option<Result<Value,
         "gost.setup" => "gostsetup",
         "gost.sheet" => "gostsheet",
         "gost.check" => "gostcheck",
+        "gost.document" => "gostdocument",
+        "gost.sheet.set" => "gostsheetproperties",
+        "gost.roughness" => "gostroughness",
+        "gost.weld" => "gostweld",
+        "gost.thread" => "gostthread",
+        "gost.symbol.edit" => "gostsymboledit",
+        "gost.tolerance" => "gosttolerance",
+        "gost.requirements" | "gost.requirements.templates" => "gostrequirements",
+        "gost.specification" | "gost.specification.edit" => "gostspecification",
+        "gost.position" => "gostposition",
+        "gost.position.edit" => "gostpositionedit",
+        "gost.solid" => "gostsolid",
+        "gost.projection" => "gostprojection",
+        "gost.section.view" => "gostsectionview",
+        "gost.projection.dimension" => "gostviewdimension",
         "battman" => "battman",
         "linetype" | "lt" | "ltype" => "linetype",
         "ddptype" | "ptype" => "ptype",
@@ -54,6 +75,12 @@ pub fn route(app: &mut CadApp, id: &str, params: &Value) -> Option<Result<Value,
 pub fn dialog(app: &mut CadApp, ctx: &egui::Context, name: &str, open: &mut bool) {
     let action = match name {
         "gostsetup" | "gostsheet" | "gostcheck" => gost::dialog(app, ctx, name, open),
+        "gostdocument" | "gostsheetproperties" => gost_book::dialog(app, ctx, name, open),
+        "gostroughness" | "gostweld" | "gostthread" | "gostsymboledit" | "gosttolerance" => gost_marks::dialog(app, ctx, name, open),
+        "gostrequirements" => gost_requirements::dialog(app, ctx, open),
+        "gostspecification" => gost_specification::dialog(app, ctx, open),
+        "gostposition" | "gostpositionedit" => gost_position::dialog(app, ctx, name, open),
+        "gostsolid" | "gostprojection" | "gostsectionview" | "gostviewdimension" => gost_projection::dialog(app, ctx, name, open),
         "battman" => battman::dialog(app, ctx, open),
         "linetype" => linetype(app, ctx, open),
         "ptype" => point_style(app, ctx, open),

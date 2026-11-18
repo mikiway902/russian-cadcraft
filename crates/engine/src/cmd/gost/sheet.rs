@@ -310,7 +310,7 @@ impl SheetGeometry {
         self.field(q, "SHEET", "2", (x + 180.0, 10.0), 3.5, 0.0);
     }
 
-    fn supplementary(&mut self, q: &SheetParams, w: f64, h: f64, x: f64) {
+    fn supplementary(&mut self, q: &SheetParams, w: f64, h: f64, x: f64, graphical: bool) {
         // Fields 19–23: 5-mm caption + 7-mm value columns, rotated 90°.
         let mut y = 5.0;
         self.line((8.0, 5.0), (20.0, 5.0), true);
@@ -330,11 +330,11 @@ impl SheetGeometry {
         }
         // Field 26: 70×14, rotated with the short/long-side placement (table 1).
         let designation = q.values.get("DESIGNATION").map_or("", String::as_str);
-        if q.format == "A4" || q.landscape {
+        if graphical && (q.format == "A4" || q.landscape) {
             self.line((20.0, h - 19.0), (90.0, h - 19.0), true);
             self.line((90.0, h - 19.0), (90.0, h - 5.0), true);
             self.field(q, "DESIGNATION_TOP", designation, (55.0, h - 12.0), 7.0, std::f64::consts::PI);
-        } else {
+        } else if graphical {
             self.line((w - 19.0, h - 75.0), (w - 5.0, h - 75.0), true);
             self.line((w - 19.0, h - 5.0), (w - 19.0, h - 75.0), true);
             self.field(q, "DESIGNATION_TOP", designation, (w - 12.0, h - 40.0), 7.0, std::f64::consts::FRAC_PI_2);
@@ -360,7 +360,7 @@ impl SheetGeometry {
         } else {
             g.subsequent(q, x);
         }
-        g.supplementary(q, w, h, x);
+        g.supplementary(q, w, h, x, true);
         for tag in q.values.keys() {
             if strict && !g.tags.contains(tag) {
                 return Err(bad(CMD, format!("unknown or inapplicable attribute `{tag}` for this form")));
@@ -413,6 +413,91 @@ fn field_width(tag: &str, first: bool) -> f64 {
     }
 }
 
+/// Text-document forms 2/2a, appendix B. No rotated graphical-only field 26.
+pub(super) fn text_document(
+    d: &cadcraft_doc::Drawing,
+    fields: &BTreeMap<String, String>,
+    number: usize,
+    count: usize,
+) -> Result<Vec<(Common, EntityKind)>> {
+    let first = number == 1;
+    let mut values = fields.clone();
+    values.insert("SHEET".into(), number.to_string());
+    values.insert("SHEETS".into(), count.to_string());
+    let q =
+        SheetParams { layout: String::new(), block: String::new(), format: "A4".into(), portrait: (210.0, 297.0), landscape: false, first, values };
+    let mut g = SheetGeometry::new();
+    g.rect(20.0, 5.0, 185.0, 287.0);
+    let x = 20.0;
+    if first {
+        g.line((x, 45.0), (x + 185.0, 45.0), true);
+        for col in [17.0, 40.0, 55.0, 65.0] {
+            g.line((x + col, 5.0), (x + col, 30.0), true);
+        }
+        for row in 1..=5 {
+            g.line((x, 5.0 + f64::from(row) * 5.0), (x + 65.0, 5.0 + f64::from(row) * 5.0), row == 5);
+        }
+        for (row, (key, label)) in
+            [("DEVELOPER", "Разраб."), ("CHECKER", "Пров."), ("EXTRA_ROLE", ""), ("NORM_CONTROL", "Н. контр."), ("APPROVER", "Утв.")]
+                .into_iter()
+                .enumerate()
+        {
+            let y = 27.5 - row as f64 * 5.0;
+            if label.is_empty() {
+                g.field(&q, "EXTRA_ROLE_LABEL", "", (x + 8.5, y), 2.5, 0.0);
+            } else {
+                g.label(label, x + 8.5, y);
+            }
+            g.field(&q, key, "", (x + 28.5, y), 2.5, 0.0);
+            g.field(&q, &format!("{key}_SIGNATURE"), "", (x + 47.5, y), 2.5, 0.0);
+            g.field(&q, &format!("{key}_DATE"), "", (x + 60.0, y), 2.5, 0.0);
+        }
+        g.revisions(&q, x, 30.0, 2);
+        g.line((x + 65.0, 30.0), (x + 185.0, 30.0), true);
+        g.line((x + 135.0, 5.0), (x + 135.0, 30.0), true);
+        g.line((x + 135.0, 20.0), (x + 185.0, 20.0), true);
+        g.line((x + 135.0, 25.0), (x + 185.0, 25.0), false);
+        for col in [150.0, 165.0] {
+            g.line((x + col, 20.0), (x + col, 30.0), true);
+        }
+        for col in [140.0, 145.0] {
+            g.line((x + col, 20.0), (x + col, 25.0), false);
+        }
+        g.line((x + 175.0, 30.0), (x + 175.0, 45.0), true);
+        g.line((x + 175.0, 40.0), (x + 185.0, 40.0), false);
+        g.field(&q, "TITLE", "", (x + 100.0, 17.5), 5.0, 0.0);
+        g.field(&q, "DESIGNATION", "", (x + 120.0, 37.5), 5.0, 0.0);
+        g.label("Лит.", x + 142.5, 27.5);
+        g.label("Лист", x + 157.5, 27.5);
+        g.label("Листов", x + 175.0, 27.5);
+        g.label("Вер.", x + 180.0, 42.5);
+        for n in 1..=3 {
+            g.field(&q, &format!("LITERA{n}"), "", (x + 132.5 + f64::from(n) * 5.0, 22.5), 3.5, 0.0);
+        }
+        g.field(&q, "SHEET", "1", (x + 157.5, 22.5), 3.5, 0.0);
+        g.field(&q, "SHEETS", "1", (x + 175.0, 22.5), 3.5, 0.0);
+        g.field(&q, "ORG", "", (x + 160.0, 12.5), 3.5, 0.0);
+        g.field(&q, "VERSION", "", (x + 180.0, 35.0), 3.5, 0.0);
+    } else {
+        g.subsequent(&q, x);
+    }
+    g.supplementary(&q, 210.0, 297.0, x, false);
+    g.fit_fields(&q, d, &json!({}))?;
+    // Values are managed by the specification record, not independent duplicated attributes.
+    Ok(g.entities
+        .into_iter()
+        .map(|(common, kind)| {
+            (
+                common,
+                match kind {
+                    EntityKind::AttDef(a) => EntityKind::Text(a.text),
+                    kind => kind,
+                },
+            )
+        })
+        .collect())
+}
+
 /// Fixed, validated empty A4 form: no parsing, runtime commands or fallible I/O.
 pub(super) fn initial(d: &mut cadcraft_doc::Drawing) {
     let q = SheetParams {
@@ -427,7 +512,7 @@ pub(super) fn initial(d: &mut cadcraft_doc::Drawing) {
     let mut geometry = SheetGeometry::new();
     geometry.rect(20.0, 5.0, 185.0, 287.0);
     geometry.first(&q, 20.0);
-    geometry.supplementary(&q, 210.0, 297.0, 20.0);
+    geometry.supplementary(&q, 210.0, 297.0, 20.0, true);
     append(d, &q, geometry);
 }
 

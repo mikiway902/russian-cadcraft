@@ -13,6 +13,7 @@ struct State {
     format: String,
     landscape: bool,
     continuation: bool,
+    automatic: bool,
     font: String,
     scale: f64,
     fields: Vec<(&'static str, String)>,
@@ -28,7 +29,12 @@ fn initial(app: &CadApp) -> State {
         layout,
         format: "A4".into(),
         landscape: false,
-        continuation: false,
+        continuation: d.is_some_and(|d| {
+            d.layouts.iter().any(|l| {
+                l.entities.iter().any(|e| matches!(&e.kind, cadcraft_engine::doc::EntityKind::Insert(i) if i.block.starts_with("GOST-SHEET-")))
+            })
+        }),
+        automatic: true,
         font: d.and_then(|d| d.text_style("GOST")).map_or_else(|| cadcraft_fonts::GOST_FONT.into(), |s| s.font.clone()),
         scale: d.and_then(|d| d.dim_style("GOST")).map_or(1.0, |s| s.scale),
         fields: [
@@ -131,11 +137,17 @@ pub(super) fn dialog(app: &mut CadApp, ctx: &egui::Context, name: &str, open: &m
                 ui.add_enabled_ui(st.format != "A4", |ui| {
                     ui.checkbox(&mut st.landscape, crate::tl!("Landscape"));
                 });
-                ui.checkbox(&mut st.continuation, crate::tl!("Continuation sheet (form 2a)"));
+                ui.checkbox(&mut st.automatic, crate::tl!("Automatic drawing-book sheet"));
+                ui.add_enabled_ui(!st.automatic, |ui| {
+                    ui.checkbox(&mut st.continuation, crate::tl!("Continuation sheet (form 2a)"));
+                });
                 ui.label(crate::tl!("First drawing sheet: form 1, 185 × 55 mm. Continuation: form 2a, 185 × 15 mm."));
                 ui.separator();
                 egui::Grid::new("gost_title_fields").num_columns(2).show(ui, |ui| {
                     for (tag, value) in &mut st.fields {
+                        if st.automatic && matches!(*tag, "SHEET" | "SHEETS") {
+                            continue;
+                        }
                         if st.continuation && !matches!(*tag, "DESIGNATION" | "VERSION" | "SHEET") {
                             continue;
                         }
@@ -149,15 +161,20 @@ pub(super) fn dialog(app: &mut CadApp, ctx: &egui::Context, name: &str, open: &m
                     let fields: serde_json::Map<String, Value> = st
                         .fields
                         .iter()
-                        .filter(|(k, v)| !v.trim().is_empty() && (!st.continuation || matches!(*k, "DESIGNATION" | "VERSION" | "SHEET")))
+                        .filter(|(k, v)| {
+                            !v.trim().is_empty()
+                                && (!st.continuation || matches!(*k, "DESIGNATION" | "VERSION" | "SHEET"))
+                                && (!st.automatic || !matches!(*k, "SHEET" | "SHEETS"))
+                        })
                         .map(|(k, v)| ((*k).into(), json!(v.trim())))
                         .collect();
-                    action = Some((
-                        "gost.sheet",
-                        json!({"layout": st.layout.trim(), "format": st.format,
-                        "landscape": st.landscape, "form": if st.continuation { "2a" } else { "1" },
-                        "font": st.font.trim(), "fields": fields}),
-                    ));
+                    let mut params = json!({"layout": st.layout.trim(), "format": st.format,
+                        "landscape": st.landscape, "automatic": st.automatic,
+                        "font": st.font.trim(), "fields": fields});
+                    if !st.automatic {
+                        params["form"] = json!(if st.continuation { "2a" } else { "1" });
+                    }
+                    action = Some(("gost.sheet", params));
                 }
             } else if ui.button(crate::tl!("Run GOST Check")).clicked() {
                 action = Some(("gost.check", json!({})));
@@ -168,6 +185,23 @@ pub(super) fn dialog(app: &mut CadApp, ctx: &egui::Context, name: &str, open: &m
             if let Some(result) = &st.result {
                 ui.separator();
                 ui.label(crate::tl!("Command report (includes unverified and manual requirements)"));
+                if name == "gostcheck"
+                    && let Some(findings) = result.get("findings").and_then(Value::as_array)
+                {
+                    for (index, finding) in findings.iter().enumerate() {
+                        ui.push_id(index, |ui| {
+                            ui.group(|ui| {
+                                ui.label(format!("{} · {}", finding["severity"].as_str().unwrap_or(""), finding["code"].as_str().unwrap_or("")));
+                                ui.label(finding["message"].as_str().unwrap_or(""));
+                                if finding.get("handles").and_then(Value::as_array).is_some_and(|a| !a.is_empty())
+                                    && ui.button(crate::tl!("Show finding")).clicked()
+                                {
+                                    action = Some(("gost.check.show", json!({"space":finding["space"],"handles":finding["handles"]})));
+                                }
+                            });
+                        });
+                    }
+                }
                 if let Ok(t) = serde_json::to_string_pretty(result) {
                     ui.add(egui::Label::new(egui::RichText::new(t).monospace()).wrap());
                 }
@@ -181,7 +215,9 @@ pub(super) fn dialog(app: &mut CadApp, ctx: &egui::Context, name: &str, open: &m
     if let Some((cmd, params)) = action {
         match app.run(cmd, params) {
             Ok(v) => {
-                st.result = Some(v);
+                if cmd != "gost.check.show" {
+                    st.result = Some(v);
+                }
                 st.error = None;
                 // Keep the sheet report visible: it includes limitations and font warnings.
             }

@@ -17,14 +17,15 @@ fn small_circle_axes_are_continuous_and_ignore_current_entity_overrides() {
     s.execute("setvar", &json!({"name":"CECOLOR", "value":1})).unwrap();
     s.execute("setvar", &json!({"name":"THICKNESS", "value":9})).unwrap();
     let result = s.execute("gost.center", &json!({"handles":[c]})).unwrap();
-    for raw in result["handles"].as_array().unwrap() {
-        let h = cadcraft_doc::Handle::parse_hex(raw.as_str().unwrap()).unwrap();
-        let e = s.doc().unwrap().model.get(h).unwrap();
+    let h = cadcraft_doc::Handle::parse_hex(result["handles"][0].as_str().unwrap()).unwrap();
+    let EntityKind::Insert(i) = &s.doc().unwrap().entity(h).unwrap().kind else { panic!("expected centre object") };
+    assert_eq!(i.insert.xy(), Vec2::new(20.0, 20.0));
+    for e in s.doc().unwrap().block(&i.block).unwrap().entities.iter() {
         assert_eq!(e.common.layer, "GOST-THIN");
         assert_eq!(e.common.color, cadcraft_doc::color::Color::ByLayer);
         assert_eq!(e.common.thickness, 0.0);
         let EntityKind::Line(l) = &e.kind else { panic!("expected axis") };
-        assert_eq!(l.a.xy(), Vec2::new(20.0, 20.0));
+        assert_eq!(l.a.xy(), Vec2::ZERO);
         assert!((l.a.xy().dist(l.b.xy()) - 8.0).abs() < 1e-9);
     }
 }
@@ -80,15 +81,9 @@ fn dashed_axes_intersect_and_end_on_strokes_despite_global_linetype_scale() {
     let c = s.execute("circle", &json!({"center":[0,0], "radius":20})).unwrap()["handle"].as_str().unwrap().to_owned();
     s.execute("setvar", &json!({"name":"LTSCALE", "value":7})).unwrap();
     let out = s.execute("gost.center", &json!({"handles":[c]})).unwrap();
-    let axes: Vec<_> = out["handles"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|v| {
-            let h = cadcraft_doc::Handle::parse_hex(v.as_str().unwrap()).unwrap();
-            s.doc().unwrap().model.get(h).unwrap()
-        })
-        .collect();
+    let h = cadcraft_doc::Handle::parse_hex(out["handles"][0].as_str().unwrap()).unwrap();
+    let EntityKind::Insert(i) = &s.doc().unwrap().entity(h).unwrap().kind else { panic!("expected centre object") };
+    let axes: Vec<_> = s.doc().unwrap().block(&i.block).unwrap().entities.iter().collect();
     for tip in [Vec2::new(23.0, 0.0), Vec2::new(-23.0, 0.0), Vec2::new(0.0, 23.0), Vec2::new(0.0, -23.0)] {
         assert!(axes.iter().any(|e| matches!(&e.kind, EntityKind::Line(l) if l.b.xy() == tip)));
     }

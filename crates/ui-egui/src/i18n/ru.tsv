@@ -1112,3 +1112,177 @@
 	Hide CADCraftGOST	Скрыть CADCraftGOST
 	CADCraftGOST is up to date.	У вас последняя версия CADCraftGOST.
 	CADCraftGOST is an independent fork of CADCraft by the ArtCraft team and community.	CADCraftGOST — независимый форк CADCraft, созданного командой ArtCraft и сообществом.
+	GOST Document Properties	Реквизиты документа ГОСТ
+	GOST Sheet Properties	Свойства листа ГОСТ
+	Synchronize GOST Sheets	Синхронизировать листы ГОСТ
+	Managed sheets share document properties; numbering and first/continuation forms update automatically.	Управляемые листы используют общие реквизиты; номера и формы первого и последующих листов обновляются автоматически.
+	Apply common properties	Применить общие реквизиты
+	Automatic drawing-book sheet	Автоматический лист документа
+	Turning automatic mode off makes this an independent sheet, excluded from book numbering.	При отключении автоматического режима лист становится независимым и исключается из нумерации документа.
+	Apply sheet properties	Применить свойства листа
+	Show sheet	Показать лист
+	Move up	Переместить выше
+	Move down	Переместить ниже
+	Reload properties	Обновить реквизиты
+	Show finding	Показать проблему
+	GOST Roughness	Шероховатость ГОСТ
+	GOST Weld	Обозначение сварки ГОСТ
+	GOST Symbolic Thread	Условное обозначение резьбы ГОСТ
+	Edit GOST Engineering Symbol	Изменить инженерное обозначение ГОСТ
+	Inspect GOST Engineering Symbol	Сведения об инженерном обозначении ГОСТ
+	GOST Geometric Tolerance	Геометрический допуск ГОСТ
+	GOST Technical Requirements	Технические требования ГОСТ
+	Inspect Technical Requirements	Сведения о технических требованиях
+	Technical Requirement Templates	Типовые технические требования
+	Developer	Разработал
+	Checker	Проверил
+	Norm control	Нормоконтроль
+	Approver	Утвердил
+	Technical control	Технический контроль
+	Additional approver	Дополнительное согласование
+	Original inventory number	Инвентарный номер подлинника
+	Duplicate inventory number	Инвентарный номер дубликата
+	Replaces inventory number	Взамен инвентарного номера
+	Original inventory approval	Подпись подлинника
+	Duplicate inventory approval	Подпись дубликата
+	Copied by	Копировал
+	Document letter 1	Литера 1
+	Document letter 2	Литера 2
+	Document letter 3	Литера 3
+	Document number	Номер документа
+	Signature	Подпись
+	Revision	Изменение
+	GOST Engineering Symbol	Инженерное обозначение ГОСТ
+	Editable native geometry. Verify manufacturing requirements and final printed output.	Редактируемая геометрия. Проверяйте технологические требования и итоговую печать.
+	Roughness parameter	Параметр шероховатости
+	Value (µm)	Значение (мкм)
+	Material removal	Удаление материала
+	Permitted	Допускается
+	Required	Требуется
+	Prohibited	Запрещено
+	Surface lay	Направление неровностей
+	Crossed	Перекрещивающееся
+	Multidirectional	Произвольное
+	All surfaces	Все поверхности
+	Weld type	Тип сварного шва
+	Fillet weld	Угловой шов
+	Butt weld	Стыковой шов
+	Weld size (mm)	Размер шва (мм)
+	Weld length (mm)	Длина шва (мм)
+	Weld pitch (mm)	Шаг шва (мм)
+	Arrow side	С лицевой стороны
+	Other side	С оборотной стороны
+	Continuous weld	Непрерывный шов
+	Field weld	Монтажный шов
+	All around	По замкнутому контуру
+	Nominal diameter (mm)	Номинальный диаметр (мм)
+	Pitch (mm)	Шаг (мм)
+	Thread length (mm)	Длина резьбы (мм)
+	Thread type	Тип резьбы
+	External	Наружная
+	Internal	Внутренняя
+	Longitudinal	Продольное изображение
+	End view	Вид с торца
+	Both views	Оба изображения
+	Symbolic 2D thread, not a modeled 3D thread.	Условная резьба в 2D, не трёхмерная модель витков.
+	Geometric characteristic	Геометрическая характеристика
+	Tolerance (mm)	Допуск (мм)
+	Specify	Задать
+	Existing object handle	Идентификатор существующего объекта
+	One requirement per line. Numbering and word wrapping are generated automatically.	Один пункт на строку. Нумерация и перенос слов формируются автоматически.
+	Column width (mm)	Ширина колонки (мм)
+	Automatic placement above the title block	Автоматически размещать над основной надписью
+	Top-left point	Верхняя левая точка
+	Apply requirements	Применить требования
+	Typical texts and custom templates	Типовые тексты и пользовательские шаблоны
+	Create requirements first to use or save templates in this document.	Сначала создайте требования, чтобы применять и сохранять шаблоны в этом документе.
+	Append from template	Добавить из шаблона
+	Template ID (ASCII)	Идентификатор шаблона (латиница)
+	Template text with {parameter} slots	Текст шаблона с полями {parameter}
+	Save custom template	Сохранить пользовательский шаблон
+	Delete custom template	Удалить пользовательский шаблон
+	GOST Specification	Спецификация ГОСТ
+	Edit GOST Specification	Редактировать спецификацию ГОСТ
+	GOST Position	Позиция ГОСТ
+	Edit GOST Position	Редактировать позицию ГОСТ
+	GOST Associative Section	Ассоциативный разрез ГОСТ
+	GOST Associative View	Ассоциативный вид ГОСТ
+	GOST Polyhedral Solid	Многогранное тело
+	GOST View Dimension	Ассоциативный размер вида
+	Add row	Добавить строку
+	Delete row	Удалить строку
+	Manual specification rows	Ручные строки спецификации
+	Apply specification	Применить спецификацию
+	Title block fields	Реквизиты основной надписи
+	Source block handles (space-separated). Attributes: DESIGNATION, NAME, SECTION, MATERIAL.	Дескрипторы блоков-деталей через пробел. Атрибуты: DESIGNATION, NAME, SECTION, MATERIAL.
+	Use selected source blocks	Взять выделенные блоки-детали
+	Rows	Строки
+	Row	Строка
+	Sheets	Листы
+	Quantity	Количество
+	Note	Примечание
+	Apply	Применить
+	Load	Загрузить
+	Datum	База
+	Rotation (degrees)	Поворот (градусы)
+	Insertion point	Точка вставки
+	Text height (mm)	Высота текста (мм)
+	Side	Сторона
+	Representation	Представление
+	Position	Позиционный допуск
+	Flatness	Плоскостность
+	Straightness	Прямолинейность
+	Circularity	Круглость
+	Cylindricity	Цилиндричность
+	Parallelism	Параллельность
+	Perpendicularity	Перпендикулярность
+	Circular runout	Радиальное биение
+	Total runout	Полное биение
+	Circular	Кругообразное
+	Radial	Радиальное
+	Specification handle	Дескриптор спецификации
+	Target part handle	Дескриптор детали
+	Use selected part	Взять выделенную деталь
+	Shelf centre	Центр полки
+	Shelf width (mm)	Ширина полки (мм)
+	Apply position	Применить позицию
+	Load selected position	Загрузить выделенную позицию
+	Closed polyhedral geometry only. Curved surfaces are not approximated automatically.	Только замкнутые многогранные тела. Криволинейные поверхности автоматически не аппроксимируются.
+	Load selected body	Загрузить выделенное тело
+	Explicit mesh	Сетка по вершинам и граням
+	Extrusion	Выдавливание
+	Minimum point	Минимальная точка
+	Maximum point	Максимальная точка
+	Convex profile: X Y per line, counterclockwise	Выпуклый профиль: X Y в каждой строке, против часовой стрелки
+	Vertices: X Y Z per line	Вершины: X Y Z в каждой строке
+	Faces: 3 or 4 one-based vertex indices per line	Грани: 3 или 4 номера вершин в каждой строке, начиная с 1
+	Stable vertex IDs (optional for new bodies)	Устойчивые идентификаторы вершин (необязательно для новых тел)
+	Apply body	Применить тело
+	Load selected view	Загрузить выделенный вид
+	Source body handles (space-separated)	Дескрипторы тел через пробел
+	Use selected bodies	Взять выделенные тела
+	Front	Спереди
+	Rear	Сзади
+	Top	Сверху
+	Bottom	Снизу
+	Isometric	Изометрия
+	Custom	Произвольно
+	Direction toward observer	Направление к наблюдателю
+	Up vector	Направление вверх
+	Show hidden lines	Показывать невидимые линии
+	Cut plane offset (normal dot point)	Смещение секущей плоскости (нормаль · точка)
+	View or section letter (optional)	Буква вида или разреза (необязательно)
+	Apply drawing view	Применить вид
+	Drawing view handle	Дескриптор вида
+	Source body handle	Дескриптор исходного тела
+	Anchor at cutting-edge intersection	Привязка к пересечению ребра с секущей плоскостью
+	Stable vertex ID	Устойчивый идентификатор вершины
+	Inspect source vertex IDs	Показать идентификаторы вершин тела
+	Dimension offset (paper mm)	Отступ размерной линии (мм на листе)
+	Apply associative dimension	Применить ассоциативный размер
+	Load selected dimension	Загрузить выделенный размер
+	Weld joint standard	Стандарт на сварное соединение
+	Joint code (blank: Т1/С1)	Код соединения (пусто: Т1/С1)
+	Welding process (optional)	Способ сварки (необязательно)
+	Fillet leg (mm)	Катет шва (мм)
+	Staggered intermittent weld	Шахматный прерывистый шов

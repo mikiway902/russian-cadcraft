@@ -453,7 +453,7 @@ impl Session {
         if let Some(m) = cmd::blocks::refedit::after_command(self, &run.before, &run.id) {
             self.echo(m);
         }
-        if let Err(e) = self.after_command(Some(&run.before), None, true) {
+        if let Err(e) = self.after_command(Some(&run.before), None, true, &run.id) {
             if let Ok(st) = self.state_mut() {
                 st.doc = run.before;
                 st.selection = run.selection_before;
@@ -491,14 +491,14 @@ impl Session {
     /// `before` is the drawing the command started from; `uid` (when known) is the document it
     /// started in, so associativity is not applied across a document switch; `ok` is false for a
     /// failed or non-undoable programmatic command, which skips the constraint pass.
-    pub(super) fn after_command(&mut self, before: Option<&Arc<Drawing>>, uid: Option<u64>, ok: bool) -> Result<()> {
+    pub(super) fn after_command(&mut self, before: Option<&Arc<Drawing>>, uid: Option<u64>, ok: bool, command: &str) -> Result<()> {
         #[cfg(test)]
         crate::guard::tests::panic_if_armed();
         cmd::groups::after_command(self, before);
         cmd::constraints::after_command(self, before, ok);
         assoc::after_command(self, before, uid);
         if ok {
-            cmd::gost::after_command(self, before, uid)?;
+            cmd::gost::after_command(self, before, uid, command)?;
         }
         Ok(())
     }

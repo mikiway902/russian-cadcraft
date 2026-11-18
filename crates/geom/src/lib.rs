@@ -9,6 +9,7 @@
 
 mod bounds;
 mod curve;
+pub mod drafting3d;
 mod fillet;
 mod intersect;
 mod mat;

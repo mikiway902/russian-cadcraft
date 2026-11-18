@@ -475,8 +475,6 @@ mod merge;
 mod tests {
     use serde_json::json;
 
-    use crate::Session;
-
     /// Restoring many saved layers, most of them missing, takes one pass and matches without case.
     #[test]
     fn restore_layers_matches_by_name_in_linear_time() {

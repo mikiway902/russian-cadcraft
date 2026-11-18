@@ -48,7 +48,18 @@ fn refresh(app: &mut CadApp, st: &mut State) {
         Err(e) => st.error = Some(e),
     }
 }
-fn label(tag: &str) -> &str {
+fn label(tag: &str) -> String {
+    if let Some(role) = tag.strip_suffix("_SIGNATURE") {
+        return format!("{} · {}", label(role), crate::tl!("Signature"));
+    }
+    if let Some(role) = tag.strip_suffix("_DATE") {
+        return format!("{} · {}", label(role), crate::tl!("Date"));
+    }
+    if let Some(rest) = tag.strip_prefix("REV")
+        && let Some((number, field)) = rest.split_once('_')
+    {
+        return format!("{} {} · {}", crate::tl!("Revision"), number, label(field));
+    }
     match tag {
         "DESIGNATION" => crate::tl!("Designation"),
         "TITLE" => crate::tl!("Title"),
@@ -61,8 +72,25 @@ fn label(tag: &str) -> &str {
         "NORM_CONTROL" => crate::tl!("Norm control"),
         "APPROVER" => crate::tl!("Approver"),
         "SCALE" => crate::tl!("Scale"),
+        "TECH_CONTROL" => crate::tl!("Technical control"),
+        "EXTRA_ROLE" => crate::tl!("Additional approver"),
+        "INVENTORY" => crate::tl!("Original inventory number"),
+        "DUPLICATE_INVENTORY" => crate::tl!("Duplicate inventory number"),
+        "REPLACES_INVENTORY" => crate::tl!("Replaces inventory number"),
+        "INVENTORY_SIGNATURE" => crate::tl!("Original inventory approval"),
+        "DUPLICATE_SIGNATURE" => crate::tl!("Duplicate inventory approval"),
+        "COPIED_BY" => crate::tl!("Copied by"),
+        "LITERA1" => crate::tl!("Document letter 1"),
+        "LITERA2" => crate::tl!("Document letter 2"),
+        "LITERA3" => crate::tl!("Document letter 3"),
+        "CHANGE" => crate::tl!("Change"),
+        "SHEET" => crate::tl!("Sheet"),
+        "DOCUMENT" => crate::tl!("Document number"),
+        "SIGNATURE" => crate::tl!("Signature"),
+        "DATE" => crate::tl!("Date"),
         _ => tag,
     }
+    .to_string()
 }
 
 pub(super) fn dialog(app: &mut CadApp, ctx: &egui::Context, name: &str, open: &mut bool) -> Action {

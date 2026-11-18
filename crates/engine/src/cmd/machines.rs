@@ -223,7 +223,7 @@ mod tests {
     use cadcraft_geom::Vec2;
     use serde_json::json;
 
-    use crate::{Input, Session};
+    use crate::Input;
 
     /// Menu/typed invocation of selection commands prompts "Select objects" when nothing is selected
     /// (#126), and acts on the picked objects in one undo step.

@@ -16,7 +16,7 @@ pub(super) fn specs() -> Vec<CommandSpec> {
     vec![
         CommandSpec::new("gost.center", "GOST Center Axes", center)
             .menu(&["Format", "GOST", "GOST Center Axes"])
-            .params("{handles?: circle/arc handles (else selection), scale?: model units per paper mm, extension?: paper mm (3..5, default 3)}; static axes, not associative")
+            .params("{handles?: circle/arc handles (else selection), scale?: model units per paper mm, extension?: paper mm (3..5, default 3)}; native associative axes follow source geometry and survive DXF")
             .interactive(|_| Ok(Box::new(SelectRun::new("gost.center", "GOST.CENTER")))),
         CommandSpec::new("gost.section", "GOST Cutting Plane", section)
             .menu(&["Format", "GOST", "GOST Cutting Plane"])
@@ -106,33 +106,6 @@ fn text(at: Vec2, value: String, height: f64) -> EntityKind {
     })
 }
 
-/// Explicit continuous segments keep BOTH the intersection and terminal ends on dashes,
-/// independent of the renderer's linetype phase and the drawing's global LTSCALE.
-fn axis_ray(s: &mut Session, origin_dir: [Vec2; 2], length: f64, k: f64, small: bool, out: &mut Vec<String>) -> Result<()> {
-    let [origin, dir] = origin_dir;
-    let space = s.space();
-    let mut start = 0.0;
-    let mut long = true;
-    let mut end = if small { length } else { 5.0_f64.min(length) };
-    loop {
-        // Absorb the last gap/short dash into a terminal long dash. The initial
-        // half-dash stays <=13 mm (combined central dash <=26 mm); others <=23 mm.
-        if length - end <= 8.0 {
-            end = length;
-        }
-        let common = Common { layer: if small { "GOST-THIN" } else { "GOST-CENTER" }.into(), linetype: "Continuous".into(), ..Common::default() };
-        let h = s.doc_mut()?.add(&space, common, line(origin + dir * (start * k), origin + dir * (end * k)))?;
-        out.push(h.hex());
-        if end >= length {
-            break;
-        }
-        start = end + 3.0;
-        long = !long;
-        end = (start + if long { 15.0 } else { 1.0 }).min(length);
-    }
-    Ok(())
-}
-
 fn center(s: &mut Session, p: &Value) -> Result<Value> {
     let cmd = "gost.center";
     ready(s, cmd, "GOST-CENTER")?;
@@ -157,24 +130,16 @@ fn center(s: &mut Session, p: &Value) -> Result<Value> {
         if !c.is_finite() || !r.is_finite() || r <= 0.0 || r > 1e9 {
             return Err(bad(cmd, "invalid circle geometry"));
         }
-        circles.push((c, r));
+        circles.push((h, c, r));
     }
-    let work: f64 = circles.iter().map(|(_, r)| (r / scale + ext) * 2.0 + 4.0).sum();
+    let work: f64 = circles.iter().map(|(_, _, r)| (r / scale + ext) * 2.0 + 4.0).sum();
     if work > 16_384.0 {
         return Err(bad(cmd, "axis segment limit exceeded; select fewer objects or use the intended drawing scale"));
     }
-    if circles.iter().any(|(_, r)| 2.0 * r / scale < 12.0) {
+    if circles.iter().any(|(_, _, r)| 2.0 * r / scale < 12.0) {
         ready(s, cmd, "GOST-THIN")?;
     }
-    let mut out = Vec::with_capacity(circles.len() * 4);
-    for (c, r) in circles {
-        // ГОСТ 2.303: centres of circles under 12 mm may use continuous thin lines.
-        let small = 2.0 * r / scale < 12.0;
-        for dir in [Vec2::X, -Vec2::X, Vec2::Y, -Vec2::Y] {
-            axis_ray(s, [c, dir], r / scale + ext, scale, small, &mut out)?;
-        }
-    }
-    Ok(json!({"handles": out, "associative": false, "warning": "Axes are static; regenerate after moving or resizing their source geometry."}))
+    super::axes::create(s, circles.into_iter().map(|(h, _, _)| h).collect(), scale, ext)
 }
 
 /// 15-degree included angle and a 5 mm head (ГОСТ 2.305 fig.14).
