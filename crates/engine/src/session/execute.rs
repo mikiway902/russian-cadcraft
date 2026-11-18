@@ -58,9 +58,22 @@ impl Session {
             (_, r) => r,
         };
         // Opening or closing the Block Editor swaps the whole drawing: nothing in it changed.
-        if self.state().is_ok_and(|s| s.block_edit.is_some()) == editing {
-            self.after_command(before.as_ref().map(|b| &b.0), before.as_ref().map(|b| b.2), spec.undoable && result.is_ok());
-        }
+        let result = if self.state().is_ok_and(|s| s.block_edit.is_some()) == editing {
+            match self.after_command(before.as_ref().map(|b| &b.0), before.as_ref().map(|b| b.2), spec.undoable && result.is_ok()) {
+                Ok(()) => result,
+                Err(e) => {
+                    if let Some((doc, sel, uid)) = &before
+                        && let Some(st) = self.docs.iter_mut().find(|d| d.uid == *uid)
+                    {
+                        st.doc = doc.clone();
+                        st.selection = sel.clone();
+                    }
+                    Err(e)
+                }
+            }
+        } else {
+            result
+        };
         let result = match (result, &before) {
             (Ok(v), Some((doc, sel, uid))) if spec.undoable => self.refuse_non_finite(Some(*uid), doc, sel, spec.id).map(|()| v),
             (r, _) => r,

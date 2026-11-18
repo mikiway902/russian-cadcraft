@@ -54,7 +54,7 @@ impl SheetParams {
     fn parse(s: &Session, p: &Value) -> Result<Self> {
         let object = p.as_object().ok_or_else(|| bad(CMD, "parameters must be an object"))?;
         for key in object.keys() {
-            if !matches!(key.as_str(), "layout" | "format" | "landscape" | "form" | "fields" | "font" | "scale") {
+            if !matches!(key.as_str(), "layout" | "format" | "landscape" | "form" | "fields" | "font" | "scale" | "automatic") {
                 return Err(bad(CMD, format!("unknown parameter `{key}`")));
             }
         }
@@ -74,7 +74,8 @@ impl SheetParams {
         if format == "A4" && landscape {
             return Err(bad(CMD, "GOST drawing sheets of format A4 must be portrait"));
         }
-        let first = match string_param(p, "form", "1")? {
+        let default_form = if super::book::automatic(p)? && super::book::managed_count(s.doc()?)? > 0 { "2a" } else { "1" };
+        let first = match string_param(p, "form", default_form)? {
             "1" => true,
             "2a" => false,
             _ => return Err(bad(CMD, "`form` must be \"1\" or \"2a\"")),
@@ -186,8 +187,8 @@ impl SheetGeometry {
         );
     }
 
-    fn fit_fields(&mut self, q: &SheetParams, s: &Session, p: &Value) -> Result<Vec<String>> {
-        let (font, width_factor) = if let Some(style) = s.doc()?.text_style("GOST") {
+    fn fit_fields(&mut self, q: &SheetParams, d: &cadcraft_doc::Drawing, p: &Value) -> Result<Vec<String>> {
+        let (font, width_factor) = if let Some(style) = d.text_style("GOST") {
             (cadcraft_render::style_font(style), style.width_factor)
         } else {
             (cadcraft_fonts::TextFont::resolve(p.get("font").and_then(Value::as_str).unwrap_or(cadcraft_fonts::GOST_FONT)), 1.0)
@@ -346,6 +347,10 @@ impl SheetGeometry {
     }
 
     fn build(q: &SheetParams) -> Result<Self> {
+        Self::build_for(q, true)
+    }
+
+    fn build_for(q: &SheetParams, strict: bool) -> Result<Self> {
         let mut g = Self::new();
         let (w, h) = q.size();
         let x = w - 190.0;
@@ -357,7 +362,7 @@ impl SheetGeometry {
         }
         g.supplementary(q, w, h, x);
         for tag in q.values.keys() {
-            if !g.tags.contains(tag) {
+            if strict && !g.tags.contains(tag) {
                 return Err(bad(CMD, format!("unknown or inapplicable attribute `{tag}` for this form")));
             }
         }
@@ -467,16 +472,21 @@ fn append(d: &mut cadcraft_doc::Drawing, q: &SheetParams, geometry: SheetGeometr
     handle
 }
 
-fn run(s: &mut Session, p: &Value) -> Result<Value> {
+fn run_inner(s: &mut Session, p: &Value) -> Result<Value> {
     let q = SheetParams::parse(s, p)?;
     let mut geometry = SheetGeometry::build(&q)?;
-    let fitted = geometry.fit_fields(&q, s, p)?;
+    let fitted = geometry.fit_fields(&q, s.doc()?, p)?;
     // Paper installation validates first and preserves the model's headers and units.
     // Session owns the one undo transaction.
     let profile = super::profile::install_paper(s, p)?;
     let (w, h) = q.size();
     let tags = geometry.tags.clone();
     let handle = append(s.doc_mut()?, &q, geometry);
+    super::book::created(s, handle, p)?;
+    let block = match &s.doc()?.entity(handle).ok_or_else(|| bad(CMD, "sheet reference missing"))?.kind {
+        EntityKind::Insert(i) => i.block.clone(),
+        _ => return Err(bad(CMD, "sheet reference changed type")),
+    };
     let st = s.state_mut()?;
     st.space = Space::Paper(q.layout.clone());
     st.mspace = None;
@@ -488,7 +498,7 @@ fn run(s: &mut Session, p: &Value) -> Result<Value> {
         layout.view = Some((view.center, view.height));
     }
     Ok(json!({
-        "layout": q.layout, "block": q.block, "insert": handle.hex(),
+        "layout": q.layout, "block": block, "insert": handle.hex(),
         "format": q.format, "width": w, "height": h, "form": if q.first { "1" } else { "2a" },
         "fields": tags, "textFitted": fitted,
         "warnings": profile.get("warnings").cloned().unwrap_or_else(|| json!([])),
@@ -499,6 +509,92 @@ fn run(s: &mut Session, p: &Value) -> Result<Value> {
             "SCALE is title text only, not a model viewport scale; no viewport or model associativity is created. PDF has zero margins; physical printers may clip the bottom supplementary strip."
         ]
     }))
+}
+
+fn run(s: &mut Session, p: &Value) -> Result<Value> {
+    let before = s.state()?.doc.clone();
+    let result = run_inner(s, p);
+    if result.is_err() {
+        s.state_mut()?.doc = before;
+    }
+    result
+}
+
+/// Regenerate only the managed frame, never the user's sheet geometry or viewports.
+pub(super) fn rebuild(
+    d: &mut cadcraft_doc::Drawing,
+    layout_name: &str,
+    handle: cadcraft_doc::Handle,
+    values: BTreeMap<String, String>,
+    first: bool,
+    format: &str,
+    landscape: bool,
+) -> Result<()> {
+    let portrait = match format {
+        "A4" => (210.0, 297.0),
+        "A3" => (297.0, 420.0),
+        "A2" => (420.0, 594.0),
+        "A1" => (594.0, 841.0),
+        "A0" => (841.0, 1189.0),
+        _ => return Err(bad(CMD, "unsupported basic sheet format")),
+    };
+    if format == "A4" && landscape {
+        return Err(bad(CMD, "A4 must be portrait"));
+    }
+    let old = d.entity(handle).ok_or_else(|| bad(CMD, "sheet reference missing"))?;
+    let EntityKind::Insert(insert) = &old.kind else {
+        return Err(bad(CMD, "sheet reference is not a block"));
+    };
+    let old_block = insert.block.clone();
+    let q = SheetParams {
+        layout: layout_name.into(),
+        block: format!("{BLOCK_PREFIX}{}", handle.hex()),
+        format: format.into(),
+        portrait,
+        landscape,
+        first,
+        values,
+    };
+    let mut geometry = SheetGeometry::build_for(&q, false)?;
+    geometry.fit_fields(&q, d, &json!({}))?;
+    let mut block = Block::new(&q.block);
+    block.units = 4;
+    block.description = format!("GOST R 2.104-2023 form {}, {}", if first { "1" } else { "2a" }, format);
+    let mut attribs = Vec::new();
+    for (common, kind) in geometry.entities {
+        if let EntityKind::AttDef(a) = &kind {
+            let mut a = a.clone();
+            a.prompt.clear();
+            attribs.push(a);
+        }
+        block.entities.push(Entity { handle: d.new_handle(), common, kind });
+    }
+    d.blocks.insert(q.block.clone(), Arc::new(block));
+    d.modify_entity(handle, |e| {
+        if let EntityKind::Insert(i) = &mut e.kind {
+            i.block.clone_from(&q.block);
+            i.attribs = attribs;
+        }
+    })?;
+    let page = d.layouts.iter_mut().find(|l| l.name == layout_name).ok_or_else(|| bad(CMD, "sheet layout missing"))?;
+    page.page.paper = format.into();
+    page.page.width_mm = portrait.0;
+    page.page.height_mm = portrait.1;
+    page.page.landscape = landscape;
+    let (w, h) = q.size();
+    page.limits = Some((Vec2::ZERO, Vec2::new(w, h)));
+    if old_block != q.block {
+        let referenced = d
+            .model
+            .iter()
+            .chain(d.layouts.iter().flat_map(|l| l.entities.iter()))
+            .chain(d.blocks.values().flat_map(|b| b.entities.iter()))
+            .any(|e| matches!(&e.kind, EntityKind::Insert(i) if i.block == old_block));
+        if !referenced {
+            d.blocks.remove(&old_block);
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]

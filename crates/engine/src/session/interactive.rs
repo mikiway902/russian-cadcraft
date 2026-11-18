@@ -453,7 +453,14 @@ impl Session {
         if let Some(m) = cmd::blocks::refedit::after_command(self, &run.before, &run.id) {
             self.echo(m);
         }
-        self.after_command(Some(&run.before), None, true);
+        if let Err(e) = self.after_command(Some(&run.before), None, true) {
+            if let Ok(st) = self.state_mut() {
+                st.doc = run.before;
+                st.selection = run.selection_before;
+            }
+            self.echo(e.to_string());
+            return;
+        }
         // A transparent command's changes belong to the command it ran inside, and a command a
         // LISP routine ran belongs to the routine's single undo step (the routine keeps it for U
         // inside it).
@@ -484,12 +491,16 @@ impl Session {
     /// `before` is the drawing the command started from; `uid` (when known) is the document it
     /// started in, so associativity is not applied across a document switch; `ok` is false for a
     /// failed or non-undoable programmatic command, which skips the constraint pass.
-    pub(super) fn after_command(&mut self, before: Option<&Arc<Drawing>>, uid: Option<u64>, ok: bool) {
+    pub(super) fn after_command(&mut self, before: Option<&Arc<Drawing>>, uid: Option<u64>, ok: bool) -> Result<()> {
         #[cfg(test)]
         crate::guard::tests::panic_if_armed();
         cmd::groups::after_command(self, before);
         cmd::constraints::after_command(self, before, ok);
         assoc::after_command(self, before, uid);
+        if ok {
+            cmd::gost::after_command(self, before, uid)?;
+        }
+        Ok(())
     }
 
     fn resume_suspended(&mut self) {

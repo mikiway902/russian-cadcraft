@@ -609,16 +609,20 @@ fn run_check(s: &mut Session, _p: &Value) -> Result<Value> {
             );
         }
     }
+    let (geometry, geometry_incomplete) = super::norms::inspect(d);
+    let room = MAX_FINDINGS.saturating_sub(findings.len());
+    truncated |= geometry_incomplete || geometry.len() > room;
+    findings.extend(geometry.into_iter().take(room));
     let errors = findings.iter().filter(|f| f.get("severity").and_then(Value::as_str) == Some("error")).count();
-    let warnings = findings.len().saturating_sub(errors);
+    let warnings = findings.iter().filter(|f| f.get("severity").and_then(Value::as_str) == Some("warning")).count();
     let font = d.text_style(NAME).map(|st| st.font.as_str()).unwrap_or(DEFAULT_FONT);
     Ok(json!({
         "profilePresent": profile_present,
         "status": "manual_review_required",
-        "automaticChecksPassed": profile_present && findings.is_empty() && !truncated,
+        "automaticChecksPassed": profile_present && errors == 0 && warnings == 0 && !truncated,
         "errors": errors, "warnings": warnings, "findings": findings,
         "dimensionsInspected": dimensions, "gostSheetsInspected": sheets, "findingsTruncated": truncated,
-        "scope": "Native style tables, units, effective dimension settings, and recognized native GOST sheet page/frame/attribute structure; not semantic compliance or certification.",
+        "scope": "Native style tables, units, dimension settings, native GOST sheets and bounded planar overlap/intersection/spacing checks; not semantic compliance or certification.",
         "manualChecks": [
             {"code": "font.conformance", "status": "unverified", "message": font_warning(font)},
             {"code": "dimensions.sufficiency", "status": "manual", "message": "Verify sufficient/nonredundant dimensions, tolerances, fits, datum choices, actual measured geometry and dimension placement (including first-line clearance and actual >=7 mm parallel-line spacing). Review any justified deviations from preset sizes."},

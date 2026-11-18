@@ -1,13 +1,21 @@
 //! Explicit ESKD presets and drawing tools. This is not a conformity certificate.
 
 mod annotations;
+mod book;
+mod data;
+mod marks;
+mod norms;
 mod profile;
 mod sheet;
 
 use super::CommandSpec;
 
 pub(super) fn specs() -> Vec<CommandSpec> {
-    profile::specs().into_iter().chain(sheet::specs()).chain(annotations::specs()).collect()
+    profile::specs().into_iter().chain(sheet::specs()).chain(book::specs()).chain(annotations::specs()).chain(marks::specs()).collect()
+}
+
+pub(crate) fn after_command(s: &mut crate::Session, before: Option<&std::sync::Arc<cadcraft_doc::Drawing>>, uid: Option<u64>) -> crate::Result<()> {
+    book::after_command(s, before, uid)
 }
 
 pub(crate) fn new_drawing() -> cadcraft_doc::Drawing {
