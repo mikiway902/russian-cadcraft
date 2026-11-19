@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "date": "2026-11-19",
+  "platform": "linux-x86_64",
+  "fork_revision": "7fe3b9e010a3865791823cdc5e124aba8c87f667",
+  "upstream_revision": "a770fa5a5e5f9d4ffe4dc0f60db5eacb6665c980",
+  "merge": "clean, tested only in disposable detached worktree, not adopted",
+  "command": "CARGO_BUILD_JOBS=4 RUST_TEST_THREADS=4 bash scripts/check-upstream.sh",
+  "ci_gates_passed": 8,
+  "all_test_results_in_log": {
+    "passed": 4060,
+    "failed": 0,
+    "ignored": 26,
+    "test_targets": 156
+  },
+  "workflow_static_validation": "actionlint v1.7.12: ci.yml, upstream-check.yml, release.yml passed; shellcheck/pyflakes disabled because unavailable",
+  "log_sha256": "27843bcf34556706383c45878305012d9bc7698d63c38021690a5ae00dd673da",
+  "stable_local_branch": "stable/modular-20261119",
+  "stable_revision": "7fe3b9e010a3865791823cdc5e124aba8c87f667",
+  "limits": [
+    "No upstream commits adopted automatically.",
+    "No GitHub workflow runs existed when the repository API was inspected; local actionlint is not remote CI execution.",
+    "Windows/macOS builds and remote permissions not exercised."
+  ]
+}

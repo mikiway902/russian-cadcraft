@@ -1,0 +1,27 @@
+name: CADCraftGOST upstream compatibility
+
+on:
+  schedule:
+    - cron: "37 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: upstream-compatibility-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  candidate:
+    uses: storytold/craft-common-actions/.github/workflows/gate.yml@main
+    with:
+      craft-fonts-ref: b076417b5880bd4154bd22f00695b1d28c6bea83
+      timeout-minutes: 90
+      command: bash scripts/check-upstream.sh
+      artifact-name: upstream-compatibility
+      artifact-path: target/upstream-check/
+      packages: >-
+        pkg-config libxkbcommon-dev libwayland-dev libx11-dev libxcb1-dev libxcursor-dev
+        libxrandr-dev libxi-dev libfontconfig1-dev libfreetype-dev mesa-vulkan-drivers
+        libgl1-mesa-dev

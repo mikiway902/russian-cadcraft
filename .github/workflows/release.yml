@@ -1,4 +1,4 @@
-name: Release
+name: CADCraftGOST packages
 
 on:
   # A nightly dry run on main: every release build except macOS, nothing signed or released
@@ -22,6 +22,17 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  acceptance:
+    uses: storytold/craft-common-actions/.github/workflows/gate.yml@main
+    with:
+      craft-fonts-ref: b076417b5880bd4154bd22f00695b1d28c6bea83
+      os: '["ubuntu-24.04","windows-latest","macos-latest"]'
+      timeout-minutes: 90
+      packages: >-
+        pkg-config libxkbcommon-dev libwayland-dev libx11-dev libxcb1-dev libxcursor-dev
+        libxrandr-dev libxi-dev libfontconfig1-dev libfreetype-dev mesa-vulkan-drivers
+        libgl1-mesa-dev
+
   # Regenerates contributors/contributors.json for the release commit; every build bundles it.
   credits:
     permissions:
@@ -30,7 +41,7 @@ jobs:
     uses: storytold/craft-common-actions/.github/workflows/refresh-contributors.yml@main
 
   release:
-    needs: credits
+    needs: [credits, acceptance]
     permissions:
       # The reusable release workflow tags and uploads the draft release.
       contents: write
@@ -39,11 +50,12 @@ jobs:
     uses: storytold/craft-common-actions/.github/workflows/release.yml@main
     with:
       dry-run: ${{ github.event_name == 'schedule' }}
-      app-name: cadcraft
-      app-title: CADCraft
+      app-name: cadcraftgost
+      app-title: CADCraftGOST
       craft-fonts-ref: b076417b5880bd4154bd22f00695b1d28c6bea83
       version: ${{ inputs.version }}
       contributors-artifact: ${{ needs.credits.outputs.artifact-name }}
+      publish: false
     secrets:
       APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
       APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
