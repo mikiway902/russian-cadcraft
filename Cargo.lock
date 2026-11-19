@@ -670,6 +670,7 @@ dependencies = [
  "ron",
  "serde_json",
  "sys-locale",
+ "tempfile",
  "thiserror 2.0.21",
  "uds_windows",
  "windows",

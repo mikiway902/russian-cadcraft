@@ -1,0 +1,78 @@
+{
+  "schema_version": 1,
+  "platform": "linux-x86_64",
+  "date": "2026-11-19",
+  "checks": {
+    "desktop_tests_passed": 70,
+    "desktop_clippy": "passed -D warnings",
+    "desktop_build": "passed"
+  },
+  "observed": {
+    "A": {
+      "before": {
+        "shown": "dark",
+        "theme": "dark"
+      },
+      "after": {
+        "shown": "dark",
+        "theme": "dark"
+      },
+      "restored": {
+        "shown": "dark",
+        "theme": "dark"
+      }
+    },
+    "B": {
+      "before": {
+        "shown": "dark",
+        "theme": "dark"
+      },
+      "after": {
+        "shown": "light",
+        "theme": "light"
+      },
+      "restored": {
+        "shown": "light",
+        "theme": "light"
+      }
+    },
+    "transient": {
+      "before": {
+        "shown": "dark",
+        "theme": "dark"
+      },
+      "after": {
+        "shown": "dark",
+        "theme": "dark"
+      },
+      "temporary_light": {
+        "shown": "light",
+        "theme": "light"
+      },
+      "fresh": {
+        "shown": "dark",
+        "theme": "dark"
+      }
+    }
+  },
+  "global_persistent_store_fingerprints_unchanged": true,
+  "private_temporary_stores_removed_after_first_exit": true,
+  "screenshots": [
+    {
+      "scenario": "B-restored.png",
+      "sha256": "31c0d4d81f13b7c9229403ebe504a0120b388f65be6075cc0cfa2b312359518f"
+    },
+    {
+      "scenario": "A-restored.png",
+      "sha256": "fef323fb0287264136761a827c6a5018c9f92682717b39e415099aa99cdc4043"
+    },
+    {
+      "scenario": "transient-no-recovery.png",
+      "sha256": "fef323fb0287264136761a827c6a5018c9f92682717b39e415099aa99cdc4043"
+    }
+  ],
+  "limits": [
+    "Linux native GUI only; Windows/macOS not executed.",
+    "No original CADCraft executable was launched; persistent store fingerprints demonstrate private test runs did not write the recorded global locations."
+  ]
+}

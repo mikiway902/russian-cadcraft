@@ -232,9 +232,9 @@ fn saved_window(app_ron: &str) -> bool {
     ron::from_str::<std::collections::HashMap<String, String>>(app_ron).is_ok_and(|kv| kv.contains_key(WINDOW_KEY))
 }
 
-/// The window state from the last session is saved and will be restored (#2595).
-fn restores_window() -> bool {
-    eframe::storage_dir(APP_ID).and_then(|dir| std::fs::read_to_string(dir.join("app.ron")).ok()).is_some_and(|ron| saved_window(&ron))
+/// Restore only the window state from this run's settings store.
+fn restores_window(path: &std::path::Path) -> bool {
+    std::fs::read_to_string(path).ok().is_some_and(|ron| saved_window(&ron))
 }
 
 /// The main window: its size, title bar, placement and rendering needs. `restoring`: a window state
@@ -343,11 +343,21 @@ fn main() -> eframe::Result {
         cadcraft_engine::fonts::ttf::set_fallback_fonts(list);
     }
     let surface = cadcraft_ui_egui::gpu::surface_config(vars.vsync, cfg!(all(unix, not(target_os = "macos"))));
+    // eframe's None means its global app.ron, not "storage disabled". Keep all persistent
+    // settings under the selected directory; no-settings runs get a disposable private store.
+    let (persistence_path, _transient_storage) = match &vars.config_dir {
+        Some(dir) => (dir.join("app.ron"), None),
+        None => {
+            let dir = tempfile::Builder::new().prefix("cadcraftgost-session-").tempdir().map_err(|e| eframe::Error::AppCreation(Box::new(e)))?;
+            (dir.path().join("app.ron"), Some(dir))
+        }
+    };
     let mut options = eframe::NativeOptions {
         // The crosshair is drawn by the app: present without a queue on Linux/BSD, where X11
         // swapchains hold two frames back under vsync (`CADCRAFT_VSYNC=1` restores vsync).
         wgpu_options: eframe::egui_wgpu::WgpuConfiguration::default().with_surface_config(surface),
-        ..window_options(restores_window())
+        persistence_path: Some(persistence_path.clone()),
+        ..window_options(restores_window(&persistence_path))
     };
     if let Some(icon) = app_icon() {
         options.viewport = options.viewport.with_icon(icon);
