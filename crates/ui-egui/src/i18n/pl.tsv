@@ -26,7 +26,7 @@
 	= Equals	= Równe
 	> Greater than	> Większe niż
 	About	O programie
-	About CADCraft	O programie CADCraft
+	About CADCraftGOST	O programie CADCraftGOST
 	Absolute	Bezwzględne
 	Add Leader	Dodaj odnośnik
 	Align	Wyrównaj
@@ -78,7 +78,7 @@
 	ByBlock	ByBlock
 	ByColor	Według koloru
 	ByLayer	ByLayer
-	CADCraft Help	Pomoc CADCraft
+	CADCraftGOST Help	Pomoc CADCraftGOST
 	Cancel	Anuluj
 	Cartesian (x, y)	Kartezjańskie (x, y)
 	Center	Środek
@@ -533,7 +533,7 @@
 	Quick Select Properties	Właściwości szybkiego zaznaczania
 	Quick Select...	Szybkie zaznaczanie...
 	QuickCalc	Szybki kalkulator
-	Quit CADCraft	Zakończ CADCraft
+	Quit CADCraftGOST	Zakończ CADCraftGOST
 	Radius	Promień
 	Raster Image	Obraz rastrowy
 	Ray	Półprosta
@@ -928,7 +928,7 @@
 	⌘↩ to finish	⌘↩ — zakończ
 	Drawing as bytes	Rysunek w postaci bajtów
 	Services	Usługi
-	Hide CADCraft	Ukryj CADCraft
+	Hide CADCraftGOST	Ukryj CADCraftGOST
 	Hide Others	Ukryj pozostałe
 	Accessibility	Dostępność
 	Show System Cursor	Pokaż kursor systemowy
@@ -1493,7 +1493,7 @@ menu	Dimension	Wymiarowanie
 	Breakline extension distance	Długość przedłużenia linii przerwania
 	Breakline symbol size	Rozmiar symbolu linii przerwania
 	Bring to front	Przenieś na wierzch
-	CADCraft is up to date.	CADCraft jest aktualny.
+	CADCraftGOST is up to date.	CADCraftGOST jest aktualny.
 	Change	Zmień
 	Change Properties	Zmień właściwości
 	Check for Updates…	Sprawdź aktualizacje…

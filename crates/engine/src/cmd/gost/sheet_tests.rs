@@ -28,15 +28,15 @@ fn has_line(block: &Block, a: (f64, f64), b: (f64, f64), layer: &str) -> bool {
 }
 
 #[test]
-fn a4_exact_page_frame_and_2023_form_one_geometry() {
+fn a4_sheet_uses_exact_paper_units_in_an_imperial_model() {
     let mut s = session();
-    let r = s.execute(CMD, &json!({"layout": "Drawing", "scale": 20})).unwrap();
+    s.execute(CMD, &json!({"layout": "Drawing", "scale": 20})).unwrap();
     let d = s.doc().unwrap();
     let l = d.layout("Drawing").unwrap();
     assert_eq!(l.page.width_mm, 210.0);
     assert_eq!(l.page.height_mm, 297.0);
     assert_eq!(l.page.margins_mm, [0.0; 4]);
-    assert!(!l.page.landscape && !l.page.scale_to_fit && !l.page.center && l.page.paper_mm);
+    assert_eq!((l.page.landscape, l.page.scale_to_fit, l.page.center, l.page.paper_mm), (false, false, false, true));
     assert_eq!(l.page.scale, 1.0);
     assert_eq!(l.page.plot_area, "layout");
     assert_eq!(l.entities.len(), 1, "no arbitrary model viewport");
@@ -46,6 +46,13 @@ fn a4_exact_page_frame_and_2023_form_one_geometry() {
     assert_eq!(sheet.size, Vec2::new(210.0, 297.0));
     assert_eq!(sheet.unit_mm, 1.0, "paper mm even in an imperial model");
     assert_eq!(sheet.printable, Bounds2::new(Vec2::ZERO, sheet.size));
+}
+
+#[test]
+fn a4_exact_frame_and_2023_form_one_geometry() {
+    let mut s = session();
+    let r = s.execute(CMD, &json!({"layout": "Drawing", "scale": 20})).unwrap();
+    let d = s.doc().unwrap();
     let b = d.block(r["block"].as_str().unwrap()).unwrap();
     assert!(has_line(b, (20.0, 5.0), (205.0, 5.0), "GOST-FRAME"));
     assert!(has_line(b, (205.0, 5.0), (205.0, 292.0), "GOST-FRAME"));

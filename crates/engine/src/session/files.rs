@@ -3,8 +3,13 @@ use super::{DocState, Drawing, EngineError, Result, Session, Space, Value, Vec2,
 impl Session {
     /// Append a new untitled drawing (`DrawingN`, metric or imperial default view), end a running command, make it active, bump the document epoch and return its index.
     pub fn new_drawing(&mut self, metric: bool) -> usize {
+        self.new_document(if metric { Drawing::new_metric() } else { Drawing::new_imperial() })
+    }
+
+    /// Append a host-initialized untitled drawing with a clean Undo/save baseline.
+    pub fn new_document(&mut self, d: Drawing) -> usize {
         self.untitled_counter += 1;
-        let d = if metric { cmd::gost::new_drawing() } else { Drawing::new_imperial() };
+        let metric = d.header.i64("MEASUREMENT", 0) != 0;
         let mut st = DocState::new(d, &format!("Drawing{}", self.untitled_counter), None);
         st.set_view_quiet(if metric { View { center: Vec2::new(210.0, 148.5), height: 297.0, twist: 0.0 } } else { View::default() });
         self.end_running();

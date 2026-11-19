@@ -1,4 +1,5 @@
 //! Specification properties and manual rows; extraction, pagination and numbering stay in the engine.
+use super::gost::Editor;
 use super::{Action, no_drawing, set_temp, temp};
 use crate::CadApp;
 use serde_json::{Value, json};
@@ -14,7 +15,8 @@ const SECTIONS: [&str; 9] = [
     "Материалы",
     "Комплекты",
 ];
-#[derive(Clone)]
+const TITLE_FIELDS: [&str; 8] = ["TITLE", "DESIGNATION", "ORG", "DEVELOPER", "CHECKER", "NORM_CONTROL", "APPROVER", "VERSION"];
+#[derive(Clone, PartialEq)]
 struct State {
     uid: u64,
     handle: String,
@@ -33,6 +35,9 @@ fn read(app: &mut CadApp, st: &mut State) {
             st.layout = r["layout"].as_str().unwrap_or("").into();
             st.manual = r["manual"].as_array().cloned().unwrap_or_default();
             st.fields = serde_json::from_value(r["fields"].clone()).unwrap_or_default();
+            for key in TITLE_FIELDS {
+                st.fields.entry(key.into()).or_default();
+            }
             st.sources = r["linked"]
                 .as_array()
                 .into_iter()
@@ -55,35 +60,77 @@ fn field(ui: &mut egui::Ui, row: &mut Value, key: &str) {
         row[key] = json!(value);
     }
 }
+fn editor_state(app: &mut CadApp, ctx: &egui::Context) -> Option<(State, Editor<State>)> {
+    let doc = app.session.state().ok()?;
+    let (uid, revision) = (doc.uid, doc.revision);
+    let pass = ctx.cumulative_pass_nr();
+    let selection = app.session.selection().first().map(|h| h.hex()).unwrap_or_default();
+    let cached = temp::<Editor<State>>(ctx, "gost_specification_editor");
+    let mut st = temp::<State>(ctx, "gost_specification_state")
+        .filter(|s| s.uid == uid && cached.as_ref().is_some_and(|e| !e.reopened(pass)))
+        .unwrap_or_else(|| {
+            let selected = selection.clone();
+            let mut fields: BTreeMap<String, String> =
+                app.run("gost.document", json!({})).ok().and_then(|r| serde_json::from_value(r["fields"].clone()).ok()).unwrap_or_default();
+            for key in TITLE_FIELDS {
+                fields.entry(key.into()).or_default();
+            }
+            let mut st = State {
+                uid,
+                handle: selected,
+                layout: "Спецификация".into(),
+                sources: String::new(),
+                replace_sources: false,
+                manual: Vec::new(),
+                fields,
+                result: None,
+                error: None,
+            };
+            if !st.handle.is_empty() {
+                read(app, &mut st);
+                if st.error.is_some() {
+                    st.handle.clear();
+                    st.error = None;
+                }
+            }
+            st
+        });
+    let mut editor =
+        cached.filter(|e| e.baseline().uid == uid && !e.reopened(pass)).unwrap_or_else(|| Editor::new(pass, revision, selection.clone(), &st));
+    let candidate = if editor.selection != selection && !selection.is_empty() {
+        app.run("gost.specification.inspect", json!({"handle":selection})).ok().map(|_| selection.clone())
+    } else {
+        None
+    };
+    let owner_changed = candidate.as_ref().is_some_and(|h| h != &st.handle);
+    editor.selection = selection;
+    if editor.observe(pass, revision, owner_changed, &st) {
+        if let Some(handle) = candidate {
+            st.handle = handle;
+        }
+        if st.handle.is_empty() {
+            match app.run("gost.document", json!({})) {
+                Ok(v) => {
+                    st.fields = serde_json::from_value(v["fields"].clone()).unwrap_or_default();
+                    for key in TITLE_FIELDS {
+                        st.fields.entry(key.into()).or_default();
+                    }
+                }
+                Err(e) => st.error = Some(e),
+            }
+        } else {
+            read(app, &mut st);
+        }
+        editor.accept(revision, &st);
+    }
+    Some((st, editor))
+}
+
 pub(super) fn dialog(app: &mut CadApp, ctx: &egui::Context, open: &mut bool) -> Action {
-    let Ok(doc) = app.session.state() else {
+    let Some((mut st, mut editor)) = editor_state(app, ctx) else {
         no_drawing(ctx, crate::tl!("GOST / ESKD"), open);
         return None;
     };
-    let uid = doc.uid;
-    let mut st = temp::<State>(ctx, "gost_specification_state").filter(|s| s.uid == uid).unwrap_or_else(|| {
-        let selected = app.session.selection().first().map(|h| h.hex()).unwrap_or_default();
-        let fields = app.run("gost.document", json!({})).ok().and_then(|r| serde_json::from_value(r["fields"].clone()).ok()).unwrap_or_default();
-        let mut st = State {
-            uid,
-            handle: selected,
-            layout: "Спецификация".into(),
-            sources: String::new(),
-            replace_sources: false,
-            manual: Vec::new(),
-            fields,
-            result: None,
-            error: None,
-        };
-        if !st.handle.is_empty() {
-            read(app, &mut st);
-            if st.error.is_some() {
-                st.handle.clear();
-                st.error = None;
-            }
-        }
-        st
-    });
     let mut load = false;
     let mut apply = false;
     let mut close = false;
@@ -93,6 +140,7 @@ pub(super) fn dialog(app: &mut CadApp, ctx: &egui::Context, open: &mut bool) -> 
         .default_size(egui::vec2(780.0, 650.0))
         .show(ctx, |ui| {
             egui::ScrollArea::vertical().max_height(ctx.content_rect().height() * 0.8).show(ui, |ui| {
+                editor.warning(ui);
                 ui.horizontal(|ui| {
                     ui.label(crate::tl!("Existing object handle"));
                     ui.text_edit_singleline(&mut st.handle);
@@ -118,7 +166,7 @@ pub(super) fn dialog(app: &mut CadApp, ctx: &egui::Context, open: &mut bool) -> 
                 }
                 ui.collapsing(crate::tl!("Title block fields"), |ui| {
                     egui::Grid::new("spec_fields").show(ui, |ui| {
-                        for key in ["TITLE", "DESIGNATION", "ORG", "DEVELOPER", "CHECKER", "NORM_CONTROL", "APPROVER", "VERSION"] {
+                        for key in TITLE_FIELDS {
                             ui.label(key);
                             ui.text_edit_singleline(st.fields.entry(key.into()).or_default());
                             ui.end_row();
@@ -177,7 +225,7 @@ pub(super) fn dialog(app: &mut CadApp, ctx: &egui::Context, open: &mut bool) -> 
                 {
                     st.manual.push(json!({"id":id,"section":"Детали","designation":"","name":"","material":"","note":"","quantity":1}));
                 }
-                if ui.button(crate::tl!("Apply specification")).clicked() {
+                if ui.add_enabled(!editor.conflict, egui::Button::new(crate::tl!("Apply specification"))).clicked() {
                     apply = true;
                 }
                 if let Some(v) = &st.result {
@@ -215,6 +263,7 @@ pub(super) fn dialog(app: &mut CadApp, ctx: &egui::Context, open: &mut bool) -> 
         });
     if load {
         read(app, &mut st);
+        editor.accept(app.session.state().map_or(0, |s| s.revision), &st);
     }
     if apply {
         let mut p = json!({"manual":st.manual,"fields":st.fields});
@@ -234,13 +283,102 @@ pub(super) fn dialog(app: &mut CadApp, ctx: &egui::Context, open: &mut bool) -> 
                 st.error = None;
                 st.result = Some(v);
                 st.replace_sources = false;
+                editor.accept(app.session.state().map_or(0, |s| s.revision), &st);
             }
             Err(e) => st.error = Some(e),
         }
     }
-    set_temp(ctx, "gost_specification_state", st);
     if close {
         *open = false;
     }
+    if *open {
+        set_temp(ctx, "gost_specification_state", st);
+        set_temp(ctx, "gost_specification_editor", editor);
+    } else {
+        ctx.data_mut(|d| {
+            d.remove::<State>(egui::Id::unique("gost_specification_state"));
+            d.remove::<Editor<State>>(egui::Id::unique("gost_specification_editor"));
+        });
+    }
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn specification(app: &mut CadApp, layout: &str) -> String {
+        app.run(
+            "gost.specification",
+            json!({"layout":layout,"fields":{"TITLE":layout},
+            "manual":[{"id":"row","section":"Детали","designation":"АБВГ.001","name":layout,"quantity":1}]}),
+        )
+        .unwrap()["handle"]
+            .as_str()
+            .unwrap()
+            .into()
+    }
+
+    fn cache(ctx: &egui::Context, state: State, editor: Editor<State>) {
+        set_temp(ctx, "gost_specification_state", state);
+        set_temp(ctx, "gost_specification_editor", editor);
+    }
+
+    #[test]
+    fn selected_specification_and_external_fields_refresh_a_clean_editor() {
+        let mut app = CadApp::new(cadcraft_engine::extensions::new_session(), crate::Services::default());
+        let a = specification(&mut app, "Состав А");
+        let b = specification(&mut app, "Состав Б");
+        let ctx = egui::Context::default();
+        app.session.set_selection(vec![cadcraft_doc::Handle::parse_hex(&a).unwrap()]);
+        let (st, editor) = editor_state(&mut app, &ctx).unwrap();
+        assert_eq!(st.handle, a);
+        cache(&ctx, st, editor);
+        app.session.set_selection(vec![cadcraft_doc::Handle::parse_hex(&b).unwrap()]);
+        let (st, editor) = editor_state(&mut app, &ctx).unwrap();
+        assert_eq!(st.handle, b);
+        assert_eq!(st.manual[0]["name"], "Состав Б");
+        cache(&ctx, st, editor);
+        app.run("gost.specification.edit", json!({"handle":b,"fields":{"TITLE":"Новая редакция"}})).unwrap();
+        let (st, editor) = editor_state(&mut app, &ctx).unwrap();
+        assert!(!editor.conflict);
+        assert_eq!(st.fields["TITLE"], "Новая редакция");
+    }
+
+    #[test]
+    fn an_external_edit_conflicts_with_a_draft_instead_of_overwriting_it() {
+        let mut app = CadApp::new(cadcraft_engine::extensions::new_session(), crate::Services::default());
+        let handle = specification(&mut app, "Состав");
+        let ctx = egui::Context::default();
+        app.session.set_selection(vec![cadcraft_doc::Handle::parse_hex(&handle).unwrap()]);
+        let (mut st, editor) = editor_state(&mut app, &ctx).unwrap();
+        st.fields.insert("TITLE".into(), "Черновик".into());
+        cache(&ctx, st, editor);
+        app.run("gost.specification.edit", json!({"handle":handle,"fields":{"TITLE":"Изменено извне"}})).unwrap();
+        let (st, editor) = editor_state(&mut app, &ctx).unwrap();
+        assert!(editor.conflict);
+        assert_eq!(st.fields["TITLE"], "Черновик");
+        assert_eq!(app.run("gost.specification.inspect", json!({"handle":handle})).unwrap()["record"]["fields"]["TITLE"], "Изменено извне");
+    }
+
+    #[test]
+    fn closing_and_reopening_discards_the_old_target_and_draft() {
+        let mut app = CadApp::new(cadcraft_engine::extensions::new_session(), crate::Services::default());
+        let a = specification(&mut app, "Состав А");
+        let b = specification(&mut app, "Состав Б");
+        let ctx = egui::Context::default();
+        app.session.set_selection(vec![cadcraft_doc::Handle::parse_hex(&a).unwrap()]);
+        let (mut st, editor) = editor_state(&mut app, &ctx).unwrap();
+        st.fields.insert("TITLE".into(), "Не сохранять".into());
+        cache(&ctx, st, editor);
+        let mut output = ctx.run_ui(egui::RawInput::default(), |ui| {
+            dialog(&mut app, ui.ctx(), &mut false);
+        });
+        output.textures_delta.clear();
+        app.session.set_selection(vec![cadcraft_doc::Handle::parse_hex(&b).unwrap()]);
+        let (st, editor) = editor_state(&mut app, &ctx).unwrap();
+        assert_eq!(st.handle, b);
+        assert_eq!(st.fields["TITLE"], "Состав Б");
+        assert!(!editor.conflict);
+    }
 }

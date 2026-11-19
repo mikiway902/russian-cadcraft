@@ -50,7 +50,7 @@
 	> Greater than	> Větší než
 	A variable name starts with a letter and has only letters, digits and _	Název proměnné začíná písmenem a obsahuje pouze písmena, číslice a _
 	About	O aplikaci
-	About CADCraft	O aplikaci CADCraft
+	About CADCraftGOST	O aplikaci CADCraftGOST
 	Absolute	Absolutní
 	Add Leader	Přidat odkaz
 	Additional angles	Další úhly
@@ -112,7 +112,7 @@
 	ByBlock	Dle bloku
 	ByColor	Dle barvy
 	ByLayer	Dle hladiny
-	CADCraft Help	Nápověda CADCraft
+	CADCraftGOST Help	Nápověda CADCraftGOST
 	Cancel	Zrušit
 	Cartesian (x, y)	Kartézské (x, y)
 	Center	Střed
@@ -699,7 +699,7 @@
 	Quick Select...	Rychlý výběr...
 	QuickCalc	Rychlá kalkulačka
 	QuickCalc Pick	Výběr pro rychlou kalkulačku
-	Quit CADCraft	Ukončit CADCraft
+	Quit CADCraftGOST	Ukončit CADCraftGOST
 	Radius	Poloměr
 	Raster Image	Rastrový obrázek
 	Ray	Polopřímka
@@ -1176,7 +1176,7 @@
 @plural	{n} contributor	{n} přispěvatel|{n} přispěvatelé|{n} přispěvatelů
 	Drawing as bytes	Výkres jako bajty
 	Services	Služby
-	Hide CADCraft	Skrýt CADCraft
+	Hide CADCraftGOST	Skrýt CADCraftGOST
 	Hide Others	Skrýt ostatní
 	Accessibility	Zpřístupnění
 	Show System Cursor	Zobrazit systémový kurzor
@@ -1210,7 +1210,7 @@
 	X	X
 	Y	Y
 	B	B
-	CADCraft	CADCraft
+	CADCraftGOST	CADCraftGOST
 	More toolbar commands	Další příkazy panelu nástrojů
 menu	View	Zobrazení
 menu	Draw	Kreslení
@@ -1222,7 +1222,7 @@ menu	Modify	Modifikace
 	Query Texts	Dotaz na texty
 	Analyze Shapes	Analyzovat tvary
 	Check for Updates…	Zkontrolovat aktualizace…
-	CADCraft is up to date.	CADCraft je aktuální.
+	CADCraftGOST is up to date.	CADCraftGOST je aktuální.
 	Could not check for updates.	Aktualizace se nepodařilo zkontrolovat.
 	Add a drawing file as a block library	Přidat výkresový soubor jako knihovnu bloků
 	Add a folder of drawings or a drawing file to use its blocks.	Přidejte složku s výkresy nebo výkresový soubor, abyste mohli používat jeho bloky.

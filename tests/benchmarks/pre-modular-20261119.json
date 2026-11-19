@@ -1,0 +1,64 @@
+{
+  "revision": "35cfa991f309661891adecf4b4ee44c72bc47cc1",
+  "build": "existing debug optimized dev build; no production changes",
+  "system": "Linux x86_64",
+  "peak_children_rss_kib": 39812,
+  "measurements": [
+    {
+      "workload": "sample-open",
+      "runs": 5,
+      "seconds": [
+        0.0039634160000332486,
+        0.002846672000032413,
+        0.002982721999956084,
+        0.0029216299999461626,
+        0.0036961539999538218
+      ],
+      "median_seconds": 0.002982721999956084,
+      "args": [
+        "run",
+        "--sample"
+      ]
+    },
+    {
+      "workload": "sample-normcontrol",
+      "runs": 5,
+      "seconds": [
+        0.006743706000065686,
+        0.005240211999989697,
+        0.00695427200002996,
+        0.0056513269998959,
+        0.004924833000018225
+      ],
+      "median_seconds": 0.0056513269998959,
+      "args": [
+        "run",
+        "--sample",
+        "--cmd",
+        "gost.check {}"
+      ]
+    },
+    {
+      "workload": "box-isometric",
+      "runs": 5,
+      "seconds": [
+        0.008835560999955305,
+        0.004131795000034799,
+        0.004202084000098694,
+        0.005247225000061917,
+        0.004526319999968109
+      ],
+      "median_seconds": 0.004526319999968109,
+      "args": [
+        "run",
+        "--metric",
+        "--cmd",
+        "gost.solid {\"box\":{\"min\":[0,0,0],\"max\":[60,30,35]}}",
+        "--cmd",
+        "gost.projection {\"sources\":[\"{last}\"],\"direction\":\"isometric\"}"
+      ]
+    }
+  ],
+  "scope": "Whole CLI process including startup; no large-assembly or kernel-only performance claim.",
+  "binary_sha256": "4fa6f3185820bcc035ef200f8618e311ff757e785096152ddff620b0b3934fb2"
+}

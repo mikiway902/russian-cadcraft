@@ -51,7 +51,7 @@
 	> Greater than	> Lớn hơn
 	A variable name starts with a letter and has only letters, digits and _	Tên biến bắt đầu bằng một chữ cái và chỉ gồm chữ cái, chữ số và _
 	About	Giới thiệu
-	About CADCraft	Giới thiệu CADCraft
+	About CADCraftGOST	Giới thiệu CADCraftGOST
 	Absolute	Tuyệt đối
 	Add Leader	Thêm đường dẫn ghi chú
 	Additional angles	Các góc bổ sung
@@ -113,7 +113,7 @@
 	ByBlock	ByBlock
 	ByColor	ByColor
 	ByLayer	ByLayer
-	CADCraft Help	Trợ giúp CADCraft
+	CADCraftGOST Help	Trợ giúp CADCraftGOST
 	Cancel	Hủy
 	Cartesian (x, y)	Đề-các (x, y)
 	Center	Tâm
@@ -701,7 +701,7 @@
 	Quick Select...	Chọn nhanh...
 	QuickCalc	QuickCalc
 	QuickCalc Pick	Chọn QuickCalc
-	Quit CADCraft	Thoát CADCraft
+	Quit CADCraftGOST	Thoát CADCraftGOST
 	Radius	Bán kính
 	Raster Image	Ảnh raster
 	Ray	Tia
@@ -1178,7 +1178,7 @@
 @plural	{n} contributor	{n} người đóng góp
 	Drawing as bytes	Bản vẽ dưới dạng byte
 	Services	Dịch vụ
-	Hide CADCraft	Ẩn CADCraft
+	Hide CADCraftGOST	Ẩn CADCraftGOST
 	Hide Others	Ẩn các ứng dụng khác
 	Accessibility	Trợ năng
 	Show System Cursor	Hiển thị con trỏ hệ thống
@@ -1212,7 +1212,7 @@
 	X	X
 	Y	Y
 	B	B
-	CADCraft	CADCraft
+	CADCraftGOST	CADCraftGOST
 	More toolbar commands	Thêm lệnh thanh công cụ
 menu	View	Xem
 menu	Draw	Vẽ
@@ -1224,7 +1224,7 @@ menu	Modify	Hiệu chỉnh
 	Query Texts	Truy vấn chữ
 	Analyze Shapes	Phân tích hình dạng
 	Check for Updates…	Kiểm tra cập nhật…
-	CADCraft is up to date.	CADCraft đã là phiên bản mới nhất.
+	CADCraftGOST is up to date.	CADCraftGOST đã là phiên bản mới nhất.
 	Could not check for updates.	Không thể kiểm tra cập nhật.
 	3D Mouse	Chuột 3D
 	3D Mouse Navigation	Điều hướng chuột 3D

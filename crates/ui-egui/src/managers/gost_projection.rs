@@ -1,4 +1,5 @@
 //! Thin typed controls for the shared model/projection/dimension commands.
+use super::gost::Editor;
 use super::{Action, no_drawing, set_temp, temp};
 use crate::CadApp;
 use serde_json::{Value, json};
@@ -31,6 +32,35 @@ fn error(ui: &mut egui::Ui, e: &Option<String>) {
 }
 fn selected(app: &CadApp) -> String {
     app.session.selection().first().map(|h| h.hex()).unwrap_or_default()
+}
+fn selected_owner(app: &mut CadApp, changed: bool, selection: &str, field: &str) -> Option<String> {
+    if !changed || selection.is_empty() {
+        return None;
+    }
+    app.run("gost.projection.inspect", json!({"handle":selection})).ok().filter(|v| !v[field].is_null()).map(|_| selection.to_string())
+}
+
+fn finish_editor<T: Clone + Send + Sync + 'static>(
+    ctx: &egui::Context,
+    key: &str,
+    editor_key: &str,
+    state: T,
+    editor: Editor<T>,
+    open: &mut bool,
+    close: bool,
+) {
+    if close {
+        *open = false;
+    }
+    if *open {
+        set_temp(ctx, key, state);
+        set_temp(ctx, editor_key, editor);
+    } else {
+        ctx.data_mut(|d| {
+            d.remove::<T>(egui::Id::unique(key));
+            d.remove::<Editor<T>>(egui::Id::unique(editor_key));
+        });
+    }
 }
 fn coordinates(value: &str, count: usize) -> std::result::Result<Vec<Vec<f64>>, String> {
     let mut out = Vec::new();
@@ -68,7 +98,7 @@ fn direction_label(direction: &str) -> &'static str {
         _ => crate::tl!("Custom"),
     }
 }
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 struct Solid {
     uid: u64,
     handle: String,
@@ -107,13 +137,57 @@ fn load_solid(app: &mut CadApp, st: &mut Solid) {
         Err(e) => st.error = Some(e),
     }
 }
+fn apply_solid(app: &mut CadApp, st: &mut Solid) -> std::result::Result<(), String> {
+    let mut p = match st.mode.as_str() {
+        "box" => json!({"box":{"min":st.min,"max":st.max}}),
+        "extrusion" => json!({"profile":coordinates(&st.profile,2)?,"z0":st.z0,"z1":st.z1}),
+        _ => {
+            let faces = st
+                .faces
+                .lines()
+                .filter(|l| !l.trim().is_empty())
+                .map(|l| {
+                    l.split_whitespace()
+                        .map(|n| n.parse::<u32>().map_err(|_| "Invalid face index".to_string()))
+                        .collect::<std::result::Result<Vec<_>, _>>()
+                })
+                .collect::<std::result::Result<Vec<_>, _>>()?;
+            json!({"vertices":coordinates(&st.vertices,3)?,"faces":faces})
+        }
+    };
+    if !st.handle.trim().is_empty() {
+        p["handle"] = json!(st.handle.trim());
+    }
+    let generated_ids = st.ids.trim().is_empty();
+    if !generated_ids {
+        let ids = st
+            .ids
+            .split_whitespace()
+            .map(|s| s.parse::<u32>().map_err(|_| "Invalid vertex ID".to_string()))
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+        p["ids"] = json!(ids);
+    }
+    let v = app.run("gost.solid", p)?;
+    st.handle = v["handle"].as_str().unwrap_or("").into();
+    st.result = Some(v);
+    if generated_ids {
+        // Inspect identity only: loading the entire mesh would discard the profile/box editor.
+        let inspected = app.run("gost.projection.inspect", json!({"handle":st.handle}))?;
+        st.ids = inspected["ids"].as_array().into_iter().flatten().filter_map(Value::as_u64).map(|n| n.to_string()).collect::<Vec<_>>().join(" ");
+    }
+    Ok(())
+}
 fn solid(app: &mut CadApp, ctx: &egui::Context, open: &mut bool) -> Action {
     let Ok(doc) = app.session.state() else {
         no_drawing(ctx, crate::tl!("GOST / ESKD"), open);
         return None;
     };
-    let uid = doc.uid;
-    let mut st = temp::<Solid>(ctx, "gost_solid_state").filter(|s| s.uid == uid).unwrap_or(Solid {
+    let (uid, revision) = (doc.uid, doc.revision);
+    let pass = ctx.cumulative_pass_nr();
+    let selection = selected(app);
+    let cached = temp::<Editor<Solid>>(ctx, "gost_solid_editor").filter(|e| e.baseline().uid == uid && !e.reopened(pass));
+    let fresh = cached.is_none();
+    let mut st = temp::<Solid>(ctx, "gost_solid_state").filter(|s| s.uid == uid && !fresh).unwrap_or(Solid {
         uid,
         handle: String::new(),
         mode: "box".into(),
@@ -128,6 +202,19 @@ fn solid(app: &mut CadApp, ctx: &egui::Context, open: &mut bool) -> Action {
         error: None,
         result: None,
     });
+    let mut editor = cached.unwrap_or_else(|| Editor::new(pass, revision, selection.clone(), &st));
+    let candidate = selected_owner(app, fresh || editor.selection != selection, &selection, "vertices");
+    let owner_changed = candidate.as_ref().is_some_and(|h| h != &st.handle);
+    editor.selection = selection;
+    if editor.observe(pass, revision, owner_changed, &st) {
+        if let Some(handle) = candidate {
+            st.handle = handle;
+        }
+        if !st.handle.is_empty() {
+            load_solid(app, &mut st);
+        }
+        editor.accept(revision, &st);
+    }
     let mut load = false;
     let mut apply = false;
     let mut close = false;
@@ -135,6 +222,7 @@ fn solid(app: &mut CadApp, ctx: &egui::Context, open: &mut bool) -> Action {
         ctx,
         |ui| {
             egui::ScrollArea::vertical().max_height(ctx.content_rect().height() * 0.8).show(ui, |ui| {
+                editor.warning(ui);
                 ui.label(crate::tl!("Closed polyhedral geometry only. Curved surfaces are not approximated automatically."));
                 text(ui, crate::tl!("Existing object handle"), &mut st.handle);
                 ui.horizontal(|ui| {
@@ -184,7 +272,7 @@ fn solid(app: &mut CadApp, ctx: &egui::Context, open: &mut bool) -> Action {
                     }
                 }
                 text(ui, crate::tl!("Stable vertex IDs (optional for new bodies)"), &mut st.ids);
-                if ui.button(crate::tl!("Apply body")).clicked() {
+                if ui.add_enabled(!editor.conflict, egui::Button::new(crate::tl!("Apply body"))).clicked() {
                     apply = true;
                 }
                 error(ui, &st.error);
@@ -199,55 +287,18 @@ fn solid(app: &mut CadApp, ctx: &egui::Context, open: &mut bool) -> Action {
     );
     if load {
         load_solid(app, &mut st);
+        editor.accept(app.session.state().map_or(0, |s| s.revision), &st);
     }
     if apply {
-        let result = (|| -> std::result::Result<Value, String> {
-            let mut p = match st.mode.as_str() {
-                "box" => json!({"box":{"min":st.min,"max":st.max}}),
-                "extrusion" => json!({"profile":coordinates(&st.profile,2)?,"z0":st.z0,"z1":st.z1}),
-                _ => {
-                    let faces = st
-                        .faces
-                        .lines()
-                        .filter(|l| !l.trim().is_empty())
-                        .map(|l| {
-                            l.split_whitespace()
-                                .map(|n| n.parse::<u32>().map_err(|_| "Invalid face index".to_string()))
-                                .collect::<std::result::Result<Vec<_>, _>>()
-                        })
-                        .collect::<std::result::Result<Vec<_>, _>>()?;
-                    json!({"vertices":coordinates(&st.vertices,3)?,"faces":faces})
-                }
-            };
-            if !st.handle.trim().is_empty() {
-                p["handle"] = json!(st.handle.trim());
-            }
-            if !st.ids.trim().is_empty() {
-                let ids = st
-                    .ids
-                    .split_whitespace()
-                    .map(|s| s.parse::<u32>().map_err(|_| "Invalid vertex ID".to_string()))
-                    .collect::<std::result::Result<Vec<_>, _>>()?;
-                p["ids"] = json!(ids);
-            }
-            app.run("gost.solid", p)
-        })();
-        match result {
-            Ok(v) => {
-                st.handle = v["handle"].as_str().unwrap_or("").into();
-                st.result = Some(v);
-                st.error = None;
-            }
-            Err(e) => st.error = Some(e),
+        st.error = apply_solid(app, &mut st).err();
+        if st.error.is_none() {
+            editor.accept(app.session.state().map_or(0, |s| s.revision), &st);
         }
     }
-    set_temp(ctx, "gost_solid_state", st);
-    if close {
-        *open = false;
-    }
+    finish_editor(ctx, "gost_solid_state", "gost_solid_editor", st, editor, open, close);
     None
 }
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 struct View {
     uid: u64,
     handle: String,
@@ -299,9 +350,14 @@ fn view(app: &mut CadApp, ctx: &egui::Context, name: &str, open: &mut bool) -> A
         no_drawing(ctx, crate::tl!("GOST / ESKD"), open);
         return None;
     };
-    let uid = doc.uid;
+    let (uid, revision) = (doc.uid, doc.revision);
+    let pass = ctx.cumulative_pass_nr();
+    let selection = selected(app);
     let key = format!("{name}_state");
-    let mut st = temp::<View>(ctx, &key).filter(|s| s.uid == uid).unwrap_or(View {
+    let editor_key = format!("{name}_editor");
+    let cached = temp::<Editor<View>>(ctx, &editor_key).filter(|e| e.baseline().uid == uid && !e.reopened(pass));
+    let fresh = cached.is_none();
+    let mut st = temp::<View>(ctx, &key).filter(|s| s.uid == uid && !fresh).unwrap_or(View {
         uid,
         handle: String::new(),
         sources: app.session.selection().iter().map(|h| h.hex()).collect::<Vec<_>>().join(" "),
@@ -318,6 +374,19 @@ fn view(app: &mut CadApp, ctx: &egui::Context, name: &str, open: &mut bool) -> A
         error: None,
         result: None,
     });
+    let mut editor = cached.unwrap_or_else(|| Editor::new(pass, revision, selection.clone(), &st));
+    let candidate = selected_owner(app, fresh || editor.selection != selection, &selection, "parameters");
+    let owner_changed = candidate.as_ref().is_some_and(|h| h != &st.handle);
+    editor.selection = selection;
+    if editor.observe(pass, revision, owner_changed, &st) {
+        if let Some(handle) = candidate {
+            st.handle = handle;
+        }
+        if !st.handle.is_empty() {
+            load_view(app, &mut st);
+        }
+        editor.accept(revision, &st);
+    }
     let mut load = false;
     let mut apply = false;
     let mut close = false;
@@ -327,6 +396,7 @@ fn view(app: &mut CadApp, ctx: &egui::Context, name: &str, open: &mut bool) -> A
         .default_size(egui::vec2(620.0, 600.0))
         .show(ctx, |ui| {
             egui::ScrollArea::vertical().max_height(ctx.content_rect().height() * 0.8).show(ui, |ui| {
+                editor.warning(ui);
                 text(ui, crate::tl!("Existing object handle"), &mut st.handle);
                 ui.horizontal(|ui| {
                     if ui.button(crate::tl!("Load selected view")).clicked() {
@@ -344,7 +414,9 @@ fn view(app: &mut CadApp, ctx: &egui::Context, name: &str, open: &mut bool) -> A
                 if ui.button(crate::tl!("Use selected bodies")).clicked() {
                     st.sources = app.session.selection().iter().map(|h| h.hex()).collect::<Vec<_>>().join(" ");
                 }
-                text(ui, crate::tl!("Layout name"), &mut st.layout);
+                ui.add_enabled_ui(st.handle.trim().is_empty(), |ui| {
+                    text(ui, crate::tl!("Layout name"), &mut st.layout);
+                });
                 xy(ui, crate::tl!("Insertion point"), &mut st.at);
                 craft_ui::ComboBox::from_id_salt("projection_direction").selected_text(direction_label(&st.direction)).show_ui(ui, |ui| {
                     for (v, label) in [
@@ -376,7 +448,7 @@ fn view(app: &mut CadApp, ctx: &egui::Context, name: &str, open: &mut bool) -> A
                     });
                 }
                 text(ui, crate::tl!("View or section letter (optional)"), &mut st.label);
-                if ui.button(crate::tl!("Apply drawing view")).clicked() {
+                if ui.add_enabled(!editor.conflict, egui::Button::new(crate::tl!("Apply drawing view"))).clicked() {
                     apply = true;
                 }
                 error(ui, &st.error);
@@ -390,11 +462,14 @@ fn view(app: &mut CadApp, ctx: &egui::Context, name: &str, open: &mut bool) -> A
         });
     if load {
         load_view(app, &mut st);
+        editor.accept(app.session.state().map_or(0, |s| s.revision), &st);
     }
     if apply {
-        let mut p = json!({"sources":st.sources.split_whitespace().collect::<Vec<_>>(),"layout":st.layout,"scale":st.scale,"hidden":st.hidden,"label":if st.label.trim().is_empty(){Value::Null}else{json!(st.label.trim())}});
+        let mut p = json!({"sources":st.sources.split_whitespace().collect::<Vec<_>>(),"scale":st.scale,"hidden":st.hidden,"label":if st.label.trim().is_empty(){Value::Null}else{json!(st.label.trim())}});
         if !st.handle.trim().is_empty() {
             p["handle"] = json!(st.handle.trim());
+        } else {
+            p["layout"] = json!(st.layout);
         }
         p["at"] = json!(st.at);
         if st.direction == "custom" {
@@ -421,17 +496,15 @@ fn view(app: &mut CadApp, ctx: &egui::Context, name: &str, open: &mut bool) -> A
                 st.handle = v["handle"].as_str().unwrap_or("").into();
                 st.error = None;
                 st.result = Some(v);
+                editor.accept(app.session.state().map_or(0, |s| s.revision), &st);
             }
             Err(e) => st.error = Some(e),
         }
     }
-    set_temp(ctx, &key, st);
-    if close {
-        *open = false;
-    }
+    finish_editor(ctx, &key, &editor_key, st, editor, open, close);
     None
 }
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 struct Dimension {
     uid: u64,
     handle: String,
@@ -444,13 +517,46 @@ struct Dimension {
     error: Option<String>,
     result: Option<Value>,
 }
+fn load_dimension(app: &mut CadApp, st: &mut Dimension) {
+    match app.run("gost.projection.inspect", json!({"handle":st.handle})) {
+        Ok(v) => {
+            let r = &v["references"];
+            if r.is_object() {
+                st.view = r["view"].as_u64().map(|h| format!("{h:X}")).unwrap_or_default();
+                for (index, key) in ["a", "b"].into_iter().enumerate() {
+                    st.sources[index] = r[key]["source"].as_u64().map(|h| format!("{h:X}")).unwrap_or_default();
+                    st.edge[index] = r[key]["edge"].is_array();
+                    st.ids[index] = if st.edge[index] {
+                        [
+                            r[key]["edge"][0].as_u64().and_then(|n| u32::try_from(n).ok()).unwrap_or(1),
+                            r[key]["edge"][1].as_u64().and_then(|n| u32::try_from(n).ok()).unwrap_or(2),
+                        ]
+                    } else {
+                        [r[key]["vertex"].as_u64().and_then(|n| u32::try_from(n).ok()).unwrap_or(1), 2]
+                    };
+                }
+                st.kind = r["kind"].as_str().unwrap_or("horizontal").into();
+                st.offset = r["offset"].as_f64().unwrap_or(10.0);
+                st.error = v["issue"].as_str().map(str::to_string);
+                st.result = Some(v);
+            } else {
+                st.error = Some("Select an associative view dimension".into());
+            }
+        }
+        Err(e) => st.error = Some(e),
+    }
+}
 fn dimension(app: &mut CadApp, ctx: &egui::Context, open: &mut bool) -> Action {
     let Ok(doc) = app.session.state() else {
         no_drawing(ctx, crate::tl!("GOST / ESKD"), open);
         return None;
     };
-    let uid = doc.uid;
-    let mut st = temp::<Dimension>(ctx, "gost_view_dimension_state").filter(|s| s.uid == uid).unwrap_or(Dimension {
+    let (uid, revision) = (doc.uid, doc.revision);
+    let pass = ctx.cumulative_pass_nr();
+    let selection = selected(app);
+    let cached = temp::<Editor<Dimension>>(ctx, "gost_view_dimension_editor").filter(|e| e.baseline().uid == uid && !e.reopened(pass));
+    let fresh = cached.is_none();
+    let mut st = temp::<Dimension>(ctx, "gost_view_dimension_state").filter(|s| s.uid == uid && !fresh).unwrap_or(Dimension {
         uid,
         handle: String::new(),
         view: selected(app),
@@ -462,6 +568,19 @@ fn dimension(app: &mut CadApp, ctx: &egui::Context, open: &mut bool) -> Action {
         error: None,
         result: None,
     });
+    let mut editor = cached.unwrap_or_else(|| Editor::new(pass, revision, selection.clone(), &st));
+    let candidate = selected_owner(app, fresh || editor.selection != selection, &selection, "references");
+    let owner_changed = candidate.as_ref().is_some_and(|h| h != &st.handle);
+    editor.selection = selection;
+    if editor.observe(pass, revision, owner_changed, &st) {
+        if let Some(handle) = candidate {
+            st.handle = handle;
+        }
+        if !st.handle.is_empty() {
+            load_dimension(app, &mut st);
+        }
+        editor.accept(revision, &st);
+    }
     let mut apply = false;
     let mut load = false;
     let mut close = false;
@@ -470,6 +589,7 @@ fn dimension(app: &mut CadApp, ctx: &egui::Context, open: &mut bool) -> Action {
         .open(open)
         .default_size(egui::vec2(620.0, 500.0))
         .show(ctx, |ui| {
+            editor.warning(ui);
             text(ui, crate::tl!("Existing object handle"), &mut st.handle);
             ui.horizontal(|ui| {
                 if ui.button(crate::tl!("Load selected dimension")).clicked() {
@@ -522,7 +642,7 @@ fn dimension(app: &mut CadApp, ctx: &egui::Context, open: &mut bool) -> Action {
                 ui.label(crate::tl!("Dimension offset (paper mm)"));
                 ui.add(egui::DragValue::new(&mut st.offset));
             });
-            if ui.button(crate::tl!("Apply associative dimension")).clicked() {
+            if ui.add_enabled(!editor.conflict, egui::Button::new(crate::tl!("Apply associative dimension"))).clicked() {
                 apply = true;
             }
             if let Some(v) = &st.result {
@@ -542,33 +662,8 @@ fn dimension(app: &mut CadApp, ctx: &egui::Context, open: &mut bool) -> Action {
             }
         });
     if load {
-        match app.run("gost.projection.inspect", json!({"handle":st.handle})) {
-            Ok(v) => {
-                let r = &v["references"];
-                if r.is_object() {
-                    st.view = r["view"].as_u64().map(|h| format!("{h:X}")).unwrap_or_default();
-                    for (index, key) in ["a", "b"].into_iter().enumerate() {
-                        st.sources[index] = r[key]["source"].as_u64().map(|h| format!("{h:X}")).unwrap_or_default();
-                        st.edge[index] = r[key]["edge"].is_array();
-                        st.ids[index] = if st.edge[index] {
-                            [
-                                r[key]["edge"][0].as_u64().and_then(|n| u32::try_from(n).ok()).unwrap_or(1),
-                                r[key]["edge"][1].as_u64().and_then(|n| u32::try_from(n).ok()).unwrap_or(2),
-                            ]
-                        } else {
-                            [r[key]["vertex"].as_u64().and_then(|n| u32::try_from(n).ok()).unwrap_or(1), 2]
-                        };
-                    }
-                    st.kind = r["kind"].as_str().unwrap_or("horizontal").into();
-                    st.offset = r["offset"].as_f64().unwrap_or(10.0);
-                    st.error = v["issue"].as_str().map(str::to_string);
-                    st.result = Some(v);
-                } else {
-                    st.error = Some("Select an associative view dimension".into());
-                }
-            }
-            Err(e) => st.error = Some(e),
-        }
+        load_dimension(app, &mut st);
+        editor.accept(app.session.state().map_or(0, |s| s.revision), &st);
     }
     if apply {
         let anchor = |index: usize| {
@@ -589,14 +684,12 @@ fn dimension(app: &mut CadApp, ctx: &egui::Context, open: &mut bool) -> Action {
                 st.handle = v["handle"].as_str().unwrap_or("").into();
                 st.result = Some(v);
                 st.error = None;
+                editor.accept(app.session.state().map_or(0, |s| s.revision), &st);
             }
             Err(e) => st.error = Some(e),
         }
     }
-    set_temp(ctx, "gost_view_dimension_state", st);
-    if close {
-        *open = false;
-    }
+    finish_editor(ctx, "gost_view_dimension_state", "gost_view_dimension_editor", st, editor, open, close);
     None
 }
 pub(super) fn dialog(app: &mut CadApp, ctx: &egui::Context, name: &str, open: &mut bool) -> Action {
@@ -604,5 +697,105 @@ pub(super) fn dialog(app: &mut CadApp, ctx: &egui::Context, name: &str, open: &m
         "gostsolid" => solid(app, ctx, open),
         "gostviewdimension" => dimension(app, ctx, open),
         _ => view(app, ctx, name, open),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn body_state(app: &CadApp) -> Solid {
+        Solid {
+            uid: app.session.state().unwrap().uid,
+            handle: String::new(),
+            mode: "extrusion".into(),
+            min: [0.0; 3],
+            max: [10.0; 3],
+            profile: "0 0\n10 0\n10 10\n0 10".into(),
+            z0: 0.0,
+            z1: 10.0,
+            vertices: String::new(),
+            faces: String::new(),
+            ids: String::new(),
+            error: None,
+            result: None,
+        }
+    }
+
+    #[test]
+    fn created_profile_can_be_edited_without_loading_or_changing_mode() {
+        let mut app = CadApp::new(cadcraft_engine::extensions::new_session(), crate::Services::default());
+        let mut st = body_state(&app);
+        apply_solid(&mut app, &mut st).unwrap();
+        let handle = st.handle.clone();
+        let ids = st.ids.clone();
+        assert!(!ids.is_empty());
+        st.z1 = 25.0;
+        apply_solid(&mut app, &mut st).unwrap();
+        assert_eq!((st.handle.as_str(), st.ids.as_str(), st.mode.as_str()), (handle.as_str(), ids.as_str(), "extrusion"));
+        assert_eq!(st.profile, "0 0\n10 0\n10 10\n0 10");
+        let actual = app.run("gost.projection.inspect", json!({"handle":handle})).unwrap();
+        assert!(actual["vertices"].as_array().unwrap().iter().any(|v| v["z"] == 25.0));
+    }
+
+    #[test]
+    fn created_explicit_mesh_keeps_generated_identity_for_the_next_edit() {
+        let mut app = CadApp::new(cadcraft_engine::extensions::new_session(), crate::Services::default());
+        let mut st = body_state(&app);
+        apply_solid(&mut app, &mut st).unwrap();
+        load_solid(&mut app, &mut st);
+        assert!(st.error.is_none());
+        st.handle.clear();
+        st.ids.clear();
+        apply_solid(&mut app, &mut st).unwrap();
+        let handle = st.handle.clone();
+        let ids = st.ids.clone();
+        assert!(!ids.is_empty());
+        st.vertices =
+            coordinates(&st.vertices, 3).unwrap().iter().map(|p| format!("{} {} {}", p[0], p[1], p[2] * 2.0)).collect::<Vec<_>>().join("\n");
+        apply_solid(&mut app, &mut st).unwrap();
+        assert_eq!((st.handle.as_str(), st.ids.as_str(), st.mode.as_str()), (handle.as_str(), ids.as_str(), "mesh"));
+        let actual = app.run("gost.projection.inspect", json!({"handle":handle})).unwrap();
+        assert!(actual["vertices"].as_array().unwrap().iter().any(|v| v["z"] == 20.0));
+    }
+}
+
+#[cfg(test)]
+mod lifecycle_tests {
+    use super::*;
+
+    fn body(app: &mut CadApp, size: f64) -> String {
+        app.run("gost.solid", json!({"box":{"min":[0,0,0],"max":[size,size,size]}})).unwrap()["handle"].as_str().unwrap().into()
+    }
+
+    fn frame(app: &mut CadApp, ctx: &egui::Context) {
+        let mut output = ctx.run_ui(egui::RawInput::default(), |ui| {
+            solid(app, ui.ctx(), &mut true);
+        });
+        output.textures_delta.clear();
+    }
+
+    #[test]
+    fn selected_body_refreshes_cleanly_but_never_retargets_a_dirty_mesh() {
+        let mut app = CadApp::new(cadcraft_engine::extensions::new_session(), crate::Services::default());
+        let a = body(&mut app, 10.0);
+        let b = body(&mut app, 20.0);
+        let ctx = egui::Context::default();
+        app.session.set_selection(vec![cadcraft_doc::Handle::parse_hex(&a).unwrap()]);
+        frame(&mut app, &ctx);
+        assert_eq!(temp::<Solid>(&ctx, "gost_solid_state").unwrap().handle, a);
+        app.session.set_selection(vec![cadcraft_doc::Handle::parse_hex(&b).unwrap()]);
+        frame(&mut app, &ctx);
+        let mut st = temp::<Solid>(&ctx, "gost_solid_state").unwrap();
+        assert_eq!(st.handle, b);
+        st.vertices.push_str("\n1 2 3");
+        let draft = st.vertices.clone();
+        set_temp(&ctx, "gost_solid_state", st);
+        app.session.set_selection(vec![cadcraft_doc::Handle::parse_hex(&a).unwrap()]);
+        frame(&mut app, &ctx);
+        let st = temp::<Solid>(&ctx, "gost_solid_state").unwrap();
+        assert_eq!(st.handle, b);
+        assert_eq!(st.vertices, draft);
+        assert!(temp::<Editor<Solid>>(&ctx, "gost_solid_editor").unwrap().conflict);
     }
 }

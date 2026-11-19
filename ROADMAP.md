@@ -1,155 +1,402 @@
-# CADCraft roadmap
+# План переработки и развития CADCraftGOST
 
-**Stage: pre-alpha** · next: alpha, ~2 points (38% → 40% ready for real work) and ~125–190 Opus 5.5 hours away (the four failing core workflows of the [alpha gate](docs/roadmap.md#alpha-gate))
+**Проект:** [russian-cadcraft](https://github.com/mikiway902/russian-cadcraft)  
+**Язык разработки:** Rust  
+**Базовый проект:** [CADCraft](https://github.com/storytold/cadcraft)  
+**Смежный проект:** [SolidCraft](https://github.com/tangency-labs/solidcraft)  
+**Дата:** 19.11.2026
 
-> **Last reviewed:** 2026-10-24 · **Last updated:** 2026-10-24 · **Change:** minor (re-audit against main 41d9b5e95: language table, CI gate, open-PR count; previously: progress log: proxy objects keep their class through a save, #1812; previously minor: HATCHEDIT boundary add/remove progress) · **Target:** Autodesk AutoCAD 2027
+Исполнение и доказательства: [PROGRESS.md](PROGRESS.md). Текущая архитектура: [ARCHITECTURE.md](ARCHITECTURE.md).
+Исторический roadmap базового CADCraft сохранён в [upstream](https://github.com/storytold/cadcraft/blob/11d66cc3cd6a3676aad79401c9d390f3ccbf3aa7/ROADMAP.md).
 
-CADCraft targets full parity with AutoCAD (2D drafting first, then annotation, layouts and
-plotting, DWG, parametrics and 3D), plus what AutoCAD doesn't have: agent control over MCP, a
-scriptable CLI, a web build, Linux and FreeBSD builds, and a free licence.
+## 1. Концепция проекта
 
-**Why pre-alpha:** four of AutoCAD's five core workflows fail the [alpha gate](docs/roadmap.md#alpha-gate).
-Precise drafting still has approximate ellipse and spline intersections and a few stubbed prompt options
-(object snap tracking, TRIM/EXTEND/OFFSET options and typed snap overrides have landed); dynamic blocks can't be
-authored and xrefs can't be edited in place (the Block Editor, REFEDIT, dynamic block editing and XCLIP have landed);
-plots go only to PDF, PNG and SVG files (plot styles and the Plot dialog have landed); and a DWG saved by
-CADCraft drops what acadrust doesn't model and has never been checked in
-AutoCAD. Dimensioning passes. Ready for real work (≈ 38%) is also under the ~40% alpha bar. Beta
-is ≈ 600–930 h away.
+Создать открытую машиностроительную САПР на основе двух взаимосвязанных приложений, не дублирующих функциональность друг друга.
 
-## Headline numbers
+```mermaid
+flowchart TD
+    SC[SolidCraft: параметрическое 3D-моделирование, детали и сборки]
+    BR[SolidCraft Bridge: геометрия, метаданные и ассоциативные связи]
+    CC[CADCraft: 2D-ядро, интерфейс и обмен файлами]
+    GE[GOST Extension: ЕСКД, нормоконтроль, спецификации]
+    DE[Drawing Extension: проекции, разрезы, размеры]
+    OUT[Конструкторская документация: PDF, DXF, DWG]
+    SC --> BR
+    BR --> DE
+    CC --- GE
+    CC --- DE
+    GE --> OUT
+    DE --> OUT
+```
 
-| Number | Value | Kind |
-|---|---|---|
-| Feature breadth (AutoCAD for Mac menu items with a live command) | **50%** (245 / 491 at the 2026-10-10 re-measure, including UI-only commands; not re-measured since; the generated checklist counts engine commands only and now reads 298 / 491; 2D menus only ≈ 65%) | measured ([parity-checklist.md](docs/parity-checklist.md) + UI-only commands) |
-| Ready for real work | **≈ 38%** | estimated ([target-app-parity.md](docs/target-app-parity.md)) |
-| Mainstream practitioner (2D drafter) | **≈ 28%** (lower than the full number: file exchange, stability and interaction discounts multiply) | estimated ([target-app-parity.md](docs/target-app-parity.md#mainstream-practitioner)) |
-| Essentials user | **≈ 46%** | estimated ([target-app-parity.md](docs/target-app-parity.md#essentials-user)) |
-| Remaining to alpha | **≈ 125–190 h** (the gate rows) | estimated |
-| Remaining to beta | **≈ 600–930 h** (≈ 150–250 h elapsed with 4–6 agents) | estimated |
-| Remaining to full parity | **≈ 1,300–2,100 h** (≈ 330–550 h elapsed) | estimated |
+| SolidCraft | CADCraftGOST |
+| --- | --- |
+| Параметрическое 3D-моделирование | Двумерное проектирование |
+| Создание деталей и сборок | Чертежи деталей и сборочные чертежи |
+| Булевы операции, фаски и скругления | Проекции, разрезы и сечения |
+| B-Rep-геометрия | Ассоциативные размеры |
+| Расчёт массы и объёма при наличии необходимых данных | Спецификации, ЕСКД и нормоконтроль |
 
-### Readiness by audience
+Главный принцип — максимально использовать существующий открытый код, не переписывать работающие компоненты и не создавать повторно существующие алгоритмы.
 
-| Audience | Ready % | Opus 5.5 agent wall-clock hours to ~95% | Work that dominates |
-|---|---:|---|---|
-| Full target (ready for real work) | ≈ 38% | ≈ 1,150–1,850 h (≈ 70% parallelises across 4–6 agents: ≈ 300–480 h elapsed) | 3D kernel (300–450 h), DWG/DXF and other formats, AutoLISP and ecosystem, blocks/xrefs/dynamic blocks, localization |
-| Mainstream practitioner (2D drafter) | ≈ 28% | ≈ 570–880 h (≈ 70% parallelises: ≈ 150–240 h elapsed) | lossless DWG exchange and a real-file corpus, precision input (tracking, dynamic input), 2D geometry precision, blocks/xrefs, annotation depth, stability backlog |
-| Essentials user | ≈ 46% | ≈ 140–225 h (≈ 50% parallelises across 3 agents: ≈ 60–110 h elapsed) | stubbed options in basic draw/modify commands, opening DWGs people send, launch/stability fixes, plot dialog, context menus and dynamic input |
+## 2. Основные архитектурные решения
 
-Hours are subsets (essentials ⊂ mainstream ⊂ full) and use the calibration in [target-app-parity.md](docs/target-app-parity.md#remaining-effort-and-how-it-was-calibrated): ≈ 25 commands
-per agent-hour at presence quality in the first build (≈ 11.5 agent-hours), 0.3–0.7 h per option
-or bug fix (≈ 60 such fixes on 2026-10-10), 2–5 h per moderate feature, 15–100 h per subsystem.
+| Решение | Статус |
+| --- | --- |
+| Переписывание CADCraft с нуля | Исключить |
+| Модульная архитектура | Внедрить |
+| Поддержка оригинальных обновлений | Обязательна |
+| Разработка расширений на Rust | Обязательна |
+| Поддержка будущего Plugin API | Предусмотреть |
+| Собственное ядро 3D-моделирования | Исключить |
+| Переиспользование SolidCore | Исследовать |
+| Интеграция с SolidCraft | Реализовать |
+| Работа без интернета | Обязательна |
+| Поддержка ИИ-агентов через MCP | Сохранить и расширить |
+| Кроссплатформенность | Сохранить |
 
-Hours are Opus 5.5 agent wall-clock hours, calibrated on this repo's own build: the first version
-(51k lines, 290 commands) took ≈ 11.5 agent-hours at presence quality, while depth work runs at
-0.3–0.7 h per option or bug fix (≈ 60 such fixes landed on 2026-10-10). Details:
-[target-app-parity.md](docs/target-app-parity.md#remaining-effort-and-how-it-was-calibrated).
+На момент проверки в SolidCraft существуют модули чертежей, разрезов, ассоциативных размеров, спецификаций и геометрических ссылок; используется B-Rep-ядро SolidCore. Перед разработкой новых алгоритмов исследовать возможность переиспользования этих компонентов.
 
-## By dimension
+В оригинальном CADCraft пока отсутствует полноценный Plugin API для компилируемых плагинов. До его появления целевой вариант — модульный форк с подключением расширений на этапе компиляции и минимальными изменениями upstream. После появления официального API оценить миграцию расширений на него.
 
-| Dimension | Parity | Remaining (h) | Doc |
-|---|---:|---|---|
-| Features (depth, weighted by use) | 41% | 735–1,115 | [target-app-parity.md](docs/target-app-parity.md#by-feature-area-the-features-dimension) |
-| UI/UX fidelity | 43% | 100–160 | [ui-parity.md](docs/ui-parity.md) |
-| File formats | 30% | 170–280 | [file-format-parity.md](docs/file-format-parity.md) |
-| Hardware | 45% | 15–25 | [hardware-parity.md](docs/hardware-parity.md) |
-| Localization | 5% | 60–100 | [localization-parity.md](docs/localization-parity.md) |
-| Performance | 60% | 20–40 | [hardware-parity.md](docs/hardware-parity.md#performance-on-hardware-internal-numbers-only) |
-| Stability | 35% | 30–50 | [gaps.md](docs/gaps.md#stability) |
-| Platforms | 75% | 15–25 | [gaps.md](docs/gaps.md#platforms) |
-| Ecosystem and automation | 10% | 120–200 | [gaps.md](docs/gaps.md#ecosystem-and-automation) |
-| AI features | 20% | 40–80 | [gaps.md](docs/gaps.md#ai-features) |
+Источники: [CADCraft Customization](https://github.com/storytold/cadcraft/blob/main/docs/customization.md), [SolidCraft](https://github.com/tangency-labs/solidcraft), [модуль чертежей](https://github.com/tangency-labs/solidcraft/tree/main/crates/doc/src/drawing), [SolidCore](https://github.com/tangency-labs/solidcraft/tree/main/solidcore).
 
-## Features
+---
 
-| Area | Parity | Remaining (h) | Doc |
-|---|---:|---|---|
-| Draw (2D) | 60% | 15–25 | [gaps.md](docs/gaps.md#features) |
-| Modify | 50% | 40–60 | [gaps.md](docs/gaps.md#features) |
-| Geometry precision | 40% | 70–110 | [geometry-parity.md](docs/geometry-parity.md) |
-| Layers and properties | 70% | 10–15 | [gaps.md](docs/gaps.md#features) |
-| Dimensions | 45% | 25–35 | [gaps.md](docs/gaps.md#features) |
-| Text and MTEXT | 35% | 30–45 | [gaps.md](docs/gaps.md#features) |
-| Leaders, tables, fields | 25% | 25–35 | [gaps.md](docs/gaps.md#features) |
-| Hatch and gradients | 35% | 15–25 | [gaps.md](docs/gaps.md#features) |
-| Blocks, attributes, xrefs, groups | 25% | 80–120 | [gaps.md](docs/gaps.md#features) |
-| Layouts, viewports, plotting | 35% | 35–50 | [gaps.md](docs/gaps.md#features) |
-| Inquiry and utilities | 30% | 30–45 | [gaps.md](docs/gaps.md#features) |
-| Parametric constraints | 50% | 20–30 | [geometry-parity.md](docs/geometry-parity.md) |
-| 3D modelling and rendering | 2% | 300–450 | [gaps.md](docs/gaps.md#features) |
-| Collaboration and cloud | 5% | 40–70 | [gaps.md](docs/gaps.md#features) |
+## 3. Полная дорожная карта разработки
 
-## Languages
+Приоритеты: **P0** — критический, **P1** — высокий, **P2** — последующее развитие. Все пункты первоначально оставлены без отметок: уже существующие функции необходимо подтвердить аудитом и тестами, а не реализовывать повторно.
 
-AutoCAD 2027 for Mac ships 8 interface languages; CADCraft ships English plus eighteen catalogs
-(Ukrainian, Brazilian Portuguese, German, Spanish, Czech, Russian, French, Simplified Chinese, Italian, Korean, Swedish, Arabic, Greek, Hungarian, Turkish, Bosnian, Georgian and Vietnamese). Detail: [localization-parity.md](docs/localization-parity.md).
+### Этап 0. Аудит и сохранение текущих наработок (P0)
 
-| Language | Status | UI translated |
-|---|---|---:|
-| English | full | 100% |
-| Simplified Chinese | partial | 1,337 catalog rows |
-| Spanish | partial | 1,243 catalog rows |
-| Hindi | none | 0% |
-| Arabic | partial | 1,229 catalog rows |
-| French | partial | 1,004 catalog rows |
-| Portuguese (Brazilian) | partial | 1,243 catalog rows |
-| Indonesian | none | 0% |
-| Japanese | none | 0% |
-| Greek | partial | 1,330 catalog rows; independent proofreading pending |
-| German | partial | 1,031 catalog rows |
-| Korean | partial | 1,235 catalog rows |
-| Vietnamese | partial | 1,460 catalog rows (2026-11-07); native review pending |
+- [x] Провести полный аудит изменений относительно оригинального CADCraft.
+- [x] Создать резервную ветку текущей реализации.
+- [x] Провести инвентаризацию всех добавленных функций.
+- [x] Запустить полный набор существующих тестов.
+- [x] Выявить заглушки, дублирование кода и регрессии.
+- [x] Зафиксировать текущую производительность.
+- [x] Сохранить все работоспособные функции ГОСТ.
 
-Other languages shipped: Ukrainian (1,357 rows, the reference catalog, #36), Czech (1,215), Russian (1,005), Italian (1,352), Swedish (1,382), Hungarian (1,326) and Turkish (1,330), counted 2026-10-24; engine messages stay English. Every catalog but Ukrainian's has strings added since it landed that still fall back to English: 6 (Italian, Swedish) to 296 (French) per `cargo xtask i18n` ([localization-parity.md](docs/localization-parity.md)).
+### Этап 1. Переработка архитектуры (P0)
 
-## Upcoming
+- [ ] Вынести функциональность ГОСТ в отдельные Rust-модули.
+- [ ] Отделить интерфейс расширений от бизнес-логики.
+- [ ] Отделить нормоконтроль и спецификации.
+- [ ] Выделить модуль преобразования 3D в 2D.
+- [ ] Разработать минимальный интерфейс подключения расширений.
+- [ ] Предусмотреть регистрацию команд, меню и диалогов.
+- [ ] Предусмотреть события изменения документа и транзакционный Undo/Redo.
+- [ ] Обеспечить отключение расширений без нарушения работы CADCraft.
+- [ ] Исключить циклические зависимости между модулями.
 
-Ranked; detail and the full beta checklist in [docs/roadmap.md](docs/roadmap.md).
+### Этап 2. Синхронизация с оригинальным CADCraft (P0)
 
-1. Gate and land: CI runs `cargo xtask ci` on every PR since #1987 (fmt on main is fixed); land the 450 open PRs (2026-10-24) (15–25 h).
-2. Stop losing data on save (DXF done, #528; native MULTILEADER, #459, and the save version, #421, done; through DWG, acadrust still drops some content) (30–45 h).
-3. Real-file DWG/DXF corpus and a black-box check in AutoCAD (10–15 h + owner).
-4. ~~Precision input: object snap tracking, extension/parallel snaps, FROM/M2P/TK, snap overrides,
-   editable dynamic input.~~ Done (#379, #441, #60, #519; `snap/tracking.rs`, `pointmod.rs`, `dyninput.rs`).
-5. ~~Unstub prompt options in TRIM/EXTEND, OFFSET, ROTATE, PLINE, SPLINE, MTEXT, MLEADER.~~ Done (#397, #408, #547); the stubs left are in gaps F1.
-6. ~~Autosave, recovery, AUDIT, RECOVER.~~ Done on the desktop (#406, #416); the web build has no autosave (gaps F4).
-7. Exact ellipse/spline geometry and correct polyline offsets (30–50 h).
-8. Xrefs, block editor, groups, then dynamic blocks (80–120 h): xrefs (#525), groups (#417), the Block Editor (#824, #833, #885), REFEDIT (#818), XCLIP and XCLIPFRAME (#2354) and dynamic block references (#838–#883) landed; left: dynamic-block authoring, editing an xref in place.
+- [x] Подключить оригинальный репозиторий как upstream.
+- [ ] Минимизировать изменения оригинальных файлов.
+- [ ] Автоматизировать проверку upstream-обновлений.
+- [ ] Автоматизировать сборку и тестирование после обновлений.
+- [ ] Не объединять изменения автоматически при наличии конфликтов или ошибок.
+- [ ] Предусмотреть откат на предыдущую стабильную версию.
 
-## Progress log
+### Этап 3. Завершение ребрендинга (P0)
 
-| Date | Entry |
-|---|---|
-| 2026-10-21 | DXF save keeps each proxy object's and proxy entity's class: its class number (group 91) is renumbered to the rewritten CLASSES instead of naming another class, so AutoCAD's visual styles in an R14 file no longer come back as SCALE or MLEADERSTYLE (#1812) |
-| 2026-10-14 | HATCHEDIT adds boundaries from internal points or closed objects and removes selected loops in the dialog, command line and JSON command; associative links and undo are covered by tests. |
-| 2026-10-12 | TRIM: a pick after a closed polyline's last cut keeps only the complementary run instead of an extra circuit of the outline (#726) |
-| 2026-10-12 | HATCHEDIT refuses an explicit bad `scale` or `angle` before it edits anything, so a rejected request leaves the drawing, undo and redo as they were (#724) |
-| 2026-10-10 | Merged main: Ukrainian interface (#36, first string catalog), Dynamic Input pointer boxes with Tab and relative entry (#60), press-drag selection windows (#63), WIPEOUT and hatch gradients kept through DXF/DWG save (#147, #162), SETVAR DIM* as style overrides (#129), UNITS dialog (#38), close-window save prompt (#47), DIMANGULAR on circles (#20), cargo fmt fixed on main. UI/UX 40% → 43% (dynamic input 15% → 45%), localization 3% → 5%; ready for real work ≈ 37% → 38% (weighted 37.2% → 37.7%), mainstream 27% → 28%, essentials 45% → 46%. Beta is now ~37 points away; hours unchanged within rounding. |
-| 2026-10-10 | Added mainstream practitioner (≈ 27%) and essentials user (≈ 45%) numbers; ready for real work unchanged at ≈ 37%. User evidence: 2 praise comments, 0 "switched from AutoCAD" reports, 27 of 37 open issues on the core path. |
-| 2026-10-10 | Stage re-normalized from alpha to **pre-alpha** under the core-workflow gate: drafting with tracking, blocks, plotting and lossless DWG save fail; dimensioning passes. Alpha is ≈ 125–190 h away. |
-| 2026-10-10 | Full re-measure against AutoCAD 2027 for Mac: menu breadth 245/491 (50%), ready for real work ≈ 37%, stage alpha. Remaining estimates rose (≈ 570 h → 1,300–2,100 h) on new evidence: behaviour audits found tracking/extension/parallel snaps and dynamic input are not real, saves drop unmodelled content, DWG saves as R2000, and the old estimate had no localization, ecosystem, stability, platform or AI rows. New docs: target-app-parity, gaps, roadmap, architecture, localization, file-format, hardware, UI and geometry parity; `docs/parity.md` became `docs/parity-checklist.md`. |
-| 2026-10-10 | About 60 community PRs merged in a day: DXF fidelity (transparency, LWPOLYLINE elevation, frozen VP layers, dimension text rotation, arc-length dims, non-ASCII escapes), CJK font fallback, Save/Don't Save on close, Light/System themes, F2 history, trackpad pan, Linux XWayland drag-and-drop, correctness fixes across draw/modify/constraints. Release v0.4.0. |
-| 2026-10-08 | Releases v0.1.0–v0.3.0: Flatpak, AppImage updates, signed macOS universal, Windows x64/x86/arm64, Linux, FreeBSD and web builds. |
-| 2026-10-07 | Old assessment: menu breadth 233/491 (47%), ≈ 29% weighted parity, 2D drafting ≈ 55%, ≈ 570 h remaining; milestones as reported then: M1 ~85%, M2 ~65%, M3 ~75%, M4 ~50%, M5 ~35%, M6 ~55%, M7 ~55%, M8 ~20%, M9 ~60%, M10 ~70%, M11 0%, M12 ~25%, M13 ~10%. |
-| 2026-10-07 | First version built in one session (≈ 6.9 h elapsed, ≈ 11.5 agent-hours): M0 vertical slice, dimensions, hatch, blocks, DWG bridge, layouts and PDF plotting, GPU canvas, R-tree, constraints, Layer Properties Manager, QSELECT, release pipeline. |
+- [ ] Удалить фирменные логотипы ArtCraft согласно лицензии.
+- [ ] Создать собственные иконки и оформление.
+- [ ] Исправить README и ссылки на скачивание.
+- [ ] Разделить идентификаторы приложений и пакетов.
+- [ ] Разделить каталоги настроек и пользовательских данных.
+- [ ] Настроить собственный канал обновлений.
+- [ ] Сохранить необходимые сведения об авторах и лицензиях оригинала.
 
-## Revision history
+### Этап 4. Интеграция с SolidCraft (P0)
 
-| Date | Change | Summary |
-|---|---|---|
-| 2026-10-24 | minor | Re-audit against main 41d9b5e95: language table, CI gate and open-PR count re-checked against main 41d9b5e95 |
-| 2026-10-21 | trivial | Progress log: proxy objects keep their class through a save (#1812) |
-| 2026-10-14 | minor | Progress log: HATCHEDIT boundary add/remove |
-| 2026-10-12 | trivial | Progress log: closed-polyline TRIM (#726) |
-| 2026-10-12 | trivial | Progress log: HATCHEDIT numeric validation (#724) |
-| 2026-10-10 | minor | Merged main's changes (Ukrainian catalog, dynamic input pointer boxes, DXF fixes); UI/UX and localization numbers updated |
-| 2026-10-10 | minor | Readiness-by-audience table with hours to ~95% for each number |
-| 2026-10-10 | minor | Mainstream practitioner and essentials user headline numbers |
-| 2026-10-10 | minor | Stage alpha → pre-alpha under the core-workflow gate; banner, why, headline row |
-| 2026-10-10 | major | Progress docs restructured (stage, two numbers, dimensions, features, languages, upcoming, log); full re-measure; milestone detail moved to docs/roadmap.md, parity assessment to docs/target-app-parity.md |
-| 2026-10-07 | major | Alpha checklist, milestone table, ≈ 29% weighted parity estimate |
+- [x] Исследовать архитектуру SolidCore и модулей чертежей SolidCraft.
+- [ ] Проверить лицензии, доступные API и возможность переиспользования кода.
+- [x] Сравнить прямое подключение библиотек и взаимодействие через отдельный процесс.
+- [ ] Разработать версионируемый протокол SolidCraft Bridge.
+- [ ] Поддержать импорт STEP.
+- [ ] Поддержать импорт IGES в пределах возможностей ядра.
+- [ ] Реализовать загрузку собственных файлов SolidCraft либо получение геометрии через его API.
+- [ ] Передавать структуру сборок, материалы и обозначения деталей.
+- [ ] Реализовать обнаружение изменения исходной модели.
+- [ ] Обеспечить возможность просмотра импортированной 3D-модели.
 
-## Shared UI workspace integration
+### Этап 5. Преобразование 3D-моделей в чертежи (P0)
 
-Tool Sets, Layers and Properties use shared docking with persisted layouts, keyboard focus and compact toolbar overflow. No milestone percentage change.
+- [ ] Реализовать точные ортогональные и изометрические проекции.
+- [ ] Реализовать удаление скрытых линий.
+- [ ] Поддержать аналитические кривые и силуэты поверхностей.
+- [ ] Реализовать главные, дополнительные и местные виды.
+- [ ] Реализовать простые, ступенчатые и ломаные разрезы.
+- [ ] Реализовать вынесенные и наложенные сечения.
+- [ ] Реализовать выносные элементы.
+- [ ] Поддержать проекционные связи между видами.
+- [ ] Реализовать штриховку сечений и сборочные исключения.
+- [ ] Поддержать разные масштабы видов.
+- [ ] Сохранить редактируемость сформированной 2D-геометрии.
+
+### Этап 6. Ассоциативность (P0)
+
+- [ ] Связать чертёж с исходной 3D-моделью.
+- [ ] Реализовать устойчивые идентификаторы деталей, граней и рёбер.
+- [ ] Привязывать размеры к точной геометрии, а не к полигональной сетке.
+- [ ] Обновлять виды и разрезы при изменении модели.
+- [ ] Сохранять пользовательские аннотации при перестроении.
+- [ ] Обнаруживать потерянные и неоднозначные геометрические ссылки.
+- [ ] Обновлять спецификации при изменении состава сборки.
+- [ ] Поддержать ручное обновление и Undo/Redo.
+- [ ] Обеспечить сохранение связей после повторного открытия проекта.
+
+### Этап 7. Расширение поддержки ГОСТ и ЕСКД (P1)
+
+- [ ] Проверить соответствие уже реализованных функций нормативным документам.
+- [ ] Расширить поддержку основных надписей и дополнительных граф.
+- [ ] Поддержать дополнительные форматы листов.
+- [ ] Расширить размерные стили.
+- [ ] Доработать допуски, посадки и предельные отклонения.
+- [ ] Расширить обозначения резьб, сварки и шероховатости.
+- [ ] Добавить обозначения покрытий и термообработки.
+- [ ] Доработать обозначения баз и геометрических допусков.
+- [ ] Реализовать управление изменениями документации.
+- [ ] Добавить версионируемые профили нормативных требований.
+
+### Этап 8. Нормоконтроль (P1)
+
+- [ ] Расширить существующую проверку пересечений и наложений.
+- [ ] Добавить проверку размерных цепей в пределах доступной геометрии.
+- [ ] Проверять толщины и типы линий.
+- [ ] Проверять размеры текста и оформление листов.
+- [ ] Проверять заполнение основных надписей.
+- [ ] Проверять корректность связей видов, размеров и позиций.
+- [ ] Проверять согласованность спецификации со сборкой.
+- [ ] Разделять ошибки, предупреждения и требования ручной проверки.
+- [ ] Добавить переход к проблемному объекту.
+- [ ] Оптимизировать анализ больших чертежей.
+- [ ] Добавить экспорт отчёта нормоконтроля.
+
+### Этап 9. Спецификации и стандартные изделия (P1)
+
+- [ ] Доработать спецификации по ЕСКД.
+- [ ] Получать состав изделия из сборки SolidCraft.
+- [ ] Автоматически обновлять количества и позиции.
+- [ ] Реализовать вложенные сборки и варианты исполнения.
+- [ ] Создать библиотеку стандартных изделий.
+- [ ] Добавить параметрические 2D-обозначения болтов, гаек, шайб, подшипников и других изделий.
+- [ ] Поддержать расширяемую базу материалов.
+- [ ] Добавить экспорт спецификаций в CSV и XLSX.
+
+### Этап 10. Интерфейс и русификация (P1)
+
+- [ ] Завершить русификацию интерфейса.
+- [ ] Добавить полноценную панель инструментов ГОСТ.
+- [ ] Добавить дерево листов, видов, разрезов и импортированных моделей.
+- [ ] Создать редактор свойств инженерных обозначений.
+- [ ] Добавить менеджер связанных 3D-моделей.
+- [ ] Добавить панель нормоконтроля.
+- [ ] Обеспечить настройку горячих клавиш.
+- [ ] Сохранить возможность использования оригинального интерфейса без ГОСТ.
+
+### Этап 11. Обмен файлами и печать (P1)
+
+- [ ] Проверить сохранение и повторное открытие DXF.
+- [ ] Проверить совместимость DWG в пределах поддерживаемых возможностей.
+- [ ] Сохранить редактируемость размеров и обозначений при обмене.
+- [ ] Обеспечить физически правильные размеры PDF при печати.
+- [ ] Проверить кириллицу, шрифты и специальные символы.
+- [ ] Добавить пакетный экспорт листов.
+- [ ] Проверить многостраничные PDF.
+- [ ] Предупреждать о возможной потере ассоциативных данных при экспорте.
+
+### Этап 12. Производительность и надёжность (P1)
+
+- [ ] Профилировать потребление оперативной памяти.
+- [ ] Оптимизировать перестроение видов.
+- [ ] Реализовать кеширование результатов проецирования.
+- [ ] Перестраивать только изменённые виды и детали.
+- [ ] Перенести тяжёлые вычисления в фоновые задачи.
+- [ ] Предусмотреть отмену длительных операций.
+- [ ] Проверить работу с крупными сборками.
+- [ ] Добавить тестирование повреждённых и некорректных файлов.
+- [ ] Не использовать GPU-ускорение без подтверждённой необходимости.
+
+### Этап 13. Автоматизация и ИИ (P2)
+
+- [ ] Сохранить существующие CLI, MCP и JSON API.
+- [ ] Предоставить API всех новых команд ГОСТ.
+- [ ] Обеспечить автоматическое создание чертежей из 3D-моделей.
+- [ ] Обеспечить пакетный выпуск конструкторской документации.
+- [ ] Добавить возможность программного нормоконтроля.
+- [ ] Подготовить документацию и примеры автоматизации.
+- [ ] Не добавлять обязательную зависимость от облачных нейросетей.
+
+### Этап 14. Тестирование и выпуск (P0/P1)
+
+- [ ] Настроить собственный GitHub Actions CI.
+- [ ] Добавить модульные, интеграционные и регрессионные тесты.
+- [ ] Добавить эталонные чертежи и модели.
+- [ ] Настроить сборки для Linux, Windows и macOS.
+- [ ] Подготовить RPM, DEB, AppImage и другие установщики.
+- [ ] Проверить установку рядом с оригинальным CADCraft.
+- [ ] Подготовить документацию пользователя.
+- [ ] Опубликовать собственный Alpha-релиз после прохождения критериев приёмки.
+
+> CI и автоматическое тестирование необходимо начать на этапе 0, не откладывая до завершения всей дорожной карты. Публикация релизов — после соответствующей приёмки.
+
+---
+
+## 4. Предлагаемая структура репозитория
+
+```text
+russian-cadcraft/
+├── upstream/
+│   └── cadcraft/
+├── extensions/
+│   ├── extension-api/
+│   ├── gost-core/
+│   ├── gost-ui/
+│   ├── gost-standards/
+│   ├── gost-normcontrol/
+│   ├── gost-specification/
+│   ├── gost-library/
+│   ├── drawing3d/
+│   └── solidcraft-bridge/
+├── patches/
+├── assets/
+│   ├── fonts/
+│   ├── icons/
+│   ├── templates/
+│   ├── materials/
+│   └── standards/
+├── tests/
+│   ├── unit/
+│   ├── integration/
+│   ├── regression/
+│   ├── reference-drawings/
+│   ├── reference-models/
+│   └── benchmarks/
+├── packaging/
+├── scripts/
+├── docs/
+├── .github/workflows/
+├── Cargo.toml
+├── AGENTS.md
+├── ARCHITECTURE.md
+├── ROADMAP.md
+├── PROGRESS.md
+└── CHANGELOG.md
+```
+
+Это целевая структура, а не требование механически переместить все файлы. Если существующая организация Cargo workspace позволит сделать интеграцию проще, её следует сохранить.
+
+## 5. Варианты интеграции с SolidCraft
+
+| Метод | Приоритет |
+| --- | --- |
+| Переиспользование открытых модулей проецирования SolidCraft | Высокий |
+| Переиспользование SolidCore | Высокий |
+| Взаимодействие через CLI или API | Высокий |
+| Импорт STEP | Высокий |
+| Импорт IGES | Средний |
+| Обмен через DXF | Резервный |
+| Импорт STL как источника точных чертежей | Исключить |
+
+Оптимальный вариант следует выбрать после создания небольшого рабочего прототипа интеграции. Нет смысла подключать всё геометрическое ядро, если SolidCraft может предоставить необходимые точные проекции и геометрические измерения через программный интерфейс.
+
+Обычный DXF недостаточен для полноценной ассоциативности: дополнительно необходимо передавать устойчивые идентификаторы геометрии и сведения об исходной модели. Возможности экспорта отдельных видов и целых листов следует проверять раздельно; не предполагать поддержку формата без проверки.
+
+Переиспользовать только открытые компоненты, соблюдая лицензии. Фирменные ресурсы и отдельно лицензируемые компоненты интерфейса SolidCraft не переносить без соответствующего разрешения.
+
+## 6. Нормативные документы
+
+Создать расширяемую систему нормативных профилей, а не зашивать требования ГОСТ непосредственно в алгоритмы.
+
+| Стандарт | Назначение |
+| --- | --- |
+| ГОСТ Р 2.104 | Основные надписи |
+| ГОСТ Р 2.106 | Текстовые документы и спецификации |
+| ГОСТ Р 2.109 | Основные требования к чертежам |
+| ГОСТ 2.301 | Форматы |
+| ГОСТ 2.302 | Масштабы |
+| ГОСТ 2.303 | Линии |
+| ГОСТ 2.304 | Чертёжные шрифты |
+| ГОСТ 2.305 | Виды, разрезы, сечения |
+| ГОСТ 2.306 | Графические обозначения материалов |
+| ГОСТ 2.307 | Размеры и предельные отклонения |
+| ГОСТ 2.308 | Допуски формы и расположения |
+| ГОСТ 2.309 | Шероховатость |
+| ГОСТ 2.311 | Изображение резьбы |
+| ГОСТ 2.312 | Сварные соединения |
+| ГОСТ 2.313 | Неразъёмные соединения |
+| ГОСТ 2.316 | Надписи и технические требования |
+| ГОСТ 2.320 | Размеры, допуски и посадки конусов |
+| ГОСТ 2.503 | Внесение изменений |
+
+Перед реализацией каждого профиля проверить действующие редакции, поправки, обозначения и даты вступления в силу. Данный перечень — план охвата, а не подтверждение актуальности всех редакций. Полное соответствие ЕСКД нельзя объявлять исключительно по результатам автоматических тестов.
+
+## 7. Контрольные модели для проверки
+
+| Эталонное изделие | Что проверять |
+| --- | --- |
+| Ступенчатый вал | Диаметры, радиусы, фаски, резьбы, посадки |
+| Корпус подшипника | Отверстия, разрезы, допуски, шероховатость |
+| Рабочее колесо ЦБК | Сложные криволинейные поверхности и проекции |
+| Лопатка турбины | Профили, пространственная геометрия и сечения |
+| Сборка газотурбинного двигателя | Сборочные чертежи, спецификации, позиции и производительность |
+
+На этих моделях проверять не только формальную работоспособность функций, но и пригодность программы для реальных инженерных задач. Для каждого сценария сохранить исходную модель, эталонные результаты, допустимые отклонения и результаты проверок.
+
+## 8. План выпуска версий
+
+Номера ниже — условные обозначения этапов развития форка, а не обязательная замена текущей версии upstream. Окончательную схему версионирования выбрать так, чтобы не нарушить работу установщиков и автообновления.
+
+| Версия | Название | Содержание |
+| --- | --- | --- |
+| v0.1 | Modular Alpha | Модульная архитектура, сохранение текущих функций, ребрендинг, CI/CD |
+| v0.2 | SolidCraft Integration | Импорт 3D, точные проекции, виды и разрезы |
+| v0.3 | Associative Drafting | Ассоциативные размеры, автоматическое перестроение чертежей |
+| v0.4 | Engineering Standards | Расширенная поддержка ГОСТ, нормоконтроль и стандартные изделия |
+| v0.5 | Assembly Documentation | Сборочные чертежи и автоматические спецификации |
+| v0.9 | Beta | Оптимизация, стабильность, обмен файлами и полное регрессионное тестирование |
+| v1.0 | Stable | Выпуск после подтверждения работоспособности на реальных инженерных проектах |
+
+## 9. Что категорически не нужно разрабатывать
+
+- Собственный параметрический 3D-редактор.
+- Собственное твердотельное ядро с нуля.
+- Редактор трёхмерных сборок.
+- Собственный движок рендеринга взамен существующего.
+- Дублирующие реализации алгоритмов SolidCraft.
+- Полное переписывание CADCraft.
+- Копирование закрытых компонентов КОМПАС-3D.
+
+## 10. Правила работы ИИ-агентов над проектом
+
+- Работать непрерывно до выполнения поставленной задачи в пределах предоставленного доступа и ресурсов.
+- Вести актуальные `ROADMAP.md`, `PROGRESS.md`, `ARCHITECTURE.md`.
+- Искать готовые открытые реализации перед написанием собственных алгоритмов.
+- Не удалять работающую функциональность без равноценной замены.
+- Не использовать заглушки и фиктивные результаты.
+- Не считать задачу завершённой без проверки.
+- Запускать регрессионные тесты после каждого значимого изменения.
+- Параллельно выполнять независимые задачи.
+- Самостоятельно устранять обнаруженные ошибки.
+- Фиксировать результаты небольшими логическими коммитами.
+- Не останавливаться для промежуточных согласований, кроме действительно блокирующих решений.
+
+### Критерии приёмки задач
+
+- Реализация подключена к приложению и доступна по предусмотренному интерфейсу.
+- Выполнены подходящие модульные, интеграционные и регрессионные проверки; результаты зафиксированы.
+- Для геометрии проверены точность, единицы измерения и граничные случаи.
+- Для изменений документа проверены сохранение, повторное открытие и Undo/Redo, где применимо.
+- Для изменений GUI проверен реальный пользовательский сценарий.
+- Ограничения и неподдерживаемые сценарии явно документированы; ошибки не маскируются.
+- Чек-лист обновлён только после фактической приёмки. Неисполненные проверки отмечены отдельно.
+
+---
+
+## Итоговая цель
+
+Не создавать ещё одну САПР с нуля, а разработать открытую экосистему машиностроительного проектирования с полноценной поддержкой ЕСКД: SolidCraft отвечает за 3D-моделирование, CADCraftGOST — за точное преобразование моделей в чертежи и выпуск конструкторской документации.
+
+Когда в оригинальном CADCraft появится официальный Plugin API, желательно перейти от поддержки собственного форка к распространению независимых расширений, если API обеспечивает необходимые возможности. До этого момента оптимальный подход — модульный форк с минимальными изменениями оригинального приложения.

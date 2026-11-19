@@ -1,11 +1,12 @@
 //! Book properties edit the same authoritative engine records used by CLI/MCP.
+use super::gost::Editor;
 use super::{Action, no_drawing, set_temp, temp};
 use crate::CadApp;
 use egui::vec2;
 use serde_json::{Value, json};
 use std::collections::BTreeMap;
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 struct State {
     uid: u64,
     report: Value,
@@ -93,14 +94,15 @@ fn label(tag: &str) -> String {
     .to_string()
 }
 
-pub(super) fn dialog(app: &mut CadApp, ctx: &egui::Context, name: &str, open: &mut bool) -> Action {
-    let Ok(doc) = app.session.state() else {
-        no_drawing(ctx, crate::tl!("GOST / ESKD"), open);
-        return None;
-    };
-    let uid = doc.uid;
+fn editor_state(app: &mut CadApp, ctx: &egui::Context, name: &str) -> Option<(State, Editor<State>)> {
+    let doc = app.session.state().ok()?;
+    let (uid, revision) = (doc.uid, doc.revision);
+    let pass = ctx.cumulative_pass_nr();
+    let selection = app.session.space().layout().unwrap_or("").to_string();
     let key = format!("{name}_state");
-    let mut st = match temp::<State>(ctx, &key).filter(|s| s.uid == uid) {
+    let editor_key = format!("{name}_editor");
+    let cached = temp::<Editor<State>>(ctx, &editor_key);
+    let mut st = match temp::<State>(ctx, &key).filter(|s| s.uid == uid && cached.as_ref().is_some_and(|e| !e.reopened(pass))) {
         Some(s) => s,
         None => {
             let selected = app.session.space().layout().unwrap_or("").to_string();
@@ -119,6 +121,30 @@ pub(super) fn dialog(app: &mut CadApp, ctx: &egui::Context, name: &str, open: &m
             s
         }
     };
+    let mut editor =
+        cached.filter(|e| e.baseline().uid == uid && !e.reopened(pass)).unwrap_or_else(|| Editor::new(pass, revision, selection.clone(), &st));
+    let owner_changed = name != "gostdocument"
+        && selection != editor.selection
+        && selection != st.selected
+        && st.report["sheets"].as_array().is_some_and(|sheets| sheets.iter().any(|s| s["layout"].as_str() == Some(selection.as_str())));
+    editor.selection = selection.clone();
+    if editor.observe(pass, revision, owner_changed, &st) {
+        if owner_changed {
+            st.selected = selection;
+        }
+        refresh(app, &mut st);
+        editor.accept(revision, &st);
+    }
+    Some((st, editor))
+}
+
+pub(super) fn dialog(app: &mut CadApp, ctx: &egui::Context, name: &str, open: &mut bool) -> Action {
+    let Some((mut st, mut editor)) = editor_state(app, ctx, name) else {
+        no_drawing(ctx, crate::tl!("GOST / ESKD"), open);
+        return None;
+    };
+    let key = format!("{name}_state");
+    let editor_key = format!("{name}_editor");
     let is_document = name == "gostdocument";
     let title = if is_document { crate::tl!("GOST Document Properties") } else { crate::tl!("GOST Sheet Properties") };
     let mut action: Option<(&str, Value)> = None;
@@ -126,6 +152,7 @@ pub(super) fn dialog(app: &mut CadApp, ctx: &egui::Context, name: &str, open: &m
     egui::Window::new(title).id(egui::Id::unique(name)).open(open).default_size(vec2(620.0, 620.0)).show(ctx, |ui| {
         egui::ScrollArea::vertical().max_height(ctx.content_rect().height() * 0.75).show(ui, |ui| {
             ui.label(crate::tl!("Managed sheets share document properties; numbering and first/continuation forms update automatically."));
+            editor.warning(ui);
             if is_document {
                 egui::Grid::new("gost_common_fields").num_columns(2).show(ui, |ui| {
                     for (tag, value) in &mut st.common {
@@ -134,7 +161,7 @@ pub(super) fn dialog(app: &mut CadApp, ctx: &egui::Context, name: &str, open: &m
                         ui.end_row();
                     }
                 });
-                if ui.button(crate::tl!("Apply common properties")).clicked() {
+                if ui.add_enabled(!editor.conflict, egui::Button::new(crate::tl!("Apply common properties"))).clicked() {
                     action = Some(("gost.document", json!({"fields":st.common})));
                 }
             } else {
@@ -149,7 +176,13 @@ pub(super) fn dialog(app: &mut CadApp, ctx: &egui::Context, name: &str, open: &m
                     }
                 });
                 if st.selected != old {
-                    selected(&mut st);
+                    let requested = st.selected.clone();
+                    st.selected = old;
+                    if editor.observe(ctx.cumulative_pass_nr(), app.session.state().map_or(0, |s| s.revision), true, &st) {
+                        st.selected = requested;
+                        selected(&mut st);
+                        editor.accept(app.session.state().map_or(0, |s| s.revision), &st);
+                    }
                 }
                 ui.horizontal(|ui| {
                     ui.label(crate::tl!("Paper format"));
@@ -182,7 +215,7 @@ pub(super) fn dialog(app: &mut CadApp, ctx: &egui::Context, name: &str, open: &m
                         ui.end_row();
                     }
                 });
-                if ui.button(crate::tl!("Apply sheet properties")).clicked() {
+                if ui.add_enabled(!editor.conflict, egui::Button::new(crate::tl!("Apply sheet properties"))).clicked() {
                     let fields: BTreeMap<_, _> = st
                         .local
                         .iter()
@@ -208,10 +241,10 @@ pub(super) fn dialog(app: &mut CadApp, ctx: &egui::Context, name: &str, open: &m
                         app.session.doc().map(|d| d.layouts.iter().map(|l| (l.tab_order, l.name.clone())).collect()).unwrap_or_default();
                     names.sort_by_key(|(i, _)| *i);
                     if let Some(index) = names.iter().position(|(_, n)| n == &st.selected) {
-                        if ui.add_enabled(index > 0, egui::Button::new(crate::tl!("Move up"))).clicked() {
+                        if ui.add_enabled(!editor.conflict && index > 0, egui::Button::new(crate::tl!("Move up"))).clicked() {
                             action = Some(("gost.sheet.order", json!({"layout":st.selected,"index":index})));
                         }
-                        if ui.add_enabled(index + 1 < names.len(), egui::Button::new(crate::tl!("Move down"))).clicked() {
+                        if ui.add_enabled(!editor.conflict && index + 1 < names.len(), egui::Button::new(crate::tl!("Move down"))).clicked() {
                             action = Some(("gost.sheet.order", json!({"layout":st.selected,"index":index+2})));
                         }
                     }
@@ -220,6 +253,7 @@ pub(super) fn dialog(app: &mut CadApp, ctx: &egui::Context, name: &str, open: &m
             ui.separator();
             if ui.button(crate::tl!("Reload properties")).clicked() {
                 refresh(app, &mut st);
+                editor.accept(app.session.state().map_or(0, |s| s.revision), &st);
             }
             if let Some(e) = &st.error {
                 ui.colored_label(ui.visuals().error_fg_color, e);
@@ -231,13 +265,86 @@ pub(super) fn dialog(app: &mut CadApp, ctx: &egui::Context, name: &str, open: &m
     });
     if let Some((cmd, p)) = action {
         match app.run(cmd, p) {
-            Ok(_) => refresh(app, &mut st),
+            Ok(_) => {
+                if cmd != "layout.set" {
+                    refresh(app, &mut st);
+                    editor.accept(app.session.state().map_or(0, |s| s.revision), &st);
+                }
+            }
             Err(e) => st.error = Some(e),
         }
     }
-    set_temp(ctx, &key, st);
     if close {
         *open = false;
     }
+    if *open {
+        set_temp(ctx, &key, st);
+        set_temp(ctx, &editor_key, editor);
+    } else {
+        ctx.data_mut(|d| {
+            d.remove::<State>(egui::Id::unique(&key));
+            d.remove::<Editor<State>>(egui::Id::unique(&editor_key));
+        });
+    }
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn cache(ctx: &egui::Context, name: &str, state: State, editor: Editor<State>) {
+        set_temp(ctx, &format!("{name}_state"), state);
+        set_temp(ctx, &format!("{name}_editor"), editor);
+    }
+
+    #[test]
+    fn common_properties_refresh_cleanly_but_an_external_edit_conflicts_with_a_draft() {
+        let mut app = CadApp::new(cadcraft_engine::extensions::new_session(), crate::Services::default());
+        app.run("gost.document", json!({"fields":{"TITLE":"Исходное"}})).unwrap();
+        let ctx = egui::Context::default();
+        let (st, editor) = editor_state(&mut app, &ctx, "gostdocument").unwrap();
+        cache(&ctx, "gostdocument", st, editor);
+        app.run("gost.document", json!({"fields":{"TITLE":"Внешнее"}})).unwrap();
+        let (mut st, editor) = editor_state(&mut app, &ctx, "gostdocument").unwrap();
+        assert_eq!(st.common["TITLE"], "Внешнее");
+        assert!(!editor.conflict);
+        st.common.insert("TITLE".into(), "Черновик".into());
+        cache(&ctx, "gostdocument", st, editor);
+        app.run("gost.document", json!({"fields":{"TITLE":"Новая внешняя редакция"}})).unwrap();
+        let (st, editor) = editor_state(&mut app, &ctx, "gostdocument").unwrap();
+        assert_eq!(st.common["TITLE"], "Черновик");
+        assert!(editor.conflict);
+        cache(&ctx, "gostdocument", st, editor);
+        let mut output = ctx.run_ui(egui::RawInput::default(), |ui| {
+            dialog(&mut app, ui.ctx(), "gostdocument", &mut false);
+        });
+        output.textures_delta.clear();
+        let (st, editor) = editor_state(&mut app, &ctx, "gostdocument").unwrap();
+        assert_eq!(st.common["TITLE"], "Новая внешняя редакция");
+        assert!(!editor.conflict);
+    }
+
+    #[test]
+    fn changing_the_active_sheet_reloads_local_fields_without_retargeting_a_draft() {
+        let mut app = CadApp::new(cadcraft_engine::extensions::new_session(), crate::Services::default());
+        app.run("gost.sheet", json!({"layout":"Лист А","automatic":false,"form":"1","fields":{"SCALE":"1:1"}})).unwrap();
+        app.run("gost.sheet", json!({"layout":"Лист Б","automatic":false,"form":"1","fields":{"SCALE":"1:2"}})).unwrap();
+        app.run("layout.set", json!({"name":"Лист А"})).unwrap();
+        let ctx = egui::Context::default();
+        let (st, editor) = editor_state(&mut app, &ctx, "gostsheetproperties").unwrap();
+        assert_eq!(st.selected, "Лист А");
+        cache(&ctx, "gostsheetproperties", st, editor);
+        app.run("layout.set", json!({"name":"Лист Б"})).unwrap();
+        let (mut st, editor) = editor_state(&mut app, &ctx, "gostsheetproperties").unwrap();
+        assert_eq!(st.selected, "Лист Б");
+        assert_eq!(st.local["SCALE"], "1:2");
+        st.local.insert("SCALE".into(), "1:5".into());
+        cache(&ctx, "gostsheetproperties", st, editor);
+        app.run("layout.set", json!({"name":"Лист А"})).unwrap();
+        let (st, editor) = editor_state(&mut app, &ctx, "gostsheetproperties").unwrap();
+        assert!(editor.conflict);
+        assert_eq!(st.selected, "Лист Б");
+        assert_eq!(st.local["SCALE"], "1:5");
+    }
 }

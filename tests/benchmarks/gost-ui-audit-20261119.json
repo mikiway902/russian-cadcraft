@@ -1,0 +1,359 @@
+{
+  "date": "2026-11-19",
+  "platform": "Linux x86_64",
+  "surface": "native egui desktop via authenticated loopback control; actual pointer/key events and PNGs visually read",
+  "build": "cargo build --locked -p cadcraft",
+  "config": "isolated temporary profile",
+  "baseline_commit": "35cfa991f309661891adecf4b4ee44c72bc47cc1",
+  "F10": {
+    "before": {
+      "faces": [
+        [
+          0,
+          3,
+          2,
+          1
+        ],
+        [
+          4,
+          5,
+          6,
+          7
+        ],
+        [
+          0,
+          1,
+          5,
+          4
+        ],
+        [
+          1,
+          2,
+          6,
+          5
+        ],
+        [
+          2,
+          3,
+          7,
+          6
+        ],
+        [
+          3,
+          0,
+          4,
+          7
+        ]
+      ],
+      "handle": "181",
+      "ids": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
+      ],
+      "representation": "closed-polyhedral-mesh",
+      "vertices": [
+        {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0
+        },
+        {
+          "x": 40.0,
+          "y": 0.0,
+          "z": 0.0
+        },
+        {
+          "x": 40.0,
+          "y": 20.0,
+          "z": 0.0
+        },
+        {
+          "x": 0.0,
+          "y": 20.0,
+          "z": 0.0
+        },
+        {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 30.0
+        },
+        {
+          "x": 40.0,
+          "y": 0.0,
+          "z": 30.0
+        },
+        {
+          "x": 40.0,
+          "y": 20.0,
+          "z": 30.0
+        },
+        {
+          "x": 0.0,
+          "y": 20.0,
+          "z": 30.0
+        }
+      ]
+    },
+    "after": {
+      "faces": [
+        [
+          0,
+          3,
+          2,
+          1
+        ],
+        [
+          4,
+          5,
+          6,
+          7
+        ],
+        [
+          0,
+          1,
+          5,
+          4
+        ],
+        [
+          1,
+          2,
+          6,
+          5
+        ],
+        [
+          2,
+          3,
+          7,
+          6
+        ],
+        [
+          3,
+          0,
+          4,
+          7
+        ]
+      ],
+      "handle": "181",
+      "ids": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
+      ],
+      "representation": "closed-polyhedral-mesh",
+      "vertices": [
+        {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0
+        },
+        {
+          "x": 50.0,
+          "y": 0.0,
+          "z": 0.0
+        },
+        {
+          "x": 50.0,
+          "y": 20.0,
+          "z": 0.0
+        },
+        {
+          "x": 0.0,
+          "y": 20.0,
+          "z": 0.0
+        },
+        {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 30.0
+        },
+        {
+          "x": 50.0,
+          "y": 0.0,
+          "z": 30.0
+        },
+        {
+          "x": 50.0,
+          "y": 20.0,
+          "z": 30.0
+        },
+        {
+          "x": 0.0,
+          "y": 20.0,
+          "z": 30.0
+        }
+      ]
+    },
+    "observed": "created and changed maximum X through Apply body without Load; IDs and handle preserved"
+  },
+  "F11": {
+    "position": "1FB",
+    "owner": "18B",
+    "after": {
+      "at": [
+        35.0,
+        30.0
+      ],
+      "handle": "1FB",
+      "height": 5.0,
+      "shelf": 12.0,
+      "specification": "18B",
+      "target": "18A"
+    },
+    "observed": "owner field disabled; shelf X edited 25 to 35 through Apply position"
+  },
+  "F12": {
+    "view": "204",
+    "observed": "existing layout GOST1 field disabled; engine also rejects moving an existing view (covered by regression test)"
+  },
+  "F13": {
+    "first_view": "204",
+    "second_view": "20A",
+    "draft": "В",
+    "external_label": "Г",
+    "observed": "selection refreshed target/label; draft conflict warning blocked Apply; document retained Г; closing and reopening loaded Г"
+  },
+  "F14": {
+    "independent_form": "2a",
+    "first_automatic": {
+      "automatic": true,
+      "fields": {
+        "APPROVER": "",
+        "APPROVER_DATE": "",
+        "APPROVER_SIGNATURE": "",
+        "CHECKER": "",
+        "CHECKER_DATE": "",
+        "CHECKER_SIGNATURE": "",
+        "COPIED_BY": "",
+        "DESIGNATION": "",
+        "DESIGNATION_TOP": "",
+        "DEVELOPER": "",
+        "DEVELOPER_DATE": "",
+        "DEVELOPER_SIGNATURE": "",
+        "DUPLICATE_INVENTORY": "",
+        "DUPLICATE_SIGNATURE_DATE": "",
+        "EXTRA_ROLE": "",
+        "EXTRA_ROLE_DATE": "",
+        "EXTRA_ROLE_LABEL": "",
+        "EXTRA_ROLE_SIGNATURE": "",
+        "FORMAT": "A4",
+        "INVENTORY": "",
+        "INVENTORY_SIGNATURE_DATE": "",
+        "LITERA1": "",
+        "LITERA2": "",
+        "LITERA3": "",
+        "MASS": "",
+        "MATERIAL": "Сталь 45",
+        "NORM_CONTROL": "",
+        "NORM_CONTROL_DATE": "",
+        "NORM_CONTROL_SIGNATURE": "",
+        "ORG": "CADCraftGOST",
+        "REPLACES_INVENTORY": "",
+        "REV1_CHANGE": "",
+        "REV1_DATE": "",
+        "REV1_DOCUMENT": "",
+        "REV1_SHEET": "",
+        "REV1_SIGNATURE": "",
+        "REV2_CHANGE": "",
+        "REV2_DATE": "",
+        "REV2_DOCUMENT": "",
+        "REV2_SHEET": "",
+        "REV2_SIGNATURE": "",
+        "REV3_CHANGE": "",
+        "REV3_DATE": "",
+        "REV3_DOCUMENT": "",
+        "REV3_SHEET": "",
+        "REV3_SIGNATURE": "",
+        "REV4_CHANGE": "",
+        "REV4_DATE": "",
+        "REV4_DOCUMENT": "",
+        "REV4_SHEET": "",
+        "REV4_SIGNATURE": "",
+        "SCALE": "1:1",
+        "SHEET": "1",
+        "SHEETS": "1",
+        "TECH_CONTROL": "",
+        "TECH_CONTROL_DATE": "",
+        "TECH_CONTROL_SIGNATURE": "",
+        "TITLE": "Первый автоматический",
+        "VERSION": ""
+      },
+      "form": "1",
+      "format": "A4",
+      "handle": "1BD",
+      "landscape": false,
+      "layout": "Лист 1"
+    },
+    "observed": "TITLE/MATERIAL/ORG visible and editable; actual Create GOST Sheet produced form 1 with all three values"
+  },
+  "screenshots": [
+    {
+      "file": "start.png",
+      "sha256": "4fb35775bedaa775593ea9a40870eb81b08749456e183ac1aa8bf0f25f945d43"
+    },
+    {
+      "file": "solid-created.png",
+      "sha256": "780ea2c0543711a03dc2413ea0148414dbc1d8f4561cb0de023de2ecc61c0cea"
+    },
+    {
+      "file": "solid-edited.png",
+      "sha256": "cab773fe3271f6abb07bb3dce1900fab7d43d716d49aba8b903165c0cde6de3c"
+    },
+    {
+      "file": "position-owner-disabled.png",
+      "sha256": "0821ec177d60dd385a937ff000f292e94b45f772a8f8020f4529367ce6b48078"
+    },
+    {
+      "file": "position-after-attempt.png",
+      "sha256": "232a489244d976ab70055df619dacf876e3c5e0927e000134e8b5e2d3fd7d9e0"
+    },
+    {
+      "file": "view-layout-disabled.png",
+      "sha256": "8932dc80bd419e08315814887b6241d3a21a0a3b663ef211c8ba9930ad8b9805"
+    },
+    {
+      "file": "view-selection-refreshed.png",
+      "sha256": "db005df1a3107d38cc32c7cd47d6a394bec95568c47a4c0c71cf60ee1de6fb92"
+    },
+    {
+      "file": "view-conflict-blocked.png",
+      "sha256": "d49d74085f6024db690cf5d7d23bc8e728373c0f5cf25698ae44b0521c058454"
+    },
+    {
+      "file": "view-reopened-current.png",
+      "sha256": "393b0bc108d42c8870e6604b489fcb86b086939ef411350b5b3d178329e3f203"
+    },
+    {
+      "file": "first-automatic-sheet-form.png",
+      "sha256": "4422b4ab7345dbb4f2b4b4cdeaa7ca1ba6ddff19540ba36b167dde2677ec10c0"
+    },
+    {
+      "file": "first-automatic-sheet-filled.png",
+      "sha256": "f5548e6aee31293f9d2e90f409b6f401bf87567790eae4993181fec62300eb2e"
+    },
+    {
+      "file": "first-automatic-sheet-scrolled.png",
+      "sha256": "576a160a0a778b92306c6a9eea8bc4fe47f947c57d6c64edbcc40316954b3f4d"
+    },
+    {
+      "file": "first-automatic-sheet-created.png",
+      "sha256": "aa5e4e7a4d5a7010c5dbdf17ac755da83ed75edb54808a3b2bd6d9ff4895ccd6"
+    }
+  ],
+  "limits": [
+    "Images remain temporary GUI proof, not engineering reference models.",
+    "A queued screenshot cancelled on focus change was captured again after focus settled.",
+    "No Windows/macOS UI or installer acceptance is claimed.",
+    "Full workspace CI is tracked separately in PROGRESS.md."
+  ]
+}

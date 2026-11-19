@@ -17,7 +17,7 @@ fn shown(s: &Session, h: Handle) -> String {
 }
 #[test]
 fn model_edit_updates_paper_geometry_model_measurement_and_dxf_references() {
-    let mut s = Session::new();
+    let mut s = crate::extensions::new_session();
     let source = model(&mut s);
     let view = created(&mut s, "gost.projection", json!({"sources":[source.hex()],"layout":"GOST1","at":[60,100],"direction":"top","scale":2}));
     let dim = created(
@@ -43,7 +43,7 @@ fn model_edit_updates_paper_geometry_model_measurement_and_dxf_references() {
 }
 #[test]
 fn real_section_has_closed_hatch_and_intersection_dimension_follows_plane() {
-    let mut s = Session::new();
+    let mut s = crate::extensions::new_session();
     let source = model(&mut s);
     let view = created(
         &mut s,
@@ -70,7 +70,7 @@ fn real_section_has_closed_hatch_and_intersection_dimension_follows_plane() {
 }
 #[test]
 fn topology_changes_require_stable_identities_and_unrelated_edits_keep_blocks() {
-    let mut s = Session::new();
+    let mut s = crate::extensions::new_session();
     let source = model(&mut s);
     let view = created(&mut s, "gost.projection", json!({"sources":[source.hex()],"direction":"isometric"}));
     let EntityKind::Insert(i) = &s.doc().unwrap().entity(view).unwrap().kind else { panic!() };
@@ -86,7 +86,7 @@ fn topology_changes_require_stable_identities_and_unrelated_edits_keep_blocks() 
 
 #[test]
 fn invalid_cut_diagonal_and_view_transform_cannot_silently_break_anchors() {
-    let mut s = Session::new();
+    let mut s = crate::extensions::new_session();
     let source = model(&mut s);
     let view = created(&mut s, "gost.section.view", json!({"sources":[source.hex()],"plane":{"normal":[0,0,1],"offset":15}}));
     let before = s.doc().unwrap().clone();
@@ -104,7 +104,7 @@ fn invalid_cut_diagonal_and_view_transform_cannot_silently_break_anchors() {
 
 #[test]
 fn isometric_aligned_dimensions_measure_source_edges_and_keep_editable_offsets() {
-    let mut s = Session::new();
+    let mut s = crate::extensions::new_session();
     let source = model(&mut s);
     let view = created(&mut s, "gost.projection", json!({"sources":[source.hex()],"direction":"isometric","scale":2,"at":[80,130]}));
     let dim = created(
@@ -126,7 +126,7 @@ fn isometric_aligned_dimensions_measure_source_edges_and_keep_editable_offsets()
 
 #[test]
 fn dimension_text_survives_model_updates_and_unresolved_dxf_relinking() {
-    let mut s = Session::new();
+    let mut s = crate::extensions::new_session();
     let source = model(&mut s);
     let view = created(&mut s, "gost.projection", json!({"sources":[source.hex()],"direction":"top","scale":2}));
     let dimension = created(
@@ -157,4 +157,65 @@ fn dimension_text_survives_model_updates_and_unresolved_dxf_relinking() {
     .unwrap();
     assert_eq!(dm(&s, dimension).text, "<>*");
     assert_eq!(shown(&s, dimension), "80*");
+}
+
+#[test]
+fn copied_view_and_dimension_keep_their_pair_after_model_update_and_dxf() {
+    let mut s = crate::extensions::new_session();
+    let source = model(&mut s);
+    let view = created(&mut s, "gost.projection", json!({"sources":[source.hex()],"direction":"top","at":[50,120]}));
+    let dimension = created(
+        &mut s,
+        "gost.projection.dimension",
+        json!({"view":view.hex(),"a":{"source":source.hex(),"vertex":1},"b":{"source":source.hex(),"vertex":2}}),
+    );
+    s.execute("layout.set", &json!({"name":"GOST1"})).unwrap();
+    let copied = s.execute("copy", &json!({"handles":[view.hex(),dimension.hex()],"delta":[100,0]})).unwrap();
+    let handles: Vec<_> = copied["handles"].as_array().unwrap().iter().map(|v| Handle::parse_hex(v.as_str().unwrap()).unwrap()).collect();
+    let new_view = handles.iter().copied().find(|h| matches!(s.doc().unwrap().entity(*h).unwrap().kind, EntityKind::Insert(_))).unwrap();
+    let new_dim = handles.iter().copied().find(|h| matches!(s.doc().unwrap().entity(*h).unwrap().kind, EntityKind::Dimension(_))).unwrap();
+    assert_eq!(data::load::<Dimension>(&s.doc().unwrap().entity(new_dim).unwrap().common, DIM).unwrap().unwrap().view, new_view);
+    assert!((dm(&s, new_dim).p13.x - dm(&s, dimension).p13.x - 100.0).abs() < 1e-8);
+    let reopened = cadcraft_io::read_dxf(cadcraft_io::write_dxf(s.doc().unwrap()).as_bytes()).unwrap();
+    s.open_drawing(reopened, "copy", None);
+    s.execute("gost.solid", &json!({"handle":source.hex(),"box":{"min":[0,0,0],"max":[60,20,30]}})).unwrap();
+    assert_eq!(shown(&s, new_dim), "60");
+    assert_eq!(shown(&s, dimension), "60");
+    assert!((dm(&s, new_dim).p13.x - dm(&s, dimension).p13.x - 100.0).abs() < 1e-8);
+}
+
+#[test]
+fn extrusion_caps_hide_only_artificial_diagonals_in_native_dxf_geometry() {
+    let mut s = crate::extensions::new_session();
+    let h = created(&mut s, "gost.solid", json!({"profile":[[0,0],[10,0],[12,5],[5,10],[0,5]],"z0":0,"z1":10}));
+    let reopened = cadcraft_io::read_dxf(cadcraft_io::write_dxf(s.doc().unwrap()).as_bytes()).unwrap();
+    let EntityKind::PolyfaceMesh(mesh) = &reopened.entity(h).unwrap().kind else { panic!() };
+    let faces = mesh.faces3d();
+    let expected = std::collections::BTreeSet::from([(0, 1), (1, 2), (2, 3), (3, 4), (0, 4)]);
+    for z in [0.0, 10.0] {
+        let edges: std::collections::BTreeSet<_> = faces
+            .iter()
+            .flat_map(|f| f.visible_edges())
+            .filter(|(a, b)| a.z == z && b.z == z)
+            .map(|(a, b)| {
+                let a = mesh.vertices.iter().position(|v| *v == a).unwrap() % 5;
+                let b = mesh.vertices.iter().position(|v| *v == b).unwrap() % 5;
+                (a.min(b), a.max(b))
+            })
+            .collect();
+        assert_eq!(edges, expected);
+    }
+}
+
+#[test]
+fn existing_view_refuses_creation_only_layout_change_without_touching_the_document() {
+    let mut s = crate::extensions::new_session();
+    let source = model(&mut s);
+    let view = created(&mut s, "gost.projection", json!({"sources":[source.hex()],"layout":"GOST1","direction":"top"}));
+    s.execute("layout.new", &json!({"name":"Other"})).unwrap();
+    let before = s.doc().unwrap().clone();
+    let undo = s.state().unwrap().undo.len();
+    assert!(s.execute("gost.projection", &json!({"handle":view.hex(),"layout":"Other"})).is_err());
+    assert_eq!(s.doc().unwrap(), &before);
+    assert_eq!(s.state().unwrap().undo.len(), undo);
 }

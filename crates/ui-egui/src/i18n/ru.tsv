@@ -28,7 +28,6 @@
 	= Equals	= Равно
 	> Greater than	> Больше чем
 	About	О программе
-	About CADCraft	О CADCraft
 	Absolute	Абсолютные
 	Add Leader	Добавить выноску
 	Align	Выровнять
@@ -84,7 +83,6 @@
 	ByBlock	Поблоку
 	ByColor	ПоЦвету
 	ByLayer	Послою
-	CADCraft Help	Справка CADCraft
 	Cancel	Отмена
 	Cartesian (x, y)	Декартовы (x, y)
 	Center	Центр
@@ -590,7 +588,6 @@
 	Quick Select Properties	Свойства быстрого выбора
 	Quick Select...	Быстрый выбор...
 	QuickCalc	Быстрокалькулятор
-	Quit CADCraft	Выйти из CADCraft
 	Radius	Радиус
 	Raster Image	Растровое изображение
 	Ray	Луч
@@ -997,7 +994,6 @@
 @plural	{n} contributor	{n} участник|{n} участника|{n} участников
 	Drawing as bytes	Чертеж как байты
 	Services	Службы
-	Hide CADCraft	Скрыть CADCraft
 	Hide Others	Скрыть остальные
 	Accessibility	Специальные возможности
 	Show System Cursor	Показывать системный курсор
@@ -1013,7 +1009,6 @@
 	Query Texts	Запрос текстов
 	Analyze Shapes	Анализ фигур
 	Check for Updates…	Проверить обновления…
-	CADCraft is up to date.	У вас последняя версия CADCraft.
 	Could not check for updates.	Не удалось проверить обновления.
 	Add a drawing file as a block library	Добавить файл чертежа как библиотеку блоков
 	Add a folder of drawings or a drawing file to use its blocks.	Добавьте папку с чертежами или файл чертежа, чтобы использовать его блоки.
@@ -1286,3 +1281,7 @@
 	Welding process (optional)	Способ сварки (необязательно)
 	Fillet leg (mm)	Катет шва (мм)
 	Staggered intermittent weld	Шахматный прерывистый шов
+	Original CADCraft — source and author attribution	Оригинальный CADCraft — исходный код и сведения об авторах
+	CADCraftGOST source	Исходный код CADCraftGOST
+	CADCraftGOST releases	Выпуски CADCraftGOST
+	CADCraftGOST support	Поддержка CADCraftGOST

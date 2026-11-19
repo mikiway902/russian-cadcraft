@@ -10,7 +10,7 @@ fn at(s: &Session, h: Handle) -> Vec2 {
 }
 #[test]
 fn source_move_resize_delete_and_undo_keep_axes_consistent() {
-    let mut s = Session::new();
+    let mut s = crate::extensions::new_session();
     let (c, h) = circle_and_axes(&mut s);
     s.execute("move", &json!({"handles":[c.hex()],"delta":[50,10]})).unwrap();
     assert_eq!(at(&s, h), Vec2::new(70.0, 40.0));
@@ -27,7 +27,7 @@ fn source_move_resize_delete_and_undo_keep_axes_consistent() {
 }
 #[test]
 fn copied_pair_owns_new_source_and_links_persist_in_dxf() {
-    let mut s = Session::new();
+    let mut s = crate::extensions::new_session();
     let (c, h) = circle_and_axes(&mut s);
     s.execute("copy", &json!({"handles":[c.hex(),h.hex()],"delta":[100,0]})).unwrap();
     let copied = s
@@ -48,7 +48,7 @@ fn copied_pair_owns_new_source_and_links_persist_in_dxf() {
 }
 #[test]
 fn invalid_axis_only_copy_is_atomic() {
-    let mut s = Session::new();
+    let mut s = crate::extensions::new_session();
     let (_, h) = circle_and_axes(&mut s);
     let before = s.doc().unwrap().clone();
     assert!(s.execute("copy", &json!({"handles":[h.hex()],"delta":[100,0]})).is_err());

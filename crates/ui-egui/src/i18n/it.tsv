@@ -55,7 +55,7 @@ menu	Modify	Edita
 	> Greater than	> Maggiore di
 	A variable name starts with a letter and has only letters, digits and _	Un nome di variabile inizia con una lettera e contiene solo lettere, cifre e _
 	About	Informazioni
-	About CADCraft	Informazioni su CADCraft
+	About CADCraftGOST	Informazioni su CADCraftGOST
 	Absolute	Assoluto
 	Add Leader	Aggiungi direttrice
 	Additional angles	Angoli aggiuntivi
@@ -118,7 +118,7 @@ menu	Modify	Edita
 	ByBlock	DaBlocco
 	ByColor	DaColore
 	ByLayer	DaLayer
-	CADCraft Help	Aiuto di CADCraft
+	CADCraftGOST Help	Aiuto di CADCraftGOST
 	Cancel	Annulla
 	Cartesian (x, y)	Cartesiane (x, y)
 	Center	Centro
@@ -712,7 +712,7 @@ menu	Modify	Edita
 	Quick Select...	Selezione rapida...
 	QuickCalc	CalcRapida
 	QuickCalc Pick	Punto CalcRapida
-	Quit CADCraft	Esci da CADCraft
+	Quit CADCraftGOST	Esci da CADCraftGOST
 	Radius	Raggio
 	Raster Image	Immagine raster
 	Ray	Semiretta
@@ -1185,7 +1185,7 @@ menu	Modify	Edita
 @plural	{n} contributor	{n} collaboratore|{n} collaboratori
 	Drawing as bytes	Disegno in byte
 	Services	Servizi
-	Hide CADCraft	Nascondi CADCraft
+	Hide CADCraftGOST	Nascondi CADCraftGOST
 	Hide Others	Nascondi altre
 	Accessibility	Accessibilità
 	Show System Cursor	Mostra cursore di sistema
@@ -1364,7 +1364,7 @@ menu	Modify	Edita
 	Select using two clicks only	Seleziona solo con due clic
 	Define each corner of the selection window with a separate click.	Definire ogni angolo della finestra di selezione con un clic separato.
 	Check for Updates…	Verifica aggiornamenti…
-	CADCraft is up to date.	CADCraft è aggiornato.
+	CADCraftGOST is up to date.	CADCraftGOST è aggiornato.
 	Could not check for updates.	Impossibile verificare gli aggiornamenti.
 	Add a drawing file as a block library	Aggiungi un file di disegno come libreria di blocchi
 	Add a folder of drawings or a drawing file to use its blocks.	Aggiungi una cartella di disegni o un file di disegno per usarne i blocchi.

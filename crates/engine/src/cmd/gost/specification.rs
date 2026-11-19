@@ -1093,6 +1093,14 @@ pub(super) fn after_command(s: &mut Session, before: Option<&Arc<Drawing>>, uid:
         if i.block.starts_with("GOST-SPEC-") && prior.is_none() && data::load::<Record>(&e.common, META)?.is_some() {
             let _ = load_record(d, e.handle)?; // reject copied authoritative owners
         }
+        if i.block.starts_with("GOST-SPEC-") && prior.is_some() {
+            source_changed |= prior.is_some_and(|old| old.kind != e.kind || old.common != e.common)
+                || before.space_of(e.handle) != d.space_of(e.handle)
+                || match (before.space_of(e.handle), d.space_of(e.handle)) {
+                    (Some(Space::Paper(old)), Some(Space::Paper(new))) => before.layout(&old).map(|l| &l.page) != d.layout(&new).map(|l| &l.page),
+                    _ => true,
+                };
+        }
         if i.block.starts_with("GOST-POS-") {
             position_changed |= prior.is_none_or(|old| !Arc::ptr_eq(old, e));
         } else if !i.block.starts_with("GOST-") && data::load::<Part>(&e.common, PART)?.is_some() {
@@ -1106,9 +1114,22 @@ pub(super) fn after_command(s: &mut Session, before: Option<&Arc<Drawing>>, uid:
         }
     }
     for e in entities(before) {
+        if d.entity(e.handle).is_some() {
+            continue;
+        }
+        if let Some(record) = data::load::<Record>(&e.common, META)? {
+            if record.pages.iter().any(|h| d.entity(*h).is_some()) {
+                return Err(err("remove all specification pages together, not only their owner"));
+            }
+            position_changed = true;
+        }
+        if let Some(page) = data::load::<Page>(&e.common, PAGE)?
+            && d.entity(page.owner).is_some()
+        {
+            source_changed = true;
+        }
         if let EntityKind::Insert(i) = &e.kind
             && !i.block.starts_with("GOST-")
-            && d.entity(e.handle).is_none()
             && data::load::<Part>(&e.common, PART)?.is_some()
         {
             source_changed = true;

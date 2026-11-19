@@ -156,7 +156,7 @@ enum Ready<'a> {
 pub(crate) fn run_cmds(a: &RunArgs, io: &mut Streams) -> Result {
     let framing = a.framing.framing();
     let (save, export_to) = (a.save.as_deref(), a.export.as_deref());
-    let mut s = Session::empty();
+    let mut s = cadcraft_engine::extensions::session();
     for d in &a.drawings {
         match d {
             Drawing::File(f) => open(&mut s, f)?,
@@ -164,7 +164,7 @@ pub(crate) fn run_cmds(a: &RunArgs, io: &mut Streams) -> Result {
                 s.open_drawing(cadcraft_engine::sample::default_sample(), "Bracket", None);
             }
             Drawing::Metric => {
-                s.new_drawing(true);
+                cadcraft_engine::extensions::new_drawing(&mut s, true);
             }
         }
     }
@@ -177,7 +177,7 @@ pub(crate) fn run_cmds(a: &RunArgs, io: &mut Streams) -> Result {
         });
     }
     if s.docs.is_empty() {
-        s.new_drawing(true);
+        cadcraft_engine::extensions::new_drawing(&mut s, true);
     }
     let before = model_views(&s);
     let mut last_handle: Option<Handle> = None;

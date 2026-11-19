@@ -291,9 +291,9 @@ fn run_new(s: &mut Session, p: &Value) -> Result<Value> {
     if let Some(r) = template::run_new(s, p)? {
         return Ok(r);
     }
-    let metric = bool_or(p, "metric", true);
-    let i = s.new_drawing(metric);
-    if metric {
+    let metric = bool_or(p, "metric", s.settings.measureinit);
+    let i = crate::extensions::new_drawing(s, metric);
+    if metric && s.extension_defaults {
         s.state_mut()?.space = cadcraft_doc::Space::Paper("GOST1".into());
         s.zoom_extents()?;
         let st = s.state_mut()?;

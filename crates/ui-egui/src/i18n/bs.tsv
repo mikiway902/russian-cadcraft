@@ -52,7 +52,7 @@
 	> Greater than	> Veće od
 	A variable name starts with a letter and has only letters, digits and _	Naziv varijable počinje slovom i sadrži samo slova, cifre i _
 	About	O programu
-	About CADCraft	O CADCraftu
+	About CADCraftGOST	O CADCraftGOSTu
 	Absolute	Apsolutno
 	Add Leader	Dodaj pokaznu liniju
 	Additional angles	Dodatni uglovi
@@ -114,7 +114,7 @@
 	ByBlock	PoBloku
 	ByColor	PoBoji
 	ByLayer	PoSloju
-	CADCraft Help	Pomoć za CADCraft
+	CADCraftGOST Help	Pomoć za CADCraftGOST
 	Cancel	Otkaži
 	Cartesian (x, y)	Kartezijske (x, y)
 	Center	Sredina
@@ -701,7 +701,7 @@
 	Quick Select...	Brzi odabir...
 	QuickCalc	Brzi kalkulator
 	QuickCalc Pick	Odabir za brzi kalkulator
-	Quit CADCraft	Zatvori CADCraft
+	Quit CADCraftGOST	Zatvori CADCraftGOST
 	Radius	Poluprečnik
 	Raster Image	Rasterska slika
 	Ray	Zraka
@@ -1178,7 +1178,7 @@
 @plural	{n} contributor	{n} saradnik|{n} saradnika|{n} saradnika
 	Drawing as bytes	Crtež kao bajtovi
 	Services	Usluge
-	Hide CADCraft	Sakrij CADCraft
+	Hide CADCraftGOST	Sakrij CADCraftGOST
 	Hide Others	Sakrij ostale
 	Accessibility	Pristupačnost
 	Show System Cursor	Prikaži sistemski kursor
@@ -1212,7 +1212,7 @@
 	X	X
 	Y	Y
 	B	B
-	CADCraft	CADCraft
+	CADCraftGOST	CADCraftGOST
 	More toolbar commands	Više naredbi trake s alatima
 menu	View	Prikaz
 menu	Draw	Crtaj
@@ -1224,7 +1224,7 @@ menu	Modify	Izmijeni
 	Query Texts	Upit o tekstovima
 	Analyze Shapes	Analiziraj oblike
 	Check for Updates…	Provjeri ažuriranja…
-	CADCraft is up to date.	CADCraft je ažuran.
+	CADCraftGOST is up to date.	CADCraftGOST je ažuran.
 	Could not check for updates.	Nije moguće provjeriti ažuriranja.
 	3D Mouse	3D miš
 	3D Mouse Navigation	Navigacija 3D mišem

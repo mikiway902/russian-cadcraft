@@ -588,7 +588,7 @@ mod tests {
     }
 
     fn session() -> Session {
-        let mut s = crate::legacy_test_session();
+        let mut s = Session::new();
         s.cmdline("line 0,0 100,0").unwrap();
         s.cmdline("").unwrap();
         s.cmdline("circle 50,25 20").unwrap();
@@ -721,7 +721,7 @@ mod tests {
 
     #[test]
     fn preview_applies_an_explicit_layout_scale() {
-        let mut s = crate::legacy_test_session();
+        let mut s = Session::new();
         s.execute("layout.set", &json!({ "name": "Layout1" })).unwrap();
         s.execute("line", &json!({ "points": [[1.0, 1.0], [5.0, 1.0]] })).unwrap();
         let png = |s: &mut Session, p: Value| s.execute("preview", &p).unwrap()["data"].as_str().unwrap_or_default().to_string();
@@ -734,7 +734,7 @@ mod tests {
     /// it shapes the PDF; `fit: false` still gives the plain 1:1 sheet (#2493).
     #[test]
     fn preview_uses_the_layouts_saved_page_setup_by_default() {
-        let mut s = crate::legacy_test_session();
+        let mut s = Session::new();
         s.execute("layout.set", &json!({ "name": "Layout1" })).unwrap();
         s.execute("line", &json!({ "points": [[20.0, 5.0], [836.0, 589.0]] })).unwrap();
         s.execute("pagesetup", &json!({ "layout": "Layout1", "paper": "A4", "landscape": true, "margins": [0, 0, 0, 0] })).unwrap();
@@ -756,7 +756,7 @@ mod tests {
     #[test]
     fn preview_clips_a_saved_window_to_the_printable_area() {
         let build = |margin_line: bool| {
-            let mut s = crate::legacy_test_session();
+            let mut s = Session::new();
             s.execute("layout.set", &json!({ "name": "Layout1" })).unwrap();
             s.execute("line", &json!({ "points": [[0.0, 30.0], [100.0, 30.0]] })).unwrap();
             if margin_line {
@@ -778,7 +778,7 @@ mod tests {
     #[test]
     fn preview_clip_follows_the_view_when_the_height_cap_applies() {
         let build = |margin_line: bool| {
-            let mut s = crate::legacy_test_session();
+            let mut s = Session::new();
             s.execute("layout.set", &json!({ "name": "Layout1" })).unwrap();
             s.execute("line", &json!({ "points": [[0.0, 50.0], [100.0, 50.0]] })).unwrap();
             if margin_line {
@@ -803,7 +803,7 @@ mod tests {
     /// the plain 1:1 sheet does.
     #[test]
     fn preview_survives_hostile_saved_setups_and_default_is_unchanged() {
-        let mut s = crate::legacy_test_session();
+        let mut s = Session::new();
         s.execute("layout.set", &json!({ "name": "Layout1" })).unwrap();
         s.execute("line", &json!({ "points": [[20.0, 5.0], [200.0, 100.0]] })).unwrap();
         s.execute("pagesetup", &json!({ "layout": "Layout1", "paper": "A4", "landscape": true })).unwrap();
@@ -838,7 +838,7 @@ mod tests {
 
     #[test]
     fn preview_honours_saved_centering_and_an_explicit_scale() {
-        let mut s = crate::legacy_test_session();
+        let mut s = Session::new();
         s.execute("layout.set", &json!({ "name": "Layout1" })).unwrap();
         s.execute("line", &json!({ "points": [[20.0, 5.0], [836.0, 589.0]] })).unwrap();
         s.execute("pagesetup", &json!({ "layout": "Layout1", "paper": "A4", "landscape": true, "margins": [0, 0, 0, 0] })).unwrap();
@@ -870,7 +870,7 @@ mod tests {
         if io().and_then(|h| h.plot).is_none() {
             return;
         }
-        let mut s = crate::legacy_test_session();
+        let mut s = Session::new();
         // Row 1 (y = 0): A4, A3 landscape (drawn right to left); row 2 (y = 400): one A4; a stray rectangle.
         for c in ["pline 210,0 420,0 420,297 210,297 c", "pline 0,0 210,0 210,297 0,297 c", "pline 420,0 840,0 840,297 420,297 c"] {
             s.cmdline(c).unwrap();

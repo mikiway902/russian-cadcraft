@@ -421,3 +421,28 @@ fn oversized_hostile_structure_is_rejected_before_drawing_changes() {
     assert!(tolerance(&mut s, &nested).is_err());
     assert_eq!(s.doc().unwrap(), &before);
 }
+
+#[test]
+fn cross_document_paste_keeps_symbol_geometry_even_for_legacy_named_blocks() {
+    for legacy in [false, true] {
+        let mut s = session();
+        let first = handle(&s.execute("gost.roughness", &json!({"at":[0,0],"value":1.6})).unwrap());
+        let expected = kinds(&block(&s, first));
+        if legacy {
+            let name = block(&s, first).name;
+            std::sync::Arc::make_mut(s.doc_mut().unwrap().blocks.get_mut(&name).unwrap()).anonymous = false;
+        }
+        let e = (**s.doc().unwrap().entity(first).unwrap()).clone();
+        crate::cmd::clipboard::copy(&mut s, vec![e], Vec2::ZERO).unwrap();
+        s.new_drawing(false);
+        super::super::profile::install(&mut s, &json!({})).unwrap();
+        let other = handle(&s.execute("gost.roughness", &json!({"at":[0,0],"value":6.3})).unwrap());
+        let other_geometry = kinds(&block(&s, other));
+        let copied = crate::cmd::clipboard::paste(&mut s, &cadcraft_geom::Mat3::translate(Vec2::new(50.0, 0.0))).unwrap()[0];
+        assert_eq!(kinds(&block(&s, copied)), expected);
+        assert_eq!(kinds(&block(&s, other)), other_geometry);
+        assert_ne!(block(&s, copied).name, block(&s, other).name);
+        s.execute(EDIT, &json!({"handle":copied.hex(),"patch":{"value":3.2}})).unwrap();
+        assert_eq!(kinds(&block(&s, other)), other_geometry);
+    }
+}

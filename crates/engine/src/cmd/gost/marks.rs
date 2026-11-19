@@ -643,12 +643,23 @@ impl Geometry {
     }
     fn block(self, d: &mut Drawing, name: &str, kind: &str) -> Block {
         let mut block = Block::new(name);
+        // Private definitions must be renamed on cross-document clipboard/import collisions.
+        block.anonymous = true;
         block.units = 4;
         block.description = format!("Editable GOST {kind}; original native 2D construction");
         for (common, kind) in self.entities {
             block.entities.push(Entity { handle: d.new_handle(), common, kind });
         }
         block
+    }
+}
+
+/// Upgrade legacy private definitions in the clipboard copy, never in the source drawing.
+pub(super) fn prepare_clipboard_blocks(d: &mut Drawing) {
+    for block in d.blocks.values_mut() {
+        if !block.anonymous && block.name.starts_with("GOST-MARK-") && block.description.starts_with("Editable GOST ") {
+            std::sync::Arc::make_mut(block).anonymous = true;
+        }
     }
 }
 

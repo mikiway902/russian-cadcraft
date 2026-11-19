@@ -389,6 +389,11 @@ pub(super) fn after_command(s: &mut Session, before: Option<&Arc<Drawing>>, uid:
     for l in &d.layouts {
         let old = before.layout(&l.name);
         relevant |= old.is_none_or(|o| o.tab_order != l.tab_order || o.page != l.page);
+        relevant |= old.is_some_and(|old| {
+            old.entities
+                .iter()
+                .any(|e| matches!(&e.kind, EntityKind::Insert(i) if i.block.starts_with("GOST-SHEET-")) && !l.entities.contains(e.handle))
+        });
         for e in l.entities.iter() {
             let EntityKind::Insert(i) = &e.kind else { continue };
             if !i.block.starts_with("GOST-SHEET-") {

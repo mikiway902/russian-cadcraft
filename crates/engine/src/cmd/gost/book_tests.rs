@@ -21,7 +21,7 @@ fn form(d: &Drawing, name: &str) -> String {
 
 #[test]
 fn common_fields_numbering_and_promotion_survive_dxf() {
-    let mut s = Session::new();
+    let mut s = crate::extensions::new_session();
     s.execute("gost.document", &json!({"fields":{"DESIGNATION":"АБВГ.001","TITLE":"Кронштейн","MATERIAL":"Сталь","DEVELOPER":"Иванов"}})).unwrap();
     s.execute("layout.new", &json!({"name":"Продолжение"})).unwrap();
     assert_eq!(value(s.doc().unwrap(), "GOST1", "SHEETS"), "2");
@@ -43,7 +43,7 @@ fn common_fields_numbering_and_promotion_survive_dxf() {
 
 #[test]
 fn format_changes_keep_geometry_fields_handles_and_foreign_data() {
-    let mut s = Session::new();
+    let mut s = crate::extensions::new_session();
     s.execute("layout.set", &json!({"name":"GOST1"})).unwrap();
     let h = s.execute("line", &json!({"points":[[30,100],[80,100]]})).unwrap()["handles"][0].as_str().unwrap().to_string();
     let reference = frame(s.doc().unwrap(), "GOST1").0.handle;
@@ -73,7 +73,7 @@ fn format_changes_keep_geometry_fields_handles_and_foreign_data() {
 
 #[test]
 fn attribute_edits_and_layout_copy_rename_keep_common_values_consistent() {
-    let mut s = Session::new();
+    let mut s = crate::extensions::new_session();
     s.execute("gost.document", &json!({"fields":{"TITLE":"Опора"}})).unwrap();
     s.execute("layout.copy", &json!({"from":"GOST1","to":"Лист2"})).unwrap();
     s.execute("layout.rename", &json!({"from":"Лист2","to":"Сборка"})).unwrap();
@@ -88,7 +88,7 @@ fn attribute_edits_and_layout_copy_rename_keep_common_values_consistent() {
 
 #[test]
 fn manual_sheet_is_independent_and_invalid_common_updates_are_atomic() {
-    let mut s = Session::new();
+    let mut s = crate::extensions::new_session();
     s.execute("gost.document", &json!({"fields":{"DESIGNATION":"ОБЩ.001"}})).unwrap();
     s.execute("gost.sheet", &json!({"layout":"Независимый","automatic":false,"form":"2a","fields":{"DESIGNATION":"ДРУГ.001","SHEET":"7"}})).unwrap();
     assert_eq!(value(s.doc().unwrap(), "GOST1", "DESIGNATION"), "ОБЩ.001");
@@ -99,4 +99,22 @@ fn manual_sheet_is_independent_and_invalid_common_updates_are_atomic() {
         assert!(s.execute("gost.document", &p).is_err());
         assert_eq!(s.doc().unwrap(), &before);
     }
+}
+
+#[test]
+fn erasing_the_first_frame_promotes_the_next_managed_sheet_in_one_undo() {
+    let mut s = crate::extensions::new_session();
+    s.execute("gost.document", &json!({"fields":{"TITLE":"Корпус"}})).unwrap();
+    s.execute("layout.new", &json!({"name":"Second"})).unwrap();
+    let h = frame(s.doc().unwrap(), "GOST1").0.handle;
+    s.execute("erase", &json!({"handles":[h.hex()]})).unwrap();
+    assert_eq!(value(s.doc().unwrap(), "Second", "SHEET"), "1");
+    assert_eq!(value(s.doc().unwrap(), "Second", "SHEETS"), "1");
+    assert_eq!(value(s.doc().unwrap(), "Second", "TITLE"), "Корпус");
+    assert!(form(s.doc().unwrap(), "Second").contains("form 1,"));
+    s.undo().unwrap();
+    assert!(s.doc().unwrap().entity(h).is_some());
+    assert_eq!(value(s.doc().unwrap(), "Second", "SHEET"), "2");
+    s.redo().unwrap();
+    assert_eq!(value(s.doc().unwrap(), "Second", "SHEETS"), "1");
 }

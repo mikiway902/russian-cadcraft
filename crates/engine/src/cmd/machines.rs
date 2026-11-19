@@ -229,7 +229,7 @@ mod tests {
     /// (#126), and acts on the picked objects in one undo step.
     #[test]
     fn selection_commands_prompt_without_pickfirst() {
-        let mut s = crate::legacy_test_session();
+        let mut s = crate::Session::new();
         s.execute("layer.new", &json!({ "name": "A", "current": true })).unwrap();
         s.execute("line", &json!({ "points": [[0, 0], [10, 0]] })).unwrap();
         s.execute("layer.current", &json!({ "name": "0" })).unwrap();
@@ -267,7 +267,7 @@ mod tests {
     /// With a pickfirst selection the commands run at once; JSON calls never prompt.
     #[test]
     fn selection_commands_pickfirst_and_json_unchanged() {
-        let mut s = crate::legacy_test_session();
+        let mut s = crate::Session::new();
         s.execute("line", &json!({ "points": [[0, 0], [10, 0]] })).unwrap();
         let h = s.doc().unwrap().model.iter().next().unwrap().handle;
         s.set_selection(vec![h]);
@@ -288,7 +288,7 @@ mod tests {
     /// single-object prompts, and the idle crosshair when PICKFIRST is on.
     #[test]
     fn pick_box_at_object_selection_prompts() {
-        let mut s = crate::legacy_test_session();
+        let mut s = crate::Session::new();
         s.execute("line", &json!({"points": [[0, 0], [10, 0]]})).unwrap();
         assert!(s.picking_objects(), "idle with PICKFIRST on");
         s.settings.pickfirst = false;
@@ -315,7 +315,7 @@ mod tests {
     /// (#34). JSON calls keep their documented defaults.
     #[test]
     fn prompts_remember_last_options() {
-        let mut s = crate::legacy_test_session();
+        let mut s = crate::Session::new();
         s.execute("rectang", &json!({"p1": [0, 0], "p2": [10, 10]})).unwrap();
         let rect = s.doc().unwrap().model.iter().next().unwrap().handle;
 

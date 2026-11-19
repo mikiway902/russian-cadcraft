@@ -34,7 +34,7 @@ fn mtexts(s: &Session) -> Vec<(String, MText)> {
 
 #[test]
 fn combines_texts_top_down_into_one_mtext_with_the_first_ones_properties() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     let hs = three_lines(&mut s);
     let r = s.execute("txt2mtxt", &json!({"handles": hs})).unwrap();
     let doc = s.doc().unwrap();
@@ -56,7 +56,7 @@ fn combines_texts_top_down_into_one_mtext_with_the_first_ones_properties() {
 
 #[test]
 fn selection_order_wrap_and_one_mtext_per_text() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     let hs = three_lines(&mut s);
     s.execute("txt2mtxt", &json!({"handles": hs, "sort": "selection", "wrap": true})).unwrap();
     let ms = mtexts(&s);
@@ -77,7 +77,7 @@ fn selection_order_wrap_and_one_mtext_per_text() {
 
 #[test]
 fn command_line_settings_and_locked_layers() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     let hs = three_lines(&mut s);
     let steps = s.state().unwrap().undo.len();
     s.start("txt2mtxt").unwrap();
@@ -138,7 +138,7 @@ fn line_extents(strokes: &[Vec<cadcraft_geom::Vec2>]) -> Vec<f64> {
 
 #[test]
 fn combined_lines_keep_their_own_heights() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     for (y, t, h) in [(0, "LOW", 3.5), (20, "TOP", 5.0), (10, "MID", 3.5)] {
         s.execute("text", &json!({"at": [0, y], "text": t, "height": h})).unwrap();
     }

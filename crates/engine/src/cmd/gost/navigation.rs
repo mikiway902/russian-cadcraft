@@ -57,7 +57,7 @@ mod tests {
     use super::*;
     #[test]
     fn finding_navigation_uses_live_geometry_and_keeps_drawing_clean() {
-        let mut s = Session::new();
+        let mut s = crate::extensions::new_session();
         let h = s.execute("line", &json!({"points":[[100,200],[150,200]]})).unwrap()["handles"][0].clone();
         let before = s.state().unwrap().doc.clone();
         let undo = s.state().unwrap().undo.len();

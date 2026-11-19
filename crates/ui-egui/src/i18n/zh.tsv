@@ -28,7 +28,7 @@
 	= Equals	= 等于
 	> Greater than	> 大于
 	About	关于
-	About CADCraft	关于 CADCraft
+	About CADCraftGOST	关于 CADCraftGOST
 	Absolute	绝对
 	Add Leader	添加引线
 	Align	对齐
@@ -84,7 +84,7 @@
 	ByBlock	ByBlock
 	ByColor	ByColor
 	ByLayer	ByLayer
-	CADCraft Help	CADCraft 帮助
+	CADCraftGOST Help	CADCraftGOST 帮助
 	Cancel	取消
 	Cartesian (x, y)	笛卡尔坐标 (x, y)
 	Center	中心
@@ -592,7 +592,7 @@
 	Quick Select Properties	快速选择特性
 	Quick Select...	快速选择...
 	QuickCalc	快速计算器
-	Quit CADCraft	退出 CADCraft
+	Quit CADCraftGOST	退出 CADCraftGOST
 	Radius	半径
 	Raster Image	光栅图像
 	Raster Image Reference...	光栅图像参照...
@@ -1000,7 +1000,7 @@
 @plural	{n} contributor	{n} 位贡献者|{n} 位贡献者
 	Drawing as bytes	字节形式的图形
 	Services	服务
-	Hide CADCraft	隐藏 CADCraft
+	Hide CADCraftGOST	隐藏 CADCraftGOST
 	Hide Others	隐藏其他人
 	Accessibility	辅助功能
 	Show System Cursor	显示系统光标
@@ -1226,7 +1226,7 @@
 	Reinitialize	重新初始化
 	Update Data Links	更新数据链接
 	Dim scale overall	全局标注比例
-	CADCraft	CADCraft
+	CADCraftGOST	CADCraftGOST
 	Enter	输入
 	Temporary track point	临时追踪点
 	Plot Window	窗口打印
@@ -1349,7 +1349,7 @@
 	US Survey Yard	美国测量码
 	US Survey Mile	美国测量英里
 	Check for Updates…	检查更新…
-	CADCraft is up to date.	CADCraft 已是最新版本。
+	CADCraftGOST is up to date.	CADCraftGOST 已是最新版本。
 	Could not check for updates.	无法检查更新。
 	Add a drawing file as a block library	将图形文件添加为块库
 	Add a folder of drawings or a drawing file to use its blocks.	添加包含图形的文件夹或图形文件，以使用其中的块。
@@ -1507,3 +1507,38 @@ menu	View	视图
 
 # ArtCraft feature naming
 	Additional Tools	其他工具
+
+# GOST drawing commands
+	GOST	GOST 标准
+	Edit GOST Engineering Symbol	编辑 GOST 工程符号
+	Edit GOST Position	编辑 GOST 零件序号
+	Edit GOST Specification	编辑 GOST 明细表
+	GOST Associative Section	GOST 关联剖视图
+	GOST Associative View	GOST 关联视图
+	GOST Center Axes	GOST 中心线
+	GOST Cutting Plane	GOST 剖切平面
+	GOST Document Properties	GOST 文档属性
+	GOST Drawing Check	GOST 图纸检查
+	GOST Drawing Setup	GOST 绘图设置
+	GOST Drawing Sheet	GOST 图纸
+	GOST Geometric Tolerance	GOST 几何公差
+	GOST Metal Hatch	GOST 金属剖面线
+	GOST Polyhedral Solid	GOST 多面体实体
+	GOST Position	GOST 零件序号
+	GOST Roughness	GOST 表面粗糙度
+	GOST Sheet Properties	GOST 图纸属性
+	GOST Specification	GOST 明细表
+	GOST Symbolic Thread	GOST 螺纹简化表示
+	GOST Technical Requirements	GOST 技术要求
+	GOST View Designation	GOST 视图标记
+	GOST View Dimension	GOST 视图尺寸
+	GOST Weld	GOST 焊接符号
+	Inspect Associative View	查看关联视图信息
+	Inspect GOST Engineering Symbol	查看 GOST 工程符号信息
+	Inspect GOST Position	查看 GOST 零件序号信息
+	Inspect GOST Specification	查看 GOST 明细表信息
+	Inspect Technical Requirements	查看技术要求信息
+	Reorder GOST Sheet	调整 GOST 图纸顺序
+	Show GOST Finding	显示 GOST 检查问题
+	Synchronize GOST Sheets	同步 GOST 图纸
+	Technical Requirement Templates	技术要求模板

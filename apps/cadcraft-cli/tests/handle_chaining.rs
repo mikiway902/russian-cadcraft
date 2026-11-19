@@ -7,12 +7,23 @@
 use std::process::{Command, Output};
 
 fn run(args: &[&str]) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_cadcraft-cli"))
+    if args.first() != Some(&"run") {
+        return Command::new(env!("CARGO_BIN_EXE_cadcraft-cli")).args(args).output().expect("run cadcraft-cli");
+    }
+    // A single raw input drawing isolates chaining from product presets and title blocks.
+    static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    let file =
+        std::env::temp_dir().join(format!("cc-cli-handles-{}-{}.dxf", std::process::id(), NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)));
+    std::fs::write(&file, cadcraft_io::write_dxf(&cadcraft_engine::doc::Drawing::new_metric())).expect("raw drawing fixture");
+    let output = Command::new(env!("CARGO_BIN_EXE_cadcraft-cli"))
         .args(args)
+        .arg(&file)
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
         .output()
-        .expect("run cadcraft-cli")
+        .expect("run cadcraft-cli");
+    let _ = std::fs::remove_file(file);
+    output
 }
 
 /// The issue's sequence: `viewport.set` straight after `mview`, addressing the new viewport by the
@@ -21,9 +32,10 @@ fn run(args: &[&str]) -> Output {
 fn viewport_set_after_mview_uses_the_returned_handle() {
     let out = run(&[
         "run",
-        "--metric",
         "--cmd",
-        r#"layout.set {"name":"Layout1"}"#,
+        r#"layout.new {"name":"Chaining","viewport":false}"#,
+        "--cmd",
+        r#"layout.set {"name":"Chaining"}"#,
         "--cmd",
         r#"mview {"p1":[20,20],"p2":[200,150]}"#,
         "--cmd",
@@ -35,7 +47,6 @@ fn viewport_set_after_mview_uses_the_returned_handle() {
     let mview = stdout.lines().find(|l| l.contains("\"viewports\"")).unwrap_or_else(|| panic!("no mview result in {stdout:?}"));
     let created: serde_json::Value = serde_json::from_str(mview).expect("mview result is JSON");
     let handle = created["viewports"].as_array().and_then(|a| a.first()).and_then(|h| h.as_str()).expect("a viewport handle");
-    assert!(handle.eq_ignore_ascii_case("100"), "{mview}");
     let set = stdout.lines().find(|l| l.contains("\"viewHeight\"")).unwrap_or_else(|| panic!("no viewport.set result in {stdout:?}"));
     let vp: serde_json::Value = serde_json::from_str(set).expect("viewport.set result is JSON");
     assert_eq!(vp[0]["handle"].as_str(), Some(handle), "viewport.set changed the viewport `{handle}`: {set}");
@@ -45,7 +56,7 @@ fn viewport_set_after_mview_uses_the_returned_handle() {
 /// `{last}` with no handle to fill in is a clear error, not the token reaching the command.
 #[test]
 fn last_without_an_earlier_handle_is_an_error() {
-    let out = run(&["run", "--metric", "--cmd", r#"viewport.set {"handle":"{last}","scale":1}"#]);
+    let out = run(&["run", "--cmd", r#"viewport.set {"handle":"{last}","scale":1}"#]);
     let stderr = String::from_utf8_lossy(&out.stderr);
     assert_eq!(out.status.code(), Some(1), "stdout: {:?}\nstderr: {stderr}", String::from_utf8_lossy(&out.stdout));
     assert!(stderr.contains("{last}"), "the error names the placeholder: {stderr}");
@@ -75,19 +86,18 @@ fn assert_needs_an_earlier_handle(out: &Output) {
 }
 
 /// A user-defined name that happens to look like a handle is not a returned handle. `group`
-/// answers `{"name":"100","members":1}`: `100` is the first line's handle, but the name is not an
-/// object reference and must not replace the last handle the `line` command returned (`101`).
+/// answers a name rather than an object reference and must not replace the last handle the
+/// `line` command returned.
 #[test]
 fn a_group_name_that_looks_like_a_handle_is_not_last() {
     let out = run(&[
         "run",
-        "--metric",
         "--cmd",
         r#"line {"points":[[0,0],[10,0]]}"#,
         "--cmd",
         r#"line {"points":[[0,10],[10,10]]}"#,
         "--cmd",
-        r#"group {"name":"100","handles":["101"]}"#,
+        r#"group {"name":"100","handles":["{last}"]}"#,
         "--cmd",
         r#"erase {"handles":["{last}"]}"#,
         "--cmd",
@@ -99,23 +109,19 @@ fn a_group_name_that_looks_like_a_handle_is_not_last() {
     let r = last_json(&stdout);
     assert_eq!(r["count"].as_u64(), Some(1), "one line is left: {stdout}");
     let left: Vec<&str> = r["entities"].as_array().into_iter().flatten().filter_map(|e| e["handle"].as_str()).collect();
-    assert_eq!(left, ["100"], "the group name 100 did not replace the handle 101 the line command returned: {stdout}");
+    let first: serde_json::Value = serde_json::from_str(stdout.lines().next().expect("first line result")).expect("line result is JSON");
+    let group: serde_json::Value =
+        serde_json::from_str(stdout.lines().find(|line| line.contains("\"members\"")).expect("group result")).expect("group result is JSON");
+    assert_eq!(group["name"], first["handles"][0], "the group name must alias a different existing object for this regression: {stdout}");
+    assert_eq!(left, [first["handles"][0].as_str().expect("first line handle")], "the group name did not replace the returned line handle: {stdout}");
 }
 
 /// `new` makes another drawing current: the handle an earlier `--cmd` returned in the old drawing
 /// is not a handle of the new one.
 #[test]
 fn last_is_cleared_when_new_switches_drawings() {
-    let out = run(&[
-        "run",
-        "--metric",
-        "--cmd",
-        r#"line {"points":[[0,0],[10,0]]}"#,
-        "--cmd",
-        r#"new {"metric":true}"#,
-        "--cmd",
-        r#"erase {"handles":["{last}"]}"#,
-    ]);
+    let out =
+        run(&["run", "--cmd", r#"line {"points":[[0,0],[10,0]]}"#, "--cmd", r#"new {"metric":true}"#, "--cmd", r#"erase {"handles":["{last}"]}"#]);
     assert_needs_an_earlier_handle(&out);
 }
 
@@ -128,7 +134,7 @@ fn last_is_cleared_when_open_switches_drawings() {
     let sample = run(&["sample", "bracket", dxf.to_str().expect("temp path")]);
     assert!(sample.status.success(), "sample failed: {}", String::from_utf8_lossy(&sample.stderr));
     let open = format!(r#"open {{"path":{}}}"#, serde_json::to_string(dxf.to_str().expect("temp path")).expect("path JSON"));
-    let out = run(&["run", "--metric", "--cmd", r#"line {"points":[[0,0],[10,0]]}"#, "--cmd", &open, "--cmd", r#"erase {"handles":["{last}"]}"#]);
+    let out = run(&["run", "--cmd", r#"line {"points":[[0,0],[10,0]]}"#, "--cmd", &open, "--cmd", r#"erase {"handles":["{last}"]}"#]);
     assert_needs_an_earlier_handle(&out);
     let _ = std::fs::remove_dir_all(&dir);
 }
@@ -139,7 +145,6 @@ fn last_is_cleared_when_open_switches_drawings() {
 fn last_is_cleared_when_document_switch_changes_drawings() {
     let out = run(&[
         "run",
-        "--metric",
         "--cmd",
         r#"line {"points":[[0,0],[10,0]]}"#,
         "--cmd",
@@ -159,7 +164,6 @@ fn last_is_cleared_when_document_switch_changes_drawings() {
 fn a_handle_returned_after_a_switch_is_last() {
     let out = run(&[
         "run",
-        "--metric",
         "--cmd",
         r#"line {"points":[[0,0],[10,0]]}"#,
         "--cmd",
@@ -179,23 +183,16 @@ fn a_handle_returned_after_a_switch_is_last() {
     let r = last_json(&stdout);
     assert_eq!(r["count"].as_u64(), Some(1), "one line is left: {stdout}");
     let left: Vec<&str> = r["entities"].as_array().into_iter().flatten().filter_map(|e| e["handle"].as_str()).collect();
-    assert_eq!(left, ["100"], "the line created after the switch was erased: {stdout}");
+    let first: serde_json::Value = serde_json::from_str(stdout.lines().next().expect("first line result")).expect("line result is JSON");
+    assert_eq!(left, [first["handles"][0].as_str().expect("first line handle")], "the line created after the switch was erased: {stdout}");
 }
 
 /// A script can change the current drawing too (`new {"metric":true}` at a script line), so the
 /// remembered handle is cleared after a script that changed it.
 #[test]
 fn last_is_cleared_by_a_script_that_changes_drawings() {
-    let out = run(&[
-        "run",
-        "--metric",
-        "--cmd",
-        r#"line {"points":[[0,0],[10,0]]}"#,
-        "--script",
-        r#"new {"metric":true}"#,
-        "--cmd",
-        r#"erase {"handles":["{last}"]}"#,
-    ]);
+    let out =
+        run(&["run", "--cmd", r#"line {"points":[[0,0],[10,0]]}"#, "--script", r#"new {"metric":true}"#, "--cmd", r#"erase {"handles":["{last}"]}"#]);
     assert_needs_an_earlier_handle(&out);
 }
 
@@ -207,9 +204,10 @@ fn ordinary_values_are_not_placeholders() {
     let out_dxf = dir.join("text.dxf");
     let out = run(&[
         "run",
-        "--metric",
         "--cmd",
-        r#"layout.set {"name":"Layout1"}"#,
+        r#"layout.new {"name":"Chaining","viewport":false}"#,
+        "--cmd",
+        r#"layout.set {"name":"Chaining"}"#,
         "--cmd",
         r#"mview {"p1":[20,20],"p2":[200,150]}"#,
         "--cmd",

@@ -6,9 +6,60 @@ use serde_json::{Value, json};
 use super::{Action, no_drawing, set_temp, temp};
 use crate::CadApp;
 
+/// Like the text editor, a manager cache belongs to consecutive UI passes only.
+/// The accepted snapshot distinguishes an intentional draft from a stale clean editor.
+#[derive(Clone)]
+pub(super) struct Editor<T> {
+    pub pass: u64,
+    pub selection: String,
+    revision: u64,
+    baseline: std::sync::Arc<T>,
+    pub conflict: bool,
+}
+
+impl<T: Clone + PartialEq> Editor<T> {
+    pub fn new(pass: u64, revision: u64, selection: String, state: &T) -> Self {
+        Self { pass, revision, selection, baseline: std::sync::Arc::new(state.clone()), conflict: false }
+    }
+
+    pub fn baseline(&self) -> &T {
+        &self.baseline
+    }
+
+    pub fn reopened(&self, pass: u64) -> bool {
+        self.pass.saturating_add(1) < pass
+    }
+
+    pub fn observe(&mut self, pass: u64, revision: u64, owner_changed: bool, state: &T) -> bool {
+        self.pass = pass;
+        if revision == self.revision && !owner_changed {
+            return false;
+        }
+        if self.conflict || state != self.baseline.as_ref() {
+            self.conflict = true;
+            return false;
+        }
+        true
+    }
+
+    pub fn accept(&mut self, revision: u64, state: &T) {
+        self.revision = revision;
+        self.baseline = std::sync::Arc::new(state.clone());
+        self.conflict = false;
+    }
+
+    pub fn warning(&self, ui: &mut egui::Ui) {
+        if self.conflict {
+            ui.colored_label(ui.visuals().error_fg_color, crate::tl!("The drawing changed. Close the window and open it again."));
+        }
+    }
+}
+
 #[derive(Clone)]
 struct State {
     uid: u64,
+    revision: u64,
+    automatic_continuation: Option<bool>,
     layout: String,
     format: String,
     landscape: bool,
@@ -21,19 +72,18 @@ struct State {
     error: Option<String>,
 }
 
-fn initial(app: &CadApp) -> State {
+fn initial(app: &mut CadApp) -> State {
+    let book = app.run("gost.document", json!({}));
     let d = app.session.doc().ok();
     let layout = (1..=10_000).map(|i| format!("Лист {i}")).find(|n| d.is_none_or(|d| d.layout(n).is_none())).unwrap_or_default();
     State {
         uid: app.session.state().map_or(0, |s| s.uid),
+        revision: app.session.state().map_or(0, |s| s.revision),
+        automatic_continuation: book.as_ref().ok().map(managed_continuation),
         layout,
         format: "A4".into(),
         landscape: false,
-        continuation: d.is_some_and(|d| {
-            d.layouts.iter().any(|l| {
-                l.entities.iter().any(|e| matches!(&e.kind, cadcraft_engine::doc::EntityKind::Insert(i) if i.block.starts_with("GOST-SHEET-")))
-            })
-        }),
+        continuation: false,
         automatic: true,
         font: d.and_then(|d| d.text_style("GOST")).map_or_else(|| cadcraft_fonts::GOST_FONT.into(), |s| s.font.clone()),
         scale: d.and_then(|d| d.dim_style("GOST")).map_or(1.0, |s| s.scale),
@@ -56,8 +106,31 @@ fn initial(app: &CadApp) -> State {
         .map(|tag| (tag, String::new()))
         .collect(),
         result: None,
-        error: None,
+        error: book.err(),
     }
+}
+
+fn managed_continuation(report: &Value) -> bool {
+    report["sheets"].as_array().is_some_and(|sheets| sheets.iter().any(|s| s["automatic"].as_bool() == Some(true)))
+}
+
+fn sheet_params(st: &State, continuation: bool) -> Value {
+    let fields: serde_json::Map<String, Value> = st
+        .fields
+        .iter()
+        .filter(|(k, v)| {
+            !v.trim().is_empty()
+                && (!continuation || matches!(*k, "DESIGNATION" | "VERSION" | "SHEET"))
+                && (!st.automatic || !matches!(*k, "SHEET" | "SHEETS"))
+        })
+        .map(|(k, v)| ((*k).into(), json!(v.trim())))
+        .collect();
+    let mut params = json!({"layout":st.layout.trim(),"format":st.format,"landscape":st.landscape,
+        "automatic":st.automatic,"font":st.font.trim(),"fields":fields});
+    if !st.automatic {
+        params["form"] = json!(if continuation { "2a" } else { "1" });
+    }
+    params
 }
 
 fn field_label(tag: &str) -> &str {
@@ -84,8 +157,23 @@ pub(super) fn dialog(app: &mut CadApp, ctx: &egui::Context, name: &str, open: &m
         no_drawing(ctx, crate::tl!("GOST / ESKD"), open);
         return None;
     };
+    let uid = doc.uid;
     let key = format!("{name}_state");
-    let mut st = temp::<State>(ctx, &key).filter(|s| s.uid == doc.uid).unwrap_or_else(|| initial(app));
+    let mut st = temp::<State>(ctx, &key).filter(|s| s.uid == uid).unwrap_or_else(|| initial(app));
+    let revision = app.session.state().map_or(0, |s| s.revision);
+    if name == "gostsheet" && st.revision != revision {
+        match app.run("gost.document", json!({})) {
+            Ok(report) => {
+                st.automatic_continuation = Some(managed_continuation(&report));
+                st.error = None;
+            }
+            Err(e) => {
+                st.automatic_continuation = None;
+                st.error = Some(e);
+            }
+        }
+        st.revision = revision;
+    }
     let mut action = None;
     let mut close = false;
     if name == "gostcheck" && st.result.is_none() && st.error.is_none() {
@@ -138,9 +226,13 @@ pub(super) fn dialog(app: &mut CadApp, ctx: &egui::Context, name: &str, open: &m
                     ui.checkbox(&mut st.landscape, crate::tl!("Landscape"));
                 });
                 ui.checkbox(&mut st.automatic, crate::tl!("Automatic drawing-book sheet"));
+                let mut continuation = if st.automatic { st.automatic_continuation.unwrap_or(false) } else { st.continuation };
                 ui.add_enabled_ui(!st.automatic, |ui| {
-                    ui.checkbox(&mut st.continuation, crate::tl!("Continuation sheet (form 2a)"));
+                    ui.checkbox(&mut continuation, crate::tl!("Continuation sheet (form 2a)"));
                 });
+                if !st.automatic {
+                    st.continuation = continuation;
+                }
                 ui.label(crate::tl!("First drawing sheet: form 1, 185 × 55 mm. Continuation: form 2a, 185 × 15 mm."));
                 ui.separator();
                 egui::Grid::new("gost_title_fields").num_columns(2).show(ui, |ui| {
@@ -148,7 +240,7 @@ pub(super) fn dialog(app: &mut CadApp, ctx: &egui::Context, name: &str, open: &m
                         if st.automatic && matches!(*tag, "SHEET" | "SHEETS") {
                             continue;
                         }
-                        if st.continuation && !matches!(*tag, "DESIGNATION" | "VERSION" | "SHEET") {
+                        if continuation && !matches!(*tag, "DESIGNATION" | "VERSION" | "SHEET") {
                             continue;
                         }
                         let l = ui.label(field_label(tag));
@@ -157,24 +249,9 @@ pub(super) fn dialog(app: &mut CadApp, ctx: &egui::Context, name: &str, open: &m
                     }
                 });
                 ui.label(crate::tl!("Empty approval and signature fields remain empty. Edit block attributes for additional fields."));
-                if ui.button(crate::tl!("Create GOST Sheet")).clicked() {
-                    let fields: serde_json::Map<String, Value> = st
-                        .fields
-                        .iter()
-                        .filter(|(k, v)| {
-                            !v.trim().is_empty()
-                                && (!st.continuation || matches!(*k, "DESIGNATION" | "VERSION" | "SHEET"))
-                                && (!st.automatic || !matches!(*k, "SHEET" | "SHEETS"))
-                        })
-                        .map(|(k, v)| ((*k).into(), json!(v.trim())))
-                        .collect();
-                    let mut params = json!({"layout": st.layout.trim(), "format": st.format,
-                        "landscape": st.landscape, "automatic": st.automatic,
-                        "font": st.font.trim(), "fields": fields});
-                    if !st.automatic {
-                        params["form"] = json!(if st.continuation { "2a" } else { "1" });
-                    }
-                    action = Some(("gost.sheet", params));
+                if ui.add_enabled(!st.automatic || st.automatic_continuation.is_some(), egui::Button::new(crate::tl!("Create GOST Sheet"))).clicked()
+                {
+                    action = Some(("gost.sheet", sheet_params(&st, continuation)));
                 }
             } else if ui.button(crate::tl!("Run GOST Check")).clicked() {
                 action = Some(("gost.check", json!({})));
@@ -229,4 +306,32 @@ pub(super) fn dialog(app: &mut CadApp, ctx: &egui::Context, name: &str, open: &m
         *open = false;
     }
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn independent_frames_do_not_hide_first_automatic_sheet_fields() {
+        let mut app = CadApp::new(cadcraft_engine::Session::new(), crate::Services::default());
+        app.run("gost.sheet", json!({"layout":"Независимый","automatic":false,"form":"2a"})).unwrap();
+        let mut st = initial(&mut app);
+        assert_eq!(st.automatic_continuation, Some(false));
+        st.layout = "Первый".into();
+        for (tag, value) in &mut st.fields {
+            if matches!(*tag, "TITLE" | "MATERIAL" | "ORG") {
+                *value = format!("Значение {tag}");
+            }
+        }
+        let request = sheet_params(&st, st.automatic_continuation.unwrap());
+        app.run("gost.sheet", request).unwrap();
+        let report = app.run("gost.document", json!({})).unwrap();
+        let first = report["sheets"].as_array().unwrap().iter().find(|s| s["layout"] == "Первый").unwrap();
+        assert_eq!(first["form"], "1");
+        for tag in ["TITLE", "MATERIAL", "ORG"] {
+            assert_eq!(first["fields"][tag], format!("Значение {tag}"));
+        }
+        assert_eq!(initial(&mut app).automatic_continuation, Some(true));
+    }
 }

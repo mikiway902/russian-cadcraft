@@ -41,7 +41,7 @@ fn labels(d: &Drawing, h: Handle) -> Vec<String> {
 }
 #[test]
 fn specification_counts_copy_and_keeps_positions_synced_after_attribute_changes() {
-    let mut s = Session::new();
+    let mut s = crate::extensions::new_session();
     let a = part(&mut s, "Корпус", "Б.002", 0.0);
     let b = part(&mut s, "Втулка", "А.001", 30.0);
     let spec = handle_result(&s.execute(CMD, &json!({"layout":"Спецификация","sources":[a.hex(),b.hex()]})).unwrap());
@@ -61,7 +61,7 @@ fn specification_counts_copy_and_keeps_positions_synced_after_attribute_changes(
 }
 #[test]
 fn unresolved_sources_remain_reported_and_positions_are_not_stale() {
-    let mut s = Session::new();
+    let mut s = crate::extensions::new_session();
     let a = part(&mut s, "Опора", "А.001", 0.0);
     let spec = handle_result(&s.execute(CMD, &json!({"layout":"Состав","sources":[a.hex()]})).unwrap());
     let leader = handle_result(&s.execute("gost.position", &json!({"specification":spec.hex(),"target":a.hex(),"at":[10,40]})).unwrap());
@@ -75,7 +75,7 @@ fn unresolved_sources_remain_reported_and_positions_are_not_stale() {
 }
 #[test]
 fn manual_rows_sections_and_page_bounds_are_persistent() {
-    let mut s = Session::new();
+    let mut s = crate::extensions::new_session();
     let manual: Vec<_> =
         (0..45).map(|i| json!({"id":format!("p{i}"),"section":"Детали","designation":format!("А.{i:03}"),"name":"Деталь","quantity":1})).collect();
     let r = s.execute(CMD, &json!({"layout":"Ведомость","manual":manual})).unwrap();
@@ -107,7 +107,7 @@ fn manual_rows_sections_and_page_bounds_are_persistent() {
 
 #[test]
 fn copied_part_and_position_remain_a_pair() {
-    let mut s = Session::new();
+    let mut s = crate::extensions::new_session();
     let a = part(&mut s, "Опора", "А.001", 0.0);
     let spec = handle_result(&s.execute(CMD, &json!({"layout":"Состав","sources":[a.hex()]})).unwrap());
     let leader = handle_result(&s.execute("gost.position", &json!({"specification":spec.hex(),"target":a.hex(),"at":[20,40]})).unwrap());
@@ -131,7 +131,7 @@ fn copied_part_and_position_remain_a_pair() {
 
 #[test]
 fn shrinking_specification_removes_empty_pages_but_preserves_user_content() {
-    let mut s = Session::new();
+    let mut s = crate::extensions::new_session();
     let manual: Vec<_> =
         (0..45).map(|i| json!({"id":format!("p{i}"),"section":"Детали","designation":format!("А.{i:03}"),"name":"Деталь","quantity":1})).collect();
     let r = s.execute(CMD, &json!({"layout":"Состав","manual":manual})).unwrap();
@@ -155,7 +155,7 @@ fn shrinking_specification_removes_empty_pages_but_preserves_user_content() {
 
 #[test]
 fn section_underlines_and_position_quantity_are_centered_after_dxf_reopen() {
-    let mut s = Session::new();
+    let mut s = crate::extensions::new_session();
     let manual = json!([{"id":"p1","section":"Детали","designation":"А.001","name":"Корпус","quantity":2}]);
     let spec = handle_result(&s.execute(CMD, &json!({"layout":"Состав","manual":manual})).unwrap());
     let d = cadcraft_io::read_dxf(cadcraft_io::write_dxf(s.doc().unwrap()).as_bytes()).unwrap();
@@ -183,4 +183,25 @@ fn section_underlines_and_position_quantity_are_centered_after_dxf_reopen() {
     let quantity = geometry.texts.iter().find(|t| t.col == 5 && t.text == "2").unwrap();
     assert_eq!((position.attach, position.at.x), (5, 36.0));
     assert_eq!((quantity.attach, quantity.at.x), (5, 178.0));
+}
+
+#[test]
+fn specification_page_transforms_and_partial_deletion_are_atomic_errors() {
+    let mut s = crate::extensions::new_session();
+    let manual: Vec<_> =
+        (0..40).map(|i| json!({"id":format!("p{i}"),"section":"Детали","designation":format!("А.{i}"),"name":"Деталь","quantity":1})).collect();
+    let spec = handle_result(&s.execute(CMD, &json!({"layout":"Состав","manual":manual})).unwrap());
+    let pages = inspect_rows(&mut s, spec)["pages"].as_array().unwrap().clone();
+    for page in &pages {
+        let h = page.as_str().unwrap();
+        for command in ["move", "erase"] {
+            let before = s.doc().unwrap().clone();
+            let undo = s.state().unwrap().undo.len();
+            assert!(s.execute(command, &json!({"handles":[h],"delta":[10,0]})).is_err());
+            assert_eq!(s.doc().unwrap(), &before);
+            assert_eq!(s.state().unwrap().undo.len(), undo);
+        }
+    }
+    s.execute("erase", &json!({"handles":pages})).unwrap();
+    assert!(s.doc().unwrap().entity(spec).is_none());
 }

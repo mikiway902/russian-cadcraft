@@ -9,7 +9,7 @@ fn h(v: &Value) -> Handle {
 }
 #[test]
 fn numbered_wrapping_templates_and_custom_library_survive_dxf() {
-    let mut s = Session::new();
+    let mut s = crate::extensions::new_session();
     let r=s.execute(CMD,&json!({"items":["Контролировать размеры детали перед сборкой по технологической карте.",{"template":"edges","values":{"size":"0,5"}}],"width":60})).unwrap();
     let id = h(&r);
     let texts = labels(s.doc().unwrap(), id);
@@ -31,7 +31,7 @@ fn numbered_wrapping_templates_and_custom_library_survive_dxf() {
 }
 #[test]
 fn requirements_reflow_with_sheet_and_undo_as_one_transaction() {
-    let mut s = Session::new();
+    let mut s = crate::extensions::new_session();
     let id = h(&s.execute(CMD, &json!({"items":["Удалить загрязнения перед сборкой."]})).unwrap());
     let before = s.doc().unwrap().clone();
     let x = match &s.doc().unwrap().entity(id).unwrap().kind {
@@ -51,7 +51,7 @@ fn requirements_reflow_with_sheet_and_undo_as_one_transaction() {
 }
 #[test]
 fn columns_fit_and_overflow_rejects_without_losing_existing_requirements() {
-    let mut s = Session::new();
+    let mut s = crate::extensions::new_session();
     let item = "Контроль размеров перед сборкой по карте технологического процесса ".repeat(3);
     let id = h(&s.execute(CMD, &json!({"items":vec![item.clone();8],"width":45})).unwrap());
     let r = s.execute("gost.requirements.inspect", &json!({"handle":id.hex()})).unwrap();

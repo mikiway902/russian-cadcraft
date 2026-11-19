@@ -5,7 +5,7 @@ use serde_json::json;
 use crate::Session;
 
 fn session() -> Session {
-    let mut s = Session::new();
+    let mut s = crate::extensions::new_session();
     s.execute("gost.setup", &json!({})).unwrap();
     s
 }

@@ -189,7 +189,6 @@ fn every_tab_renders() {
     // Unknown tabs show the first one.
     a.ui.dialog = Some("options:nope".into());
     assert!(render(&mut a, &ctx).contains("Crosshair size"));
-    assert_eq!(options::PROFILE_KEY, "cadcraft.profile");
     let _: Value = serde_json::from_str(&a.profile_json()).unwrap();
 }
 

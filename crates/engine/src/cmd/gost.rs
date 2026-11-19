@@ -57,6 +57,23 @@ pub(crate) fn after_command(
     Ok(())
 }
 
+pub(crate) fn owns_copy_links(d: &cadcraft_doc::Drawing, handles: &[cadcraft_doc::Handle]) -> bool {
+    handles.iter().filter_map(|h| d.entity(*h)).any(|e| match &e.kind {
+        cadcraft_doc::EntityKind::Insert(i) => i.block.starts_with("GOST-PROJECTION-"),
+        cadcraft_doc::EntityKind::Dimension(_) => e.common.xdata.iter().any(|t| t.code == 1001 && t.value.eq_ignore_ascii_case("CADCRAFTGOST")),
+        _ => false,
+    })
+}
+
+/// COPY supplies exact identity pairs; association consumers never infer them from coordinates.
+pub(crate) fn copied_entities(d: &mut cadcraft_doc::Drawing, pairs: &[(cadcraft_doc::Handle, cadcraft_doc::Handle)]) -> crate::Result<()> {
+    projection::copied_entities(d, pairs)
+}
+
+pub(crate) fn prepare_clipboard_blocks(d: &mut cadcraft_doc::Drawing) {
+    marks::prepare_clipboard_blocks(d);
+}
+
 pub(crate) fn new_drawing() -> cadcraft_doc::Drawing {
     let mut d = cadcraft_doc::Drawing::new_metric();
     // Do not leave blank, non-ESKD paper tabs in the initial drawing or PDF book.

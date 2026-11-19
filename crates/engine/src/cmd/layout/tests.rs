@@ -1,7 +1,7 @@
 use super::*;
 
 fn session_with_model() -> Session {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.cmdline("line 0,0 100,0").unwrap();
     s.cmdline("").unwrap();
     s.cmdline("circle 50,25 20").unwrap();
@@ -167,7 +167,7 @@ fn viewport_scale_lock_and_layers() {
 
 #[test]
 fn pagesetup_paper_table() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     let r = s.execute("pagesetup", &json!({"layout": "Layout1", "paper": "A3", "landscape": true, "margins": [5, 5, 5, 5]})).unwrap();
     assert_eq!(r["page"]["widthMm"], 297.0);
     let sheet = cadcraft_render::sheet(s.doc().unwrap(), "Layout1").unwrap();

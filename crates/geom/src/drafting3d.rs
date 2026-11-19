@@ -342,52 +342,58 @@ fn clip_polygon(points: &[Vec3], plane: Plane) -> Vec<Vec3> {
     out
 }
 fn cut_loops(mesh: &Mesh, plane: Plane) -> Result<Vec<Vec<Vec3>>, String> {
-    let signs = mesh.vertices.iter().fold((false, false), |(p, n), v| {
-        let x = plane.distance(*v);
-        (p || x > EPS, n || x < -EPS)
-    });
+    let mut distances = [0.0; MAX_VERTICES];
+    let mut signs = (false, false);
+    for (distance, vertex) in distances.iter_mut().zip(mesh.vertices.iter()) {
+        *distance = plane.distance(*vertex);
+        signs.0 |= *distance > EPS;
+        signs.1 |= *distance < -EPS;
+    }
     if !signs.0 || !signs.1 {
         return Ok(Vec::new());
     }
     let mut segments = Vec::new();
     for face in &mesh.faces {
-        let mut points = Vec::<Vec3>::new();
+        // A vertex is keyed by (id, id), an interior intersection by its undirected
+        // mesh edge. Adjacent faces must join by topology, not rounded coordinates.
+        let mut points = Vec::<(usize, usize)>::new();
         for (&ai, &bi) in face.iter().zip(face.iter().cycle().skip(1)).take(face.len()) {
-            let a = *mesh.vertices.get(ai).ok_or("face index out of range")?;
-            let b = *mesh.vertices.get(bi).ok_or("face index out of range")?;
-            let da = plane.distance(a);
-            let db = plane.distance(b);
+            let da = *distances.get(ai).ok_or("face index out of range")?;
+            let db = *distances.get(bi).ok_or("face index out of range")?;
             let point = if da.abs() <= EPS {
-                Some(a)
-            } else if da * db < 0.0 {
-                Some(a + (b - a) * (da / (da - db)))
+                Some((ai, ai))
+            } else if (da < -EPS && db > EPS) || (da > EPS && db < -EPS) {
+                Some((ai.min(bi), ai.max(bi)))
             } else {
                 None
             };
             if let Some(p) = point
-                && points.iter().all(|q| (*q - p).len() > EPS)
+                && !points.contains(&p)
             {
                 points.push(p);
             }
         }
         match points.as_slice() {
-            [a, b] if (*a - *b).len() > EPS => segments.push((*a, *b)),
+            [a, b] => segments.push(((*a).min(*b), (*a).max(*b))),
             [] | [_] => {}
             _ => return Err("cutting plane coincides with a face; choose a transverse cut".into()),
         }
     }
+    // An on-plane mesh edge is contributed by both incident faces.
+    segments.sort_unstable();
+    segments.dedup();
     let mut loops = Vec::new();
     while let Some((first, next)) = segments.pop() {
         let mut path = vec![first, next];
         let mut end = next;
-        while (end - first).len() > EPS {
+        while end != first {
             let mut found = None;
             for (i, (a, b)) in segments.iter().enumerate() {
-                if (*a - end).len() <= EPS || (*b - end).len() <= EPS {
+                if *a == end || *b == end {
                     if found.is_some() {
                         return Err("section branches at a nonregular point".into());
                     }
-                    found = Some((i, if (*a - end).len() <= EPS { *b } else { *a }));
+                    found = Some((i, if *a == end { *b } else { *a }));
                 }
             }
             let (index, p) = found.ok_or("section contour is not closed")?;
@@ -400,12 +406,26 @@ fn cut_loops(mesh: &Mesh, plane: Plane) -> Result<Vec<Vec<Vec3>>, String> {
         }
         path.pop();
         if path.len() >= 3 {
-            loops.push(path);
+            let points = path
+                .into_iter()
+                .map(|(ai, bi)| {
+                    let a = *mesh.vertices.get(ai).ok_or("face index out of range")?;
+                    if ai == bi {
+                        return Ok(a);
+                    }
+                    let b = *mesh.vertices.get(bi).ok_or("face index out of range")?;
+                    let da = *distances.get(ai).ok_or("face index out of range")?;
+                    let db = *distances.get(bi).ok_or("face index out of range")?;
+                    // Always interpolate from the same end of the mesh edge.
+                    Ok(a + (b - a) * (da / (da - db)))
+                })
+                .collect::<Result<Vec<_>, String>>()?;
+            loops.push(points);
         }
     }
     Ok(loops)
 }
-fn triangle_interval(a: Point, b: Point, t: [Point; 3]) -> Option<(f64, f64)> {
+fn triangle_interval(a: Point, b: Point, t: [Point; 3], parameter_eps: f64) -> Option<(f64, f64)> {
     let u = t[1].p - t[0].p;
     let v = t[2].p - t[0].p;
     let det = cross(u, v);
@@ -449,7 +469,7 @@ fn triangle_interval(a: Point, b: Point, t: [Point; 3]) -> Option<(f64, f64)> {
     }
     lo = lo.max(0.0);
     hi = hi.min(1.0);
-    (hi - lo > EPS).then_some((lo, hi))
+    (hi - lo > parameter_eps).then_some((lo, hi))
 }
 fn inside(p: Vec2, loops: &[Vec<Vec2>]) -> bool {
     let mut hit = false;
@@ -462,7 +482,7 @@ fn inside(p: Vec2, loops: &[Vec<Vec2>]) -> bool {
     }
     hit
 }
-fn cap_intervals(a: Point, b: Point, loops: &[Vec<Vec2>], depth: f64, out: &mut Vec<(f64, f64)>) {
+fn cap_intervals(a: Point, b: Point, loops: &[Vec<Vec2>], depth: f64, parameter_eps: f64, out: &mut Vec<(f64, f64)>) {
     let delta = b.p - a.p;
     let mut cuts = vec![0.0, 1.0];
     for path in loops {
@@ -480,7 +500,7 @@ fn cap_intervals(a: Point, b: Point, loops: &[Vec<Vec2>], depth: f64, out: &mut 
         }
     }
     cuts.sort_by(f64::total_cmp);
-    cuts.dedup_by(|a, b| (*a - *b).abs() < EPS);
+    cuts.dedup_by(|a, b| (*a - *b).abs() < parameter_eps);
     for pair in cuts.windows(2) {
         if let [lo, hi] = pair {
             let m = (lo + hi) * 0.5;
@@ -491,10 +511,10 @@ fn cap_intervals(a: Point, b: Point, loops: &[Vec<Vec2>], depth: f64, out: &mut 
     }
 }
 
-fn merge_intervals(intervals: &mut Vec<(f64, f64)>) {
+fn merge_intervals(intervals: &mut Vec<(f64, f64)>, parameter_eps: f64) {
     intervals.sort_unstable_by(|a, b| a.0.total_cmp(&b.0));
     intervals.dedup_by(|current, prior| {
-        if current.0 <= prior.1 + EPS {
+        if current.0 <= prior.1 + parameter_eps {
             prior.1 = prior.1.max(current.1);
             true
         } else {
@@ -513,6 +533,7 @@ fn visible_precedence(mut strokes: Vec<Stroke>, work: &mut usize) -> Result<Vec<
         if length < EPS {
             continue;
         }
+        let parameter_eps = EPS / length;
         for previous in &result {
             *work += 1;
             if *work > MAX_WORK {
@@ -525,19 +546,19 @@ fn visible_precedence(mut strokes: Vec<Stroke>, work: &mut usize) -> Result<Vec<
             let b = (previous.b - stroke.a).dot(delta) / (length * length);
             let lo = a.min(b).max(0.0);
             let hi = a.max(b).min(1.0);
-            if hi - lo > EPS {
+            if hi - lo > parameter_eps {
                 covered.push((lo, hi));
             }
         }
-        merge_intervals(&mut covered);
+        merge_intervals(&mut covered, parameter_eps);
         let mut last = 0.0;
         for (lo, hi) in covered {
-            if lo - last > EPS {
+            if lo - last > parameter_eps {
                 result.push(Stroke { a: stroke.a + delta * last, b: stroke.a + delta * lo, ..stroke });
             }
             last = last.max(hi);
         }
-        if 1.0 - last > EPS {
+        if 1.0 - last > parameter_eps {
             result.push(Stroke { a: stroke.a + delta * last, ..stroke });
         }
         if result.len() > 16384 {
@@ -552,6 +573,9 @@ fn visible_precedence(mut strokes: Vec<Stroke>, work: &mut usize) -> Result<Vec<
 pub fn project(meshes: &[Mesh], frame: Frame, cut: Option<Plane>) -> Result<Projection, String> {
     if meshes.is_empty() || meshes.len() > 16 {
         return Err("project 1..16 closed mesh bodies".into());
+    }
+    if !frame.right.is_finite() || !frame.up.is_finite() || !frame.toward_eye.is_finite() {
+        return Err("view frame must have finite components".into());
     }
     let checked = Frame::new(frame.toward_eye, frame.up)?;
     if (checked.right - frame.right).len() > EPS || (checked.up - frame.up).len() > EPS || (checked.toward_eye - frame.toward_eye).len() > EPS {
@@ -641,35 +665,38 @@ pub fn project(meshes: &[Mesh], frame: Frame, cut: Option<Plane>) -> Result<Proj
     for (body, edge, a, b, section) in edges {
         let a = frame.project(a);
         let b = frame.project(b);
-        if a.p.dist(b.p) < EPS {
+        let delta = b.p - a.p;
+        let length = delta.len();
+        if length < EPS {
             continue;
         }
+        // Interval parameters are dimensionless; EPS is a model-space length.
+        let parameter_eps = EPS / length;
         let mut hidden = Vec::new();
         for &triangle in &triangles {
             work += 1;
             if work > MAX_WORK {
                 return Err("hidden-line pair-work limit exceeded".into());
             }
-            if let Some(interval) = triangle_interval(a, b, triangle) {
+            if let Some(interval) = triangle_interval(a, b, triangle, parameter_eps) {
                 hidden.push(interval);
             }
         }
         if let Some(p) = cut {
             for loops in &sections {
-                cap_intervals(a, b, loops, p.offset, &mut hidden);
+                cap_intervals(a, b, loops, p.offset, parameter_eps, &mut hidden);
             }
         }
-        merge_intervals(&mut hidden);
+        merge_intervals(&mut hidden, parameter_eps);
         let mut last = 0.0;
-        let delta = b.p - a.p;
         for (lo, hi) in hidden {
-            if lo - last > EPS {
+            if lo - last > parameter_eps {
                 strokes.push(Stroke { body, edge, a: a.p + delta * last, b: a.p + delta * lo, hidden: false, section });
             }
             strokes.push(Stroke { body, edge, a: a.p + delta * lo, b: a.p + delta * hi, hidden: true, section });
             last = hi;
         }
-        if 1.0 - last > EPS {
+        if 1.0 - last > parameter_eps {
             strokes.push(Stroke { body, edge, a: a.p + delta * last, b: b.p, hidden: false, section });
         }
         if strokes.len() > 16384 {
@@ -683,11 +710,102 @@ pub fn project(meshes: &[Mesh], frame: Frame, cut: Option<Plane>) -> Result<Proj
 #[cfg(test)]
 mod tests {
     use super::*;
+    // Exercise section contours consumed by hatching and the final stroke split.
+    #[test]
+    fn diagonal_cube_section_joins_existing_vertices_and_edges_once() {
+        let cube = Mesh::cuboid(Vec3::ZERO, Vec3::new(10.0, 10.0, 10.0)).unwrap();
+        let plane = Plane::new(Vec3::new(1.0, 1.0, 0.0), 10.0).unwrap();
+        let frame = Frame::new(plane.normal, Vec3::Z).unwrap();
+        let projection = project(&[cube], frame, Some(plane)).unwrap();
+        assert_eq!(projection.sections.len(), 1);
+        assert_eq!(projection.sections[0].len(), 1);
+        let path = &projection.sections[0][0];
+        assert_eq!(path.len(), 4);
+        for vertex in [Vec3::new(10.0, 0.0, 0.0), Vec3::new(0.0, 10.0, 0.0), Vec3::new(10.0, 0.0, 10.0), Vec3::new(0.0, 10.0, 10.0)] {
+            assert_eq!(path.iter().filter(|p| p.dist(frame.point(vertex)) < EPS).count(), 1);
+        }
+        assert!((crate::shoelace(path).abs() - 100.0 * 2.0_f64.sqrt()).abs() < 1e-6);
+        let outlines: Vec<_> = projection.strokes.iter().filter(|s| s.section && !s.hidden).collect();
+        assert_eq!(outlines.len(), 4);
+        let perimeter = outlines.iter().map(|s| s.a.dist(s.b)).sum::<f64>();
+        assert!((perimeter - 20.0 * (1.0 + 2.0_f64.sqrt())).abs() < 1e-6);
+    }
+    #[test]
+    fn large_coordinate_sections_close_without_merging_thin_features() {
+        let frame = Frame::new(Vec3::Z, Vec3::new(0.0, 1.0, 0.0)).unwrap();
+        let plane = Plane::new(Vec3::Z, 333333333.3333333).unwrap();
+        // The first shell used to miss shared-edge joins by about 6e-8; the
+        // second ensures joining is not repaired by a model-size tolerance.
+        for (min, max) in [(Vec3::ZERO, Vec3::new(1e9, 1e9, 1e9)), (Vec3::ZERO, Vec3::new(1e9, 1e-4, 1e9))] {
+            let mesh = Mesh::cuboid(min, max).unwrap();
+            let projection = project(&[mesh], frame, Some(plane)).unwrap();
+            assert_eq!(projection.sections[0].len(), 1);
+            let path = &projection.sections[0][0];
+            assert_eq!(path.len(), 4);
+            for expected in [Vec2::new(min.x, min.y), Vec2::new(max.x, min.y), Vec2::new(max.x, max.y), Vec2::new(min.x, max.y)] {
+                assert_eq!(path.iter().filter(|p| p.dist(expected) < EPS).count(), 1);
+            }
+            let expected_area = (max.x - min.x) * (max.y - min.y);
+            assert!((crate::shoelace(path).abs() / expected_area - 1.0).abs() < 1e-12);
+        }
+    }
+    #[test]
+    fn millimetre_occlusion_splits_billion_unit_edges() {
+        let frame = Frame::new(Vec3::Z, Vec3::new(0.0, 1.0, 0.0)).unwrap();
+        for x in [500.0, 1e9 - 501.0] {
+            let back = Mesh::cuboid(Vec3::ZERO, Vec3::new(1e9, 10.0, 10.0)).unwrap();
+            let front = Mesh::cuboid(Vec3::new(x, -5.0, 20.0), Vec3::new(x + 1.0, 15.0, 30.0)).unwrap();
+            let projection = project(&[back, front], frame, None).unwrap();
+            for y in [0.0, 10.0] {
+                let mut intervals: Vec<_> = projection
+                    .strokes
+                    .iter()
+                    .filter(|s| s.body == 0 && s.a.y == y && s.b.y == y)
+                    .map(|s| (s.a.x.min(s.b.x), s.a.x.max(s.b.x), s.hidden))
+                    .collect();
+                intervals.sort_by(|a, b| a.0.total_cmp(&b.0));
+                assert_eq!(intervals.len(), 3, "{intervals:?}");
+                for ((lo, hi, hidden), (expected_lo, expected_hi, expected_hidden)) in
+                    intervals.into_iter().zip([(0.0, x, false), (x, x + 1.0, true), (x + 1.0, 1e9, false)])
+                {
+                    assert!((lo - expected_lo).abs() < 1e-6);
+                    assert!((hi - expected_hi).abs() < 1e-6);
+                    assert_eq!(hidden, expected_hidden);
+                }
+            }
+        }
+    }
+    #[test]
+    fn nonfinite_public_frame_components_are_rejected_before_projection() {
+        let cube = Mesh::cuboid(Vec3::ZERO, Vec3::new(10.0, 10.0, 10.0)).unwrap();
+        let frame = Frame::new(Vec3::Z, Vec3::new(0.0, 1.0, 0.0)).unwrap();
+        for component in 0..9 {
+            for invalid in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+                let mut invalid_frame = frame;
+                let vector = match component / 3 {
+                    0 => &mut invalid_frame.right,
+                    1 => &mut invalid_frame.up,
+                    _ => &mut invalid_frame.toward_eye,
+                };
+                match component % 3 {
+                    0 => vector.x = invalid,
+                    1 => vector.y = invalid,
+                    _ => vector.z = invalid,
+                }
+                let error = project(std::slice::from_ref(&cube), invalid_frame, None).unwrap_err();
+                assert_eq!(error, "view frame must have finite components");
+            }
+        }
+        let projection = project(&[cube], frame, None).unwrap();
+        assert_eq!(projection.strokes.len(), 4);
+        assert!(projection.strokes.iter().all(|s| s.a.is_finite() && s.b.is_finite() && !s.hidden));
+        assert!((projection.strokes.iter().map(|s| s.a.dist(s.b)).sum::<f64>() - 40.0).abs() < EPS);
+    }
     #[test]
     fn cube_projection_has_visible_and_hidden_edges_and_real_sections() {
         let m = Mesh::cuboid(Vec3::ZERO, Vec3::new(10.0, 20.0, 30.0)).unwrap();
         let f = Frame::new(Vec3::new(1.0, 1.0, 1.0), Vec3::Z).unwrap();
-        let p = project(&[m.clone()], f, None).unwrap();
+        let p = project(std::slice::from_ref(&m), f, None).unwrap();
         assert!(p.strokes.iter().any(|s| s.hidden));
         assert!(p.strokes.iter().any(|s| !s.hidden));
         let f = Frame::new(Vec3::Z, Vec3::new(0.0, 1.0, 0.0)).unwrap();

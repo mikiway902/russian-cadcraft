@@ -22,7 +22,6 @@ mod panel_layout;
 
 #[cfg(target_arch = "wasm32")]
 mod web {
-    use cadcraft_engine::Session;
     use cadcraft_ui_egui::{CadApp, Services};
     use wasm_bindgen::JsCast as _;
 
@@ -163,7 +162,7 @@ mod web {
                     options,
                     Box::new(move |cc| {
                         // Embedded, the host sends the drawing: start on the Start tab, not Drawing1.
-                        let session = Session::empty();
+                        let session = cadcraft_engine::extensions::session();
                         let control = crate::api::install(cc.egui_ctx.clone());
                         let mut app = CadApp::new(session, services()).with_control(control);
                         app.system_languages =
@@ -287,7 +286,7 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
-    use super::{document_title, push_title, title_to_send, wants_cpu};
+    use super::{push_title, title_to_send, wants_cpu};
 
     /// Guards the `?cpu` URL flag: only a whole `cpu` query parameter (bare or with a value)
     /// selects the CPU canvas, so `?sample` and `?gpucpu` stay on the GPU path.

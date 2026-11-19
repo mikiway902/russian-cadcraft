@@ -96,6 +96,7 @@ fn errors_are_tool_errors_not_crashes() {
 fn bad_tool_calls_are_invalid_params() {
     let mut s = Server::new(Box::new(Headless::default()));
     tool(&mut s, "command_line", json!({"text": "circle 0,0 1"}));
+    let before = tool(&mut s, "inspect_drawing", json!({"entities": true}));
     let bad = [
         json!({"name": "nope", "arguments": {}}),
         json!({"name": "command_line", "arguments": {}}),
@@ -115,9 +116,9 @@ fn bad_tool_calls_are_invalid_params() {
         let r = call(&mut s, i as u64, "tools/call", params.clone());
         assert_eq!(r["error"]["code"], -32602, "{params} -> {r}");
     }
-    // Nothing was typed: the circle is still the only object and no command is running.
-    let d = tool(&mut s, "inspect_drawing", json!({"entities": false}));
-    assert_eq!(d["entityCount"], 1, "{d}");
+    // Rejected parameters must not change any geometry, including the product's paper sheets.
+    let d = tool(&mut s, "inspect_drawing", json!({"entities": true}));
+    assert_eq!(d, before);
     assert_eq!(s.handle_line("[]").map(|r| serde_json::from_str::<Value>(&r).unwrap()["error"]["code"].clone()), Some(json!(-32600)));
 }
 

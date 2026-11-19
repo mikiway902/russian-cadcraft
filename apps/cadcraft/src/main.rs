@@ -30,7 +30,6 @@ mod spacemouse;
 mod system_animations;
 mod workspace;
 
-use cadcraft_engine::Session;
 use cadcraft_ui_egui::switch::Switch;
 use cadcraft_ui_egui::{CadApp, Pick, Services, i18n};
 
@@ -391,7 +390,7 @@ fn main() -> eframe::Result {
         "CADCraftGOST",
         options,
         Box::new(move |cc| {
-            let mut app = CadApp::new(Session::empty(), services());
+            let mut app = CadApp::new(cadcraft_engine::extensions::session(), services());
             // File dialogs are sheets on macOS: a modal loop inside the event handler crashes the
             // app when the dialog is resized (#1527).
             #[cfg(target_os = "macos")]

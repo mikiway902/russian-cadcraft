@@ -38,7 +38,7 @@ fn near(a: Vec2, x: f64, y: f64) -> bool {
 
 #[test]
 fn arc_variants_json() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     let quarter =
         |a: &Arc| near(a.center, 0.0, 0.0) && (a.radius - 1.0).abs() < 1e-9 && near(a.start_point(), 1.0, 0.0) && near(a.end_point(), 0.0, 1.0);
     for (id, p) in [
@@ -88,7 +88,7 @@ fn arc_variants_command_line() {
         ("arc.sed 1,0 0,1 1,5", true),
         ("arc.csa 0,0 1,0 0,7", true),
     ] {
-        let mut s = crate::legacy_test_session();
+        let mut s = Session::new();
         s.cmdline(cmd).unwrap();
         assert!(s.running.is_none(), "{cmd} still running: {}", s.prompt_text());
         let a = as_arc(&last(&s));
@@ -101,7 +101,7 @@ fn arc_variants_command_line() {
 
 #[test]
 fn arc_continue_from_last_line() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     // Nothing to continue from: the command ends politely.
     s.cmdline("arc.continue").unwrap();
     assert!(s.running.is_none());
@@ -132,7 +132,7 @@ fn arc_continue_from_last_picked_end_of_three_point_arc() {
         ("arc 2,0 1,1 0,0", "-1,-1", (-1.0, 0.0)),
     ];
     for (draw, end, center) in cases {
-        let mut s = crate::legacy_test_session();
+        let mut s = Session::new();
         s.cmdline(draw).unwrap();
         s.cmdline("arc").unwrap();
         s.cmdline("").unwrap();
@@ -147,7 +147,7 @@ fn arc_continue_from_last_picked_end_of_three_point_arc() {
 
 #[test]
 fn circle_variants_json_and_command_line() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.execute("circle.cd", &json!({"center": [1, 1], "diameter": 4})).unwrap();
     assert_eq!(as_circle(&last(&s)).1, 2.0);
     s.execute("circle.2p", &json!({"p1": [0, 0], "p2": [6, 0]})).unwrap();
@@ -180,7 +180,7 @@ fn corner(s: &mut Session) -> (String, String) {
 
 #[test]
 fn circle_ttr_json_and_command_line() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     let (a, b) = corner(&mut s);
     s.execute("circle.ttr", &json!({"h1": a, "p1": [3, 0], "h2": b, "p2": [0, 3], "radius": 1})).unwrap();
     let (c, r) = as_circle(&last(&s));
@@ -205,7 +205,7 @@ fn circle_ttr_json_and_command_line() {
 
 #[test]
 fn circle_ttt_json_and_command_line() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     let (a, b) = corner(&mut s);
     let hyp = s.execute("line", &json!({"points": [[4, 0], [0, 3]]})).unwrap()["handles"][0].as_str().unwrap().to_string();
     s.execute("circle.ttt", &json!({"h1": a, "p1": [2, 0], "h2": b, "p2": [0, 1], "h3": hyp, "p3": [2, 1.5]})).unwrap();
@@ -216,7 +216,7 @@ fn circle_ttt_json_and_command_line() {
     let (c, _) = as_circle(&last(&s));
     assert!(near(c, 1.0, 1.0));
     // Three circles: the small circle in the middle of three touching circles.
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     let r = 1.0;
     let cs: Vec<String> =
         [[0.0, 0.0], [2.0, 0.0], [1.0, 3f64.sqrt()]].iter().map(|c| h(&s.execute("circle", &json!({"center": c, "radius": r})).unwrap())).collect();
@@ -238,7 +238,7 @@ fn circle_ttt_json_and_command_line() {
 
 #[test]
 fn ellipse_axis_and_arc() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.execute("ellipse.axis", &json!({"p1": [0, 0], "p2": [4, 0], "distance": 1})).unwrap();
     match last(&s) {
         EntityKind::Ellipse(e) => {
@@ -264,7 +264,7 @@ fn ellipse_arc_typed_angles_are_true_angles() {
     let want = 2f64.atan2(1.0);
     // Horizontal and rotated major axis, ratio 0.5: typed 0 and 45 degrees match the JSON form.
     for line in ["ellipse.arc 0,0 10,0 2.5 0 45", "ellipse.arc 5,-5 5,5 2.5 0 45"] {
-        let mut s = crate::legacy_test_session();
+        let mut s = Session::new();
         s.cmdline(line).unwrap();
         assert!(matches!(last(&s), EntityKind::Ellipse(e) if e.start.abs() < 1e-9 && (e.end - want).abs() < 1e-9), "{line}");
     }
@@ -362,7 +362,7 @@ fn ellipse_axis_endpoints_match_autocad() {
         d < 1e-9 || TAU - d < 1e-9
     };
     for (input, center, major, ratio, arc) in cases {
-        let mut s = crate::legacy_test_session();
+        let mut s = Session::new();
         s.cmdline(&format!("ellipse {input}")).unwrap();
         assert!(s.running.is_none(), "{input}: {}", s.prompt_text());
         let EntityKind::Ellipse(e) = last(&s) else { panic!("{input}: no ellipse") };
@@ -373,7 +373,7 @@ fn ellipse_axis_endpoints_match_autocad() {
         assert!(same_angle(e.start, start) && same_angle(e.end, end), "{input}: {} {}", e.start, e.end);
     }
     // Enter takes the default included angle, 180°: half the ellipse.
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.cmdline("ellipse _A 10,0 -10,0 5 30 _I").unwrap();
     assert!(s.prompt_text().contains("included angle"), "{}", s.prompt_text());
     s.input(Input::Enter).unwrap();
@@ -386,7 +386,7 @@ fn ellipse_axis_endpoints_match_autocad() {
 
 #[test]
 fn divide_and_measure_json() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     let l = s.execute("line", &json!({"points": [[0, 0], [10, 0]]})).unwrap()["handles"][0].as_str().unwrap().to_string();
     let r = s.execute("divide", &json!({"handle": l, "segments": 5})).unwrap();
     assert_eq!(r["handles"].as_array().unwrap().len(), 4);
@@ -568,7 +568,7 @@ fn divide_and_measure_match_autocad() {
         ),
     ];
     for ((seed, params), what, value, pick, count, want) in cases {
-        let mut s = crate::legacy_test_session();
+        let mut s = Session::new();
         let r = s.execute(seed, &params).unwrap();
         let handle = r.get("handle").or_else(|| r["handles"].get(0)).and_then(serde_json::Value::as_str).unwrap().to_string();
         // AutoLISP's (list ename point): the object and where it was picked.
@@ -593,7 +593,7 @@ fn divide_and_measure_match_autocad() {
 /// MEASURE runs from the end, though x = 3 is short of the middle of the drawn length.
 #[test]
 fn measure_spline_by_its_own_parameter() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     let sp = h(&s.execute("spline", &json!({"control": [[0, 0], [0, 0], [10, 0]], "degree": 1})).unwrap());
     s.execute("measure", &json!({"handle": sp, "length": 3, "from": [3, 0]})).unwrap();
     let pts: Vec<Vec2> =
@@ -612,7 +612,7 @@ fn measure_counts_coincident_vertices_and_runs_ellipses_by_parameter() {
     };
     // (0,0) (1,0) (101,0) (101,0) picked at x = 1.1: parameter 1.001 of 3, before the middle, so
     // from the start (the chain alone, 1.001 of 2, ran it from the end).
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     let pl = h(&s.execute("pline", &json!({"vertices": [[0, 0], [1, 0], [101, 0], [101, 0]]})).unwrap());
     s.execute("measure", &json!({"handle": pl, "length": 30, "from": [1.1, 0]})).unwrap();
     assert!(pts(&s).iter().any(|p| near(*p, 30.0, 0.0)), "{:?}", pts(&s));
@@ -622,7 +622,7 @@ fn measure_counts_coincident_vertices_and_runs_ellipses_by_parameter() {
         ("pline", json!({"vertices": [[0, 0], [0, 0], [10, 0], [20, 0]]})),
         ("3dpoly", json!({"points": [[0, 0, 0], [0, 0, 0], [10, 0, 0], [20, 0, 0]]})),
     ] {
-        let mut s = crate::legacy_test_session();
+        let mut s = Session::new();
         let pl = h(&s.execute(cmd, &params).unwrap());
         s.execute("measure", &json!({"handle": pl, "length": 3, "from": [7, 0]})).unwrap();
         assert!(pts(&s).iter().any(|p| near(*p, 17.0, 0.0)), "{cmd}: {:?}", pts(&s));
@@ -673,7 +673,7 @@ fn measure_counts_coincident_vertices_and_runs_ellipses_by_parameter() {
         ),
     ];
     for (((center, major, ratio, t0, t1), length, from), want) in cases {
-        let mut s = crate::legacy_test_session();
+        let mut s = Session::new();
         let e = h(&s
             .execute("ellipse", &json!({"center": center, "major": major, "ratio": ratio, "start": t0.to_degrees(), "end": t1.to_degrees()}))
             .unwrap());
@@ -689,7 +689,7 @@ fn measure_counts_coincident_vertices_and_runs_ellipses_by_parameter() {
 
 #[test]
 fn divide_and_measure_command_line() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.execute("line", &json!({"points": [[0, 0], [10, 0]]})).unwrap();
     s.cmdline("divide 5,0 4").unwrap();
     assert!(s.running.is_none());
@@ -714,7 +714,7 @@ fn divide_and_measure_command_line() {
 
 #[test]
 fn revcloud_json() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.execute("revcloud", &json!({"p1": [0, 0], "p2": [4, 2], "arcLength": 1})).unwrap();
     match last(&s) {
         EntityKind::LwPolyline(p) => {
@@ -738,7 +738,7 @@ fn revcloud_json() {
 
 #[test]
 fn revcloud_command_line() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.cmdline("revcloud a 1").unwrap();
     s.cmdline("0,0 4,2").unwrap();
     assert!(s.running.is_none(), "{}", s.prompt_text());
@@ -771,7 +771,7 @@ fn breakline_points(s: &Session) -> Vec<(f64, f64)> {
 
 #[test]
 fn breakline_json_symbol_size_extension_and_location() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     // One polyline: the line to the symbol, the zigzag centred on the midpoint, the rest of the line.
     s.execute("breakline", &json!({"p1": [0, 0], "p2": [10, 0]})).unwrap();
     assert_eq!(s.doc().unwrap().model.len(), 1);
@@ -806,7 +806,7 @@ fn breakline_json_symbol_size_extension_and_location() {
 
 #[test]
 fn breakline_block_symbol_runs_between_its_defpoints() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.execute("layer.current", &json!({"name": "Defpoints"})).unwrap();
     s.execute("point", &json!({"at": [0, 0]})).unwrap();
     s.execute("point", &json!({"at": [2, 0]})).unwrap();
@@ -838,7 +838,7 @@ fn breakline_block_symbol_runs_between_its_defpoints() {
 
 #[test]
 fn breakline_command_line_prompts_options_and_undo() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.start("breakline").unwrap();
     assert!(s.prompt_text().contains("Specify first point for breakline"), "{}", s.prompt_text());
     assert!(s.prompt_text().contains("Block") && s.prompt_text().contains("Size") && s.prompt_text().contains("Extension"), "{}", s.prompt_text());
@@ -873,7 +873,7 @@ fn breakline_command_line_prompts_options_and_undo() {
 
 #[test]
 fn wipeout_json_and_command_line() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.execute("wipeout", &json!({"points": [[0, 0], [2, 0], [2, 2]]})).unwrap();
     assert!(matches!(last(&s), EntityKind::Wipeout(w) if w.boundary.len() == 3));
     let r = h(&s.execute("rectang", &json!({"p1": [5, 5], "p2": [6, 6]})).unwrap());
@@ -907,7 +907,7 @@ fn xline_dir(k: &EntityKind) -> (Vec2, Vec2) {
 
 #[test]
 fn xline_options_json() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.execute("xline", &json!({"vertex": [0, 0], "start": [1, 0], "end": [0, 1]})).unwrap();
     let (_, d) = xline_dir(&last(&s));
     assert!(d.near(Vec2::new(1.0, 1.0).normalized(), 1e-9));
@@ -926,7 +926,7 @@ fn xline_options_json() {
 
 #[test]
 fn xline_options_command_line() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.cmdline("xline b 0,0 1,0 0,1 -1,0").unwrap();
     s.cmdline("").unwrap();
     assert_eq!(kinds(&s), vec!["Xline", "Xline"]);
@@ -961,7 +961,7 @@ fn rect_pts(s: &Session) -> Vec<Vec2> {
 
 #[test]
 fn rectang_options_json() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.execute("rectang", &json!({"p1": [0, 0], "p2": [4, 3]})).unwrap();
     assert!(near(rect_pts(&s)[2], 4.0, 3.0));
     s.execute("rectang", &json!({"p1": [0, 0], "dimensions": [3, 2], "p2": [-1, -1]})).unwrap();
@@ -982,7 +982,7 @@ fn rectang_options_json() {
 
 #[test]
 fn rectang_options_command_line() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.cmdline("rectang 0,0 a 20 l 5").unwrap();
     assert!(s.running.is_none(), "{}", s.prompt_text());
     assert!(near(cadcraft_geom::Bounds2::from_points(rect_pts(&s)).max, 5.0, 4.0));
@@ -1014,7 +1014,7 @@ fn rectang_options_command_line() {
 /// corner mode is untouched, and that centre mode without a size is rejected.
 #[test]
 fn rectang_center_mode_json() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     // The first point is the centre; the second is a corner mirrored about it.
     s.execute("rectang", &json!({"center": true, "p1": [10, 10], "p2": [14, 16]})).unwrap();
     let b = cadcraft_geom::Bounds2::from_points(rect_pts(&s));
@@ -1047,7 +1047,7 @@ fn rectang_center_mode_json() {
 /// oversized fillet falls back to sharp corners without moving the rectangle off centre.
 #[test]
 fn rectang_center_mode_honours_options() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.execute("rectang", &json!({"center": true, "p1": [10, 10], "p2": [14, 16], "fillet": 1, "width": 0.25, "thickness": 2})).unwrap();
     match &s.doc().unwrap().model.last().unwrap().kind {
         EntityKind::LwPolyline(p) => assert!(p.vertices.len() == 8 && p.const_width == 0.25),
@@ -1073,7 +1073,7 @@ fn rectang_center_mode_honours_options() {
 /// default corner mode is unchanged.
 #[test]
 fn rectang_center_mode_command_line() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.cmdline("rectang ce 10,10 14,16").unwrap();
     assert!(s.running.is_none(), "{}", s.prompt_text());
     let b = cadcraft_geom::Bounds2::from_points(rect_pts(&s));
@@ -1118,7 +1118,7 @@ fn rectang_center_mode_command_line() {
 
 #[test]
 fn poly3d_json_and_command_line() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.execute("3dpoly", &json!({"points": [[0, 0, 0], [1, 0, 2], [1, 1, 3]], "closed": true})).unwrap();
     assert!(matches!(last(&s), EntityKind::Polyline3d(p) if p.points.len() == 3 && p.points[2].z == 3.0 && p.closed));
     assert!(s.execute("3dpoly", &json!({"points": [[0, 0]]})).is_err());
@@ -1139,11 +1139,11 @@ fn mline_json_and_command_line() {
         }
         k => panic!("{k:?}"),
     };
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.execute("mline", &json!({"points": [[0, 0], [10, 0], [10, 10]], "scale": 2, "justification": "zero"})).unwrap();
     assert_eq!(offs(last(&s)), vec![-1.0, 1.0]);
     assert!(s.execute("mline", &json!({"points": [[0, 0], [1, 0]], "justification": "middle"})).is_err());
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.cmdline("mline j b s 3 0,0 10,0 10,5").unwrap();
     s.cmdline("").unwrap();
     assert!(s.running.is_none());
@@ -1154,7 +1154,7 @@ fn mline_json_and_command_line() {
 
 #[test]
 fn helix_json_and_command_line() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.execute("helix", &json!({"center": [0, 0], "baseRadius": 2, "topRadius": 1, "height": 6, "turns": 2})).unwrap();
     match last(&s) {
         EntityKind::Helix(h) => {
@@ -1179,7 +1179,7 @@ fn helix_json_and_command_line() {
 
 #[test]
 fn spline_cv_json_and_command_line() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.execute("spline.cv", &json!({"control": [[0, 0], [1, 2], [3, 2], [4, 0]], "degree": 2})).unwrap();
     assert!(matches!(last(&s), EntityKind::Spline(sp) if sp.degree == 2 && sp.fit.is_empty()));
     assert!(s.execute("spline.cv", &json!({"control": [[0, 0]]})).is_err());
@@ -1194,7 +1194,7 @@ fn spline_cv_json_and_command_line() {
 
 #[test]
 fn centermark_and_centerline() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     let c = h(&s.execute("circle", &json!({"center": [0, 0], "radius": 2})).unwrap());
     let r = s.execute("centermark", &json!({"handle": c})).unwrap();
     assert_eq!(r["handles"].as_array().unwrap().len(), 2);
@@ -1209,7 +1209,7 @@ fn centermark_and_centerline() {
     assert!(s.execute("centerline", &json!({"h1": a, "h2": c})).is_err());
     assert!(s.execute("centermark", &json!({"handle": a})).is_err());
 
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.execute("circle", &json!({"center": [0, 0], "radius": 2})).unwrap();
     s.execute("arc", &json!({"center": [10, 0], "radius": 1, "start": 0, "end": 90})).unwrap();
     s.cmdline("centermark 2,0 11,0").unwrap();
@@ -1258,7 +1258,7 @@ fn new_draw_commands_survive_garbage_input() {
         "xline",
         "rectang",
     ];
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.execute("line", &json!({"points": [[0, 0], [10, 0]]})).unwrap();
     for id in ids {
         for p in [
@@ -1302,14 +1302,14 @@ fn arc_command_options() {
         ("arc 1,0 e 0,1 d 90", (0.0, 0.0)),
         ("arc 1,0 e 0,1 r 1", (0.0, 0.0)),
     ] {
-        let mut s = crate::legacy_test_session();
+        let mut s = Session::new();
         s.cmdline(cmd).unwrap();
         assert!(s.running.is_none(), "{cmd}: {}", s.prompt_text());
         let a = as_arc(&last(&s));
         assert!(near(a.center, center.0, center.1) && (a.radius - 1.0).abs() < 1e-6, "{cmd}: {a:?}");
     }
     // Enter at the first prompt continues from the last line.
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.cmdline("line 0,0 1,0").unwrap();
     s.cmdline("").unwrap();
     s.cmdline("arc").unwrap();

@@ -28,7 +28,7 @@
 	= Equals	= Égal à
 	> Greater than	> Supérieur à
 	About	À propos
-	About CADCraft	À propos de CADCraft
+	About CADCraftGOST	À propos de CADCraftGOST
 	Absolute	Absolu
 	Add Leader	Ajouter un repère
 	Align	Aligner
@@ -84,7 +84,7 @@
 	ByBlock	DuBloc
 	ByColor	Par couleur
 	ByLayer	DuCalque
-	CADCraft Help	Aide de CADCraft
+	CADCraftGOST Help	Aide de CADCraftGOST
 	Cancel	Annuler
 	Cartesian (x, y)	Cartésien (x, y)
 	Center	Centre
@@ -590,7 +590,7 @@
 	Quick Select Properties	Propriétés de la sélection rapide
 	Quick Select...	Sélection rapide...
 	QuickCalc	Calculatrice rapide
-	Quit CADCraft	Quitter CADCraft
+	Quit CADCraftGOST	Quitter CADCraftGOST
 	Radius	Rayon
 	Raster Image	Image raster
 	Ray	Rayon
@@ -997,7 +997,7 @@
 @plural	{n} contributor	{n} contributeur|{n} contributeurs
 	Drawing as bytes	Dessin sous forme d'octets
 	Services	Services
-	Hide CADCraft	Masquer CADCraft
+	Hide CADCraftGOST	Masquer CADCraftGOST
 	Hide Others	Masquer les autres
 	Accessibility	Accessibilité
 	Show System Cursor	Afficher le curseur système
@@ -1012,7 +1012,7 @@
 	Query Texts	Interroger les textes
 	Analyze Shapes	Analyser les formes
 	Check for Updates…	Rechercher des mises à jour…
-	CADCraft is up to date.	CADCraft est à jour.
+	CADCraftGOST is up to date.	CADCraftGOST est à jour.
 	Could not check for updates.	Impossible de rechercher les mises à jour.
 	Add a drawing file as a block library	Ajouter un fichier de dessin comme bibliothèque de blocs
 	Add a folder of drawings or a drawing file to use its blocks.	Ajoutez un dossier de dessins ou un fichier de dessin pour utiliser ses blocs.

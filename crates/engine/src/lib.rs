@@ -18,6 +18,7 @@ pub mod blockedit;
 pub mod capped_read;
 pub mod cmd;
 pub mod doc_path;
+pub mod extensions;
 mod finite;
 pub mod grip_dims;
 pub mod grips;
@@ -159,6 +160,8 @@ pub struct Session {
     /// ([`Session::input_object`]): a pick at exactly that point picks that object
     /// ([`Session::pick_object`]).
     pick_hint: Option<(Handle, Vec2)>,
+    /// Host-selected policy for creating new documents; native engine sessions opt out.
+    extension_defaults: bool,
 }
 
 impl Default for Session {
@@ -170,7 +173,7 @@ impl Default for Session {
 impl Session {
     pub fn new() -> Self {
         let mut s = Session::empty();
-        s.new_drawing(true);
+        s.new_drawing(false);
         s
     }
     /// A session with no open drawing (the Start tab).
@@ -215,6 +218,7 @@ impl Session {
             lisp_last: None,
             hatch_picks: None,
             pick_hint: None,
+            extension_defaults: false,
         }
     }
 
@@ -357,14 +361,6 @@ impl Session {
             "settings": self.drafting_settings(),
         })
     }
-}
-
-/// Explicit raw-file fixture for command tests independent of product startup defaults.
-#[cfg(test)]
-pub(crate) fn legacy_test_session() -> Session {
-    let mut s = Session::empty();
-    s.new_drawing(false);
-    s
 }
 
 #[cfg(test)]

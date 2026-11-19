@@ -61,7 +61,7 @@
 	> Greater than	> მეტია
 	A variable name starts with a letter and has only letters, digits and _	ცვლადის სახელი ასოთი იწყება და მხოლოდ ასოებს, ციფრებსა და _-ს შეიცავს
 	About	პროგრამის შესახებ
-	About CADCraft	CADCraft-ის შესახებ
+	About CADCraftGOST	CADCraftGOST-ის შესახებ
 	Absolute	აბსოლუტური
 	Add Leader	მიმთითებლის დამატება
 	Additional angles	დამატებითი კუთხეები
@@ -124,7 +124,7 @@
 	ByBlock	ბლოკის მიხედვით
 	ByColor	ფერის მიხედვით
 	ByLayer	შრის მიხედვით
-	CADCraft Help	CADCraft-ის დახმარება
+	CADCraftGOST Help	CADCraftGOST-ის დახმარება
 	Cancel	გაუქმება
 	Cartesian (x, y)	დეკარტული (x, y)
 	Center	ცენტრი
@@ -725,7 +725,7 @@
 	Quick Select...	სწრაფი მონიშვნა...
 	QuickCalc	სწრაფი კალკულატორი
 	QuickCalc Pick	სწრაფი კალკულატორი: არჩევა
-	Quit CADCraft	CADCraft-იდან გასვლა
+	Quit CADCraftGOST	CADCraftGOST-იდან გასვლა
 	Radius	რადიუსი
 	Raster Image	რასტრული გამოსახულება
 	Ray	სხივი
@@ -1234,7 +1234,7 @@
 @plural	{n} contributor	{n} მონაწილე
 	Drawing as bytes	ნახაზი ბაიტებად
 	Services	სერვისები
-	Hide CADCraft	CADCraft-ის დამალვა
+	Hide CADCraftGOST	CADCraftGOST-ის დამალვა
 	Hide Others	სხვების დამალვა
 	Accessibility	ხელმისაწვდომობა
 	Show System Cursor	სისტემის კურსორის ჩვენება
@@ -1421,10 +1421,10 @@
 	Customize	მორგება
 	Edit Command Aliases (PGP)...	ბრძანებების ფსევდონიმების რედაქტირება (PGP)...
 	Check for Updates…	განახლებების შემოწმება…
-	CADCraft is up to date.	CADCraft განახლებულია.
+	CADCraftGOST is up to date.	CADCraftGOST განახლებულია.
 	Could not check for updates.	განახლებების შემოწმება ვერ მოხერხდა.
 	B	B
-	CADCraft	CADCraft
+	CADCraftGOST	CADCraftGOST
 	X	X
 	Y	Y
 menu	Dimension	ზომების დატანა

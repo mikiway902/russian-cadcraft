@@ -196,9 +196,17 @@ fn solid(s: &mut Session, p: &Value) -> Result<Value> {
             native_faces.push(f);
         } else {
             let first = *face.first().ok_or_else(|| err("empty face"))?;
-            for pair in face.get(1..).unwrap_or_default().windows(2) {
+            for (n, pair) in face.get(1..).unwrap_or_default().windows(2).enumerate() {
                 if let [b, c] = pair {
-                    native_faces.push([encode(first)?, encode(*b)?, encode(*c)?, 0]);
+                    // Negative indices hide the outgoing artificial fan edge in native POLYFACE.
+                    let a_index = encode(first)?;
+                    let c_index = encode(*c)?;
+                    native_faces.push([
+                        if n == 0 { a_index } else { -a_index },
+                        encode(*b)?,
+                        if n + 3 == face.len() { c_index } else { -c_index },
+                        0,
+                    ]);
                 }
             }
         }
@@ -470,9 +478,12 @@ fn view_inner(s: &mut Session, p: &Value, is_section: bool) -> Result<Value> {
         label,
         issues: Vec::new(),
     };
-    let kinds = prepared(s.doc()?, &r)?;
     let layout = if let Some(h) = h {
-        s.doc()?.space_of(h).and_then(|s| s.layout().map(str::to_string)).ok_or_else(|| err("view must live on a paper sheet"))?
+        let current = s.doc()?.space_of(h).and_then(|s| s.layout().map(str::to_string)).ok_or_else(|| err("view must live on a paper sheet"))?;
+        if p.get("layout").is_some_and(|v| v.as_str() != Some(current.as_str())) {
+            return Err(err("layout is creation-only; moving an associative view to another sheet is not supported"));
+        }
+        current
     } else {
         p.get("layout").and_then(Value::as_str).or(s.space().layout()).unwrap_or("GOST1").to_string()
     };
@@ -480,6 +491,7 @@ fn view_inner(s: &mut Session, p: &Value, is_section: bool) -> Result<Value> {
         return Err(err("target paper layout missing"));
     }
     let at = p.get("at").map(point2).transpose()?;
+    let kinds = prepared(s.doc()?, &r)?;
     atomic(s, |s| {
         for source in &r.sources {
             let e = s.doc()?.entity(*source).ok_or_else(|| err("source missing"))?;
@@ -872,6 +884,58 @@ fn stale_banner(d: &mut Drawing, h: Handle) -> Result<()> {
         b.entities.remove(h);
     }
     b.entities.push(marker);
+    Ok(())
+}
+
+pub(super) fn copied_entities(d: &mut Drawing, pairs: &[(Handle, Handle)]) -> Result<()> {
+    let mut map = std::collections::HashMap::with_capacity(pairs.len());
+    for (old, new) in pairs {
+        if map.insert(*old, *new).is_some() {
+            return Err(err("copied associative identity is ambiguous"));
+        }
+    }
+    for (_, h) in pairs {
+        let e = d.entity(*h).ok_or_else(|| err("copied entity is missing"))?;
+        let mut common = None;
+        match &e.kind {
+            EntityKind::Insert(i) if i.block.starts_with("GOST-PROJECTION-") => {
+                if let Some(mut r) = data::load::<View>(&e.common, VIEW)? {
+                    let mut changed = false;
+                    for source in &mut r.sources {
+                        if let Some(new) = map.get(source) {
+                            *source = *new;
+                            changed = true;
+                        }
+                    }
+                    if changed {
+                        let mut c = e.common.clone();
+                        data::save(&mut c, VIEW, &r)?;
+                        common = Some(c);
+                    }
+                }
+            }
+            EntityKind::Dimension(_) => {
+                if let Some(mut r) = data::load::<Dimension>(&e.common, DIM)? {
+                    let mut changed = false;
+                    for source in [&mut r.view, &mut r.a.source, &mut r.b.source] {
+                        if let Some(new) = map.get(source) {
+                            *source = *new;
+                            changed = true;
+                        }
+                    }
+                    if changed {
+                        let mut c = e.common.clone();
+                        data::save(&mut c, DIM, &r)?;
+                        common = Some(c);
+                    }
+                }
+            }
+            _ => {}
+        }
+        if let Some(common) = common {
+            d.modify_entity(*h, |e| e.common = common)?;
+        }
+    }
     Ok(())
 }
 

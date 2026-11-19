@@ -42,7 +42,7 @@ fn arc_of(k: &EntityKind) -> Arc {
 
 #[test]
 fn pedit_json_options() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     let p = pline(&mut s, json!([[0, 0], [10, 0], [10, 10], [0, 10]]), false);
     s.execute("pedit", &json!({"handle": p, "option": "close"})).unwrap();
     assert!(poly(&kind(&s, &p)).closed);
@@ -96,7 +96,7 @@ fn pedit_json_options() {
 
 #[test]
 fn join_keeps_selected_objects_outside_the_chain() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     let a = h(&s.execute("line", &json!({"points": [[0, 0], [5, 0]]})).unwrap());
     let b = h(&s.execute("line", &json!({"points": [[5, 0], [5, 5]]})).unwrap());
     let far = h(&s.execute("line", &json!({"points": [[50, 50], [60, 60]]})).unwrap());
@@ -113,7 +113,7 @@ fn join_keeps_selected_objects_outside_the_chain() {
 
 #[test]
 fn pedit_command_line() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     pline(&mut s, json!([[0, 0], [10, 0], [10, 10]]), false);
     s.cmdline("pedit 5,0 c").unwrap();
     assert!(poly(&last(&s)).closed);
@@ -133,7 +133,7 @@ fn pedit_command_line() {
     assert!(s.running.is_none());
     assert_eq!(s.state().unwrap().undo.len(), 2, "one undo step for the PEDIT session");
     // Line conversion and join.
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.execute("line", &json!({"points": [[0, 0], [5, 0]]})).unwrap();
     s.execute("line", &json!({"points": [[5, 0], [5, 5]]})).unwrap();
     s.cmdline("pedit 2,0 y j 5,3").unwrap();
@@ -153,7 +153,7 @@ fn splinedit_json_and_command_line() {
 }
 
 fn splinedit_json_edits() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     let sp = h(&s.execute("spline", &json!({"fit": [[0, 0], [2, 2], [4, 0], [6, 2]]})).unwrap());
     s.execute("splinedit", &json!({"handle": sp, "option": "close"})).unwrap();
     assert!(matches!(kind(&s, &sp), EntityKind::Spline(x) if x.closed && x.is_periodic() && x.fit.len() == 4));
@@ -175,7 +175,7 @@ fn splinedit_json_edits() {
 }
 
 fn splinedit_command_line_edits() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.execute("spline", &json!({"control": [[0, 0], [2, 3], [4, 0], [6, 3]]})).unwrap();
     s.cmdline("splinedit 0,0 c").unwrap();
     assert!(matches!(last(&s), EntityKind::Spline(x) if x.closed));
@@ -190,7 +190,7 @@ fn splinedit_command_line_edits() {
 
 #[test]
 fn lengthen_json() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     let l = h(&s.execute("line", &json!({"points": [[0, 0], [10, 0]]})).unwrap());
     assert_eq!(s.execute("lengthen", &json!({"handle": l})).unwrap()["length"], 10.0);
     s.execute("lengthen", &json!({"handle": l, "delta": 2})).unwrap();
@@ -223,7 +223,7 @@ fn lengthen_json() {
 
 #[test]
 fn lengthen_keeps_elevation() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     let l = h(&s.execute("line", &json!({"points": [[0, 0], [10, 0]]})).unwrap());
     let a = h(&s.execute("arc", &json!({"center": [0, 0], "radius": 1, "start": 0, "end": 90})).unwrap());
     let doc = s.doc_mut().unwrap();
@@ -256,7 +256,7 @@ fn lengthen_keeps_elevation() {
 
 #[test]
 fn lengthen_command_line() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.execute("line", &json!({"points": [[0, 0], [10, 0]]})).unwrap();
     s.cmdline("lengthen 5,0").unwrap();
     assert!(s.log.iter().any(|l| l.contains("Current length: 10.0000")));
@@ -283,14 +283,14 @@ fn lengthen_command_line() {
 
 #[test]
 fn align_json_and_command_line() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     let l = h(&s.execute("line", &json!({"points": [[0, 0], [2, 0]]})).unwrap());
     s.execute("align", &json!({"handles": [l], "s1": [0, 0], "d1": [5, 5], "s2": [2, 0], "d2": [5, 9], "scale": true})).unwrap();
     assert!(matches!(kind(&s, &l), EntityKind::Line(x) if near(x.a.xy(), 5.0, 5.0) && near(x.b.xy(), 5.0, 9.0)));
     s.execute("align", &json!({"handles": [l], "s1": [5, 5], "d1": [0, 0]})).unwrap();
     assert!(matches!(kind(&s, &l), EntityKind::Line(x) if near(x.a.xy(), 0.0, 0.0) && near(x.b.xy(), 0.0, 4.0)));
 
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.execute("line", &json!({"points": [[0, 0], [2, 0]]})).unwrap();
     s.cmdline("align 1,0").unwrap();
     s.cmdline("").unwrap();
@@ -310,7 +310,7 @@ fn align_json_and_command_line() {
 
 #[test]
 fn blend_json_and_command_line() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     let a = h(&s.execute("line", &json!({"points": [[0, 0], [5, 0]]})).unwrap());
     let b = h(&s.execute("line", &json!({"points": [[10, 3], [15, 3]]})).unwrap());
     let r = s.execute("blend", &json!({"h1": a, "p1": [4, 0], "h2": b, "p2": [11, 3]})).unwrap();
@@ -328,7 +328,7 @@ fn blend_json_and_command_line() {
     let c = h(&s.execute("circle", &json!({"center": [30, 0], "radius": 1})).unwrap());
     assert!(s.execute("blend", &json!({"h1": a, "p1": [1, 0], "h2": c, "p2": [31, 0]})).is_err());
 
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.execute("line", &json!({"points": [[0, 0], [5, 0]]})).unwrap();
     s.execute("arc", &json!({"center": [10, 0], "radius": 2, "start": 90, "end": 180})).unwrap();
     s.cmdline("blend con s 4,0 8,0").unwrap();
@@ -338,7 +338,7 @@ fn blend_json_and_command_line() {
 
 #[test]
 fn reverse_json_and_command_line() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     let l = h(&s.execute("line", &json!({"points": [[0, 0], [5, 0]]})).unwrap());
     let p = pline(&mut s, json!([{"p": [0, 5], "bulge": 1}, [2, 5], [4, 6]]), false);
     let sp = h(&s.execute("spline", &json!({"control": [[0, 10], [1, 12], [3, 12], [4, 10]]})).unwrap());
@@ -355,7 +355,7 @@ fn reverse_json_and_command_line() {
     assert!(matches!(kind(&s, &sp), EntityKind::Spline(x) if near(x.eval(x.domain().0), 4.0, 10.0)));
     assert!(matches!(kind(&s, &p3), EntityKind::Polyline3d(x) if x.points[0].z == 1.0));
 
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.execute("line", &json!({"points": [[0, 0], [5, 0]]})).unwrap();
     s.cmdline("reverse 2,0").unwrap();
     s.cmdline("").unwrap();
@@ -374,7 +374,7 @@ fn make_block(s: &mut Session) -> String {
 
 #[test]
 fn ncopy_json_and_command_line() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     let ins = make_block(&mut s);
     let r = s.execute("ncopy", &json!({"handle": ins, "pick": [10, 13]})).unwrap();
     assert_eq!(r["handles"].as_array().unwrap().len(), 1);
@@ -385,7 +385,7 @@ fn ncopy_json_and_command_line() {
     let line = h(&s.execute("line", &json!({"points": [[50, 50], [51, 50]]})).unwrap());
     assert!(s.execute("ncopy", &json!({"handle": line})).is_err());
 
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     make_block(&mut s);
     s.cmdline("ncopy 10,10.5").unwrap();
     s.cmdline("").unwrap();
@@ -396,7 +396,7 @@ fn ncopy_json_and_command_line() {
 
 #[test]
 fn chspace_json_and_command_line() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     let l = h(&s.execute("line", &json!({"points": [[0, 0], [10, 0]]})).unwrap());
     // A viewport on Layout1 showing model (0,0) at paper (5,5) at scale 1:2.
     let vp = cadcraft_doc::Viewport {
@@ -439,7 +439,7 @@ fn chspace_json_and_command_line() {
 
 #[test]
 fn flatten_json_and_command_line() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     let p3 = h(&s.execute("3dpoly", &json!({"points": [[0, 0, 5], [1, 0, 6], [1, 1, 7]]})).unwrap());
     let l = h(&s.execute("line", &json!({"points": [[0, 5], [3, 5]]})).unwrap());
     s.doc_mut()
@@ -457,7 +457,7 @@ fn flatten_json_and_command_line() {
     assert!(matches!(kind(&s, &l), EntityKind::Line(x) if x.a.z == 0.0));
     assert_eq!(s.doc().unwrap().entity(Handle::parse_hex(&l).unwrap()).unwrap().common.thickness, 0.0);
 
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.execute("3dpoly", &json!({"points": [[0, 0, 5], [4, 0, 6]]})).unwrap();
     s.cmdline("flatten 2,0").unwrap();
     s.cmdline("").unwrap();
@@ -469,7 +469,7 @@ fn flatten_json_and_command_line() {
 
 #[test]
 fn fillet_line_arc_and_arcs() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     let l = h(&s.execute("line", &json!({"points": [[-10, 0], [10, 0]]})).unwrap());
     let a = h(&s.execute("arc", &json!({"center": [0, 4], "radius": 3, "start": 180, "end": 360})).unwrap());
     // Arc bottom is at y=1; a fillet of radius 1 between the line (below) and the arc.
@@ -484,7 +484,7 @@ fn fillet_line_arc_and_arcs() {
     assert!(fa.start_point().near(Vec2::new(fa.center.x, 0.0), 1e-6) || fa.end_point().near(Vec2::new(fa.center.x, 0.0), 1e-6));
 
     // Two arcs.
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     let a1 = h(&s.execute("arc", &json!({"center": [0, 0], "radius": 2, "start": 0, "end": 90})).unwrap());
     let a2 = h(&s.execute("arc", &json!({"center": [5, 0], "radius": 2, "start": 90, "end": 180})).unwrap());
     let r = s.execute("fillet", &json!({"h1": a1, "p1": [1.4, 1.4], "h2": a2, "p2": [3.6, 1.4], "radius": 1})).unwrap();
@@ -499,7 +499,7 @@ fn fillet_line_arc_and_arcs() {
         fa.start_point().near(g2.start_point(), 1e-6) || fa.end_point().near(g2.start_point(), 1e-6) || fa.end_point().near(g2.end_point(), 1e-6)
     );
     // Zero radius: sharp corner between a line and an arc.
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     let l = h(&s.execute("line", &json!({"points": [[-10, 0], [-5, 0]]})).unwrap());
     let a = h(&s.execute("arc", &json!({"center": [0, 0], "radius": 3, "start": 90, "end": 150})).unwrap());
     s.execute("fillet", &json!({"h1": l, "p1": [-8, 0], "h2": a, "p2": [0, 3], "radius": 0})).unwrap();
@@ -512,7 +512,7 @@ fn fillet_line_arc_and_arcs() {
 
 #[test]
 fn fillet_polyline_json_and_command_line() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     let p = pline(&mut s, json!([[0, 0], [10, 0], [10, 10], [0, 10]]), true);
     let r = s.execute("fillet", &json!({"handle": p, "polyline": true, "radius": 1})).unwrap();
     assert_eq!(r["filleted"], 4);
@@ -524,7 +524,7 @@ fn fillet_polyline_json_and_command_line() {
     let q = pline(&mut s, json!([[0, 20], [2, 20], [2, 22]]), false);
     assert_eq!(s.execute("fillet", &json!({"handle": q, "polyline": true, "radius": 5})).unwrap()["filleted"], 0);
 
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     pline(&mut s, json!([[0, 0], [10, 0], [10, 10]]), false);
     s.cmdline("fillet r 2").unwrap();
     s.cmdline("p 5,0").unwrap();
@@ -535,7 +535,7 @@ fn fillet_polyline_json_and_command_line() {
 
 #[test]
 fn fillet_command_line_line_and_arc() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.execute("line", &json!({"points": [[-10, 0], [10, 0]]})).unwrap();
     s.execute("arc", &json!({"center": [0, 4], "radius": 3, "start": 180, "end": 360})).unwrap();
     s.cmdline("fillet r 1").unwrap();
@@ -548,7 +548,7 @@ fn fillet_command_line_line_and_arc() {
 
 #[test]
 fn trim_and_extend_ellipse_and_spline() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     let e = h(&s.execute("ellipse", &json!({"center": [0, 0], "major": [4, 0], "ratio": 0.5})).unwrap());
     s.execute("line", &json!({"points": [[0, -5], [0, 5]]})).unwrap();
     let r = s.execute("trim", &json!({"handle": e, "pick": [4, 0]})).unwrap();
@@ -563,7 +563,7 @@ fn trim_and_extend_ellipse_and_spline() {
     }
     // Extend the elliptical arc back to a new edge.
     s.execute("line", &json!({"points": [[3, -5], [3, 5]]})).unwrap();
-    let mut s2 = crate::legacy_test_session();
+    let mut s2 = Session::new();
     let ea = h(&s2.execute("ellipse", &json!({"center": [0, 0], "major": [4, 0], "ratio": 0.5, "start": 90, "end": 180})).unwrap());
     s2.execute("line", &json!({"points": [[2, -5], [2, 5]]})).unwrap();
     s2.execute("extend", &json!({"handle": ea, "pick": [0, 2]})).unwrap();
@@ -575,7 +575,7 @@ fn trim_and_extend_ellipse_and_spline() {
         k => panic!("{k:?}"),
     }
     // Splines.
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     let sp = h(&s.execute("spline", &json!({"control": [[0, 0], [3, 3], [6, -3], [9, 0]]})).unwrap());
     s.execute("line", &json!({"points": [[4.5, -5], [4.5, 5]]})).unwrap();
     let r = s.execute("trim", &json!({"handle": sp, "pick": [8.9, 0.0]})).unwrap();
@@ -593,7 +593,7 @@ fn trim_and_extend_ellipse_and_spline() {
 #[test]
 fn new_modify_commands_survive_garbage_input() {
     let ids = ["pedit", "splinedit", "lengthen", "align", "blend", "reverse", "ncopy", "chspace", "flatten", "fillet", "trim", "extend"];
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     let l = h(&s.execute("line", &json!({"points": [[0, 0], [10, 0]]})).unwrap());
     let sp = h(&s.execute("spline", &json!({"control": [[0, 1], [1, 2], [2, 1]]})).unwrap());
     let e = h(&s.execute("ellipse", &json!({"center": [5, 5], "major": [1, 0], "ratio": 0.5})).unwrap());
@@ -624,7 +624,7 @@ fn new_modify_commands_survive_garbage_input() {
 
 #[test]
 fn arraypath_json_and_command_line() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     let dot = h(&s.execute("circle", &json!({"center": [0, 1], "radius": 0.25})).unwrap());
     let path = h(&s.execute("line", &json!({"points": [[0, 0], [10, 0]]})).unwrap());
     let r = s.execute("arraypath", &json!({"handles": [dot], "path": path, "count": 6})).unwrap();
@@ -639,7 +639,7 @@ fn arraypath_json_and_command_line() {
     assert!(matches!(last(&s), EntityKind::Line(l) if near(l.a.xy(), -5.0, 20.0) && near(l.b.xy(), -6.0, 20.0)));
     assert!(s.execute("arraypath", &json!({"handles": [dot], "path": dot})).is_err());
 
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.execute("circle", &json!({"center": [0, 1], "radius": 0.25})).unwrap();
     s.execute("line", &json!({"points": [[0, 0], [10, 0]]})).unwrap();
     s.cmdline("arraypath 0.25,1").unwrap();
@@ -651,7 +651,7 @@ fn arraypath_json_and_command_line() {
 
 #[test]
 fn textedit_json_and_command_line() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     let t = h(&s.execute("text", &json!({"at": [0, 0], "text": "old"})).unwrap());
     s.execute("textedit", &json!({"handle": t, "text": "new"})).unwrap();
     assert!(matches!(kind(&s, &t), EntityKind::Text(x) if x.value == "new"));
@@ -669,7 +669,7 @@ fn textedit_json_and_command_line() {
 
 #[test]
 fn explode_polyline3d_keeps_elevations() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     let p = h(&s.execute("3dpoly", &json!({"points": [[0, 0, 5], [1, 0, 6], [1, 1, 7]]})).unwrap());
     s.execute("explode", &json!({"handles": [p]})).unwrap();
     let lines: Vec<(f64, f64)> = s
@@ -692,7 +692,7 @@ fn model_dump(s: &Session) -> String {
 
 #[test]
 fn editing_commands_leave_locked_layer_objects_alone() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     let a = h(&s.execute("line", &json!({"points": [[0, 0], [10, 0]]})).unwrap());
     let b = h(&s.execute("line", &json!({"points": [[5, -5], [5, 5]]})).unwrap());
     let c = h(&s.execute("line", &json!({"points": [[0, 0], [0, 10]]})).unwrap());
@@ -728,7 +728,7 @@ fn editing_commands_leave_locked_layer_objects_alone() {
 #[test]
 fn pedit_preselected_line_asks_to_convert() {
     // Yes converts the pre-selected line and continues with the option prompt.
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     let l = h(&s.execute("line", &json!({"points": [[0, 0], [10, 0]]})).unwrap());
     s.set_selection(vec![Handle::parse_hex(&l).unwrap()]);
     s.cmdline("pedit").unwrap();
@@ -751,7 +751,7 @@ fn pedit_preselected_line_asks_to_convert() {
 
 #[test]
 fn offset_polyline_arc_bulge_follows_joined_endpoints() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     // A diagonal line into a CCW semicircle centred on (10, 5); offsetting inward moves the arc start.
     let pl = pline(&mut s, json!([[0, -5], {"p": [10, 0], "bulge": 1}, [10, 10]]), false);
     s.execute("offset", &json!({"handle": pl, "distance": 1, "side": [12, 5]})).unwrap();
@@ -766,7 +766,7 @@ fn offset_polyline_arc_bulge_follows_joined_endpoints() {
 #[test]
 fn offset_elliptical_arc_follows_picked_side() {
     let max_x = |side: Value| {
-        let mut s = crate::legacy_test_session();
+        let mut s = Session::new();
         let e = h(&s.execute("ellipse", &json!({"center": [0, 0], "major": [10, 0], "ratio": 0.5, "start": 0, "end": 90})).unwrap());
         s.execute("offset", &json!({"handle": e, "distance": 1, "side": side})).unwrap();
         let p = poly(&last(&s));

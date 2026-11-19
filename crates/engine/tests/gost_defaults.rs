@@ -1,5 +1,4 @@
 use cadcraft_engine::{
-    Session,
     doc::{Drawing, EntityKind, Space},
     fonts,
 };
@@ -7,7 +6,7 @@ use serde_json::json;
 
 #[test]
 fn fresh_session_has_offline_gost_font_sheet_and_clean_undo_baseline() {
-    let mut s = Session::new();
+    let mut s = cadcraft_engine::extensions::new_session();
     assert_eq!(s.doc().unwrap().header.i64("INSUNITS", 0), 4);
     assert_eq!(s.doc().unwrap().header.str("DIMSTYLE", ""), "GOST");
     assert_eq!(s.doc().unwrap().text_style("GOST").unwrap().font, fonts::GOST_FONT);
@@ -33,7 +32,7 @@ fn fresh_session_has_offline_gost_font_sheet_and_clean_undo_baseline() {
 
 #[test]
 fn new_uses_paper_gost_but_open_and_explicit_imperial_are_not_converted() {
-    let mut s = Session::new();
+    let mut s = cadcraft_engine::extensions::new_session();
     s.execute("new", &json!({})).unwrap();
     assert_eq!(s.space(), Space::Paper("GOST1".into()));
     assert!(!s.state().unwrap().is_dirty());
@@ -46,7 +45,7 @@ fn new_uses_paper_gost_but_open_and_explicit_imperial_are_not_converted() {
 
 #[test]
 fn ordinary_hatch_draws_three_mm_spacing_without_a_gost_command() {
-    let mut s = Session::new();
+    let mut s = cadcraft_engine::extensions::new_session();
     let boundary = s.execute("rectang", &json!({"p1":[0,0],"p2":[40,70]})).unwrap()["handle"].clone();
     let result = s.execute("hatch", &json!({"handles":[boundary]})).unwrap();
     let h = cadcraft_engine::doc::Handle::parse_hex(result["handles"][0].as_str().unwrap()).unwrap();

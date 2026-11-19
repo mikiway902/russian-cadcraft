@@ -10,7 +10,7 @@ fn kinds(s: &Session) -> Vec<&'static str> {
 
 #[test]
 fn line_via_command_line() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.cmdline("LINE").unwrap();
     s.cmdline("0,0").unwrap();
     s.cmdline("10,0").unwrap();
@@ -32,7 +32,7 @@ fn edits_while_a_command_runs_redraw() {
         let st = s.state().unwrap();
         (st.revision, Arc::as_ptr(&st.doc) as usize)
     }
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     for (cmd, pts) in [("line", ["0,0", "10,0", "10,5", "0,5"]), ("pline", ["20,0", "30,0", "30,5", "20,5"])] {
         s.cmdline(cmd).unwrap();
         s.cmdline(pts[0]).unwrap();
@@ -47,7 +47,7 @@ fn edits_while_a_command_runs_redraw() {
 
 #[test]
 fn line_undo_option_and_aliases() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.cmdline("l 0,0 5,5 10,0 u").unwrap();
     assert_eq!(s.doc().unwrap().model.len(), 1);
     s.cmdline("").unwrap(); // Enter ends
@@ -56,7 +56,7 @@ fn line_undo_option_and_aliases() {
 
 #[test]
 fn programmatic_undo_during_a_command_ends_it_first() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.execute("line", &json!({"points": [[0, 0], [10, 0]]})).unwrap();
     // TEXT stays active, waiting for the next line.
     s.script("TEXT 0,0 5 0 HELLO\n").unwrap();
@@ -78,7 +78,7 @@ fn programmatic_undo_during_a_command_ends_it_first() {
 
 #[test]
 fn undo_during_line_removes_the_last_segment_and_keeps_line_running() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.cmdline("line 0,0 10,0 10,10 20,10").unwrap();
     assert_eq!(kinds(&s), vec!["Line", "Line", "Line"]);
     // Ctrl+Z / the U command / the menu (Session::start) act as the Undo keyword.
@@ -97,7 +97,7 @@ fn undo_during_line_removes_the_last_segment_and_keeps_line_running() {
 
 #[test]
 fn undo_during_a_command_without_undo_keyword_ends_it_and_undoes() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.execute("line", &json!({"points": [[0, 0], [10, 0]]})).unwrap();
     // LINE at its first point offers no Undo: Ctrl+Z ends it, then undoes the earlier line.
     s.cmdline("line").unwrap();
@@ -115,7 +115,7 @@ fn undo_during_a_command_without_undo_keyword_ends_it_and_undoes() {
 
 #[test]
 fn polar_and_direct_distance() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.cmdline("line 1,1").unwrap();
     s.cursor = Vec2::new(100.0, 1.0);
     s.cmdline("4").unwrap(); // direct distance along +X
@@ -128,7 +128,7 @@ fn polar_and_direct_distance() {
 
 #[test]
 fn circle_variants() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.cmdline("circle 0,0 5").unwrap();
     s.cmdline("c 10,0 d 4").unwrap();
     s.cmdline("circle 3p 0,0 2,2 4,0").unwrap();
@@ -144,7 +144,7 @@ fn circle_variants() {
 
 #[test]
 fn rectangle_polygon_and_pline() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.cmdline("rectang 0,0 4,3").unwrap();
     s.cmdline("polygon 6 10,10 i 2").unwrap();
     s.cmdline("pline 0,0 5,0 a 5,5 l 0,5 c").unwrap();
@@ -169,7 +169,7 @@ fn rectangle_polygon_and_pline() {
 
 #[test]
 fn json_execute_and_errors() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     let r = s.execute("circle", &json!({"center": [1, 2], "radius": 3})).unwrap();
     assert!(r["handle"].is_string());
     assert!(s.execute("circle", &json!({"center": [1, 2]})).is_err());
@@ -192,7 +192,7 @@ fn a_drawing_opens_on_the_view_it_was_saved_at() {
     }
     d.header.set_saved_view(Vec2::new(50.0, 50.0), 20.0);
 
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.open_drawing(d.clone(), "saved-view.dxf", None);
     assert_eq!(s.state().unwrap().view(), View { center: Vec2::new(50.0, 50.0), height: 20.0, twist: 0.0 });
 
@@ -201,14 +201,14 @@ fn a_drawing_opens_on_the_view_it_was_saved_at() {
     let mut plain = d.clone();
     plain.header.vars.remove("VIEWCTR");
     plain.header.vars.remove("VIEWSIZE");
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.open_drawing(plain, "no-view.dxf", None);
     assert!(s.state().unwrap().view().height > 5e6, "{:?}", s.state().unwrap().view());
 
     // A stored view that cannot be shown is no view at all.
     let mut broken = d;
     broken.header.set("VIEWSIZE", cadcraft_doc::HVal::Real(0.0));
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.open_drawing(broken, "broken-view.dxf", None);
     assert!(s.state().unwrap().view().height > 5e6, "{:?}", s.state().unwrap().view());
 }
@@ -226,7 +226,7 @@ fn a_drawing_with_an_xref_keeps_the_view_it_was_saved_at() {
     let mut plain = d.clone();
     d.header.set_saved_view(Vec2::new(50.0, 50.0), 20.0);
 
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     let i = s.open_drawing(d, "saved-view.dxf", None);
     crate::cmd::blocks::xref::after_open(&mut s, i);
     assert_eq!(s.state().unwrap().view(), View { center: Vec2::new(50.0, 50.0), height: 20.0, twist: 0.0 });
@@ -234,7 +234,7 @@ fn a_drawing_with_an_xref_keeps_the_view_it_was_saved_at() {
     // With no stored view, the xrefs' pass still frames the drawing.
     plain.header.vars.remove("VIEWCTR");
     plain.header.vars.remove("VIEWSIZE");
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     let i = s.open_drawing(plain, "no-view.dxf", None);
     crate::cmd::blocks::xref::after_open(&mut s, i);
     assert!(s.state().unwrap().view().height > 5e6, "{:?}", s.state().unwrap().view());
@@ -242,7 +242,7 @@ fn a_drawing_with_an_xref_keeps_the_view_it_was_saved_at() {
 
 #[test]
 fn move_with_pickfirst_and_window_selection() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.execute("line", &json!({"points": [[0, 0], [1, 0]]})).unwrap();
     s.execute("line", &json!({"points": [[5, 5], [6, 5]]})).unwrap();
     s.viewport_px = (1000.0, 1000.0);
@@ -262,7 +262,7 @@ fn move_with_pickfirst_and_window_selection() {
 
 #[test]
 fn erase_all_and_selection_keywords() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.execute("circle", &json!({"center": [0, 0], "radius": 1})).unwrap();
     s.execute("circle", &json!({"center": [5, 0], "radius": 1})).unwrap();
     s.cmdline("erase").unwrap();
@@ -273,7 +273,7 @@ fn erase_all_and_selection_keywords() {
 
 #[test]
 fn trim_line_between_edges() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.execute("line", &json!({"points": [[0, 0], [10, 0]]})).unwrap();
     s.execute("line", &json!({"points": [[3, -2], [3, 2]]})).unwrap();
     s.execute("line", &json!({"points": [[7, -2], [7, 2]]})).unwrap();
@@ -292,7 +292,7 @@ fn trim_line_between_edges() {
 
 #[test]
 fn extend_line_to_boundary() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.execute("line", &json!({"points": [[0, 0], [5, 0]]})).unwrap();
     s.execute("line", &json!({"points": [[8, -2], [8, 2]]})).unwrap();
     let h = s.doc().unwrap().model.iter().next().unwrap().handle;
@@ -304,7 +304,7 @@ fn extend_line_to_boundary() {
 #[test]
 fn properties_set_circle_size_and_dim_style() {
     // Issue #6: the Properties palette edits a circle's circumference/area and a dimension's style.
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.execute("circle", &json!({"center": [0, 0], "radius": 1})).unwrap();
     let c = s.doc().unwrap().model.last().unwrap().handle;
     let radius = |s: &Session| match &s.doc().unwrap().entity(c).unwrap().kind {
@@ -339,7 +339,7 @@ fn properties_set_circle_size_and_dim_style() {
 #[test]
 fn properties_palette_current_property_commands() {
     // Issue #6: the commands the Properties palette runs with nothing selected.
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.execute("linetype", &json!({"current": "ByBlock"})).unwrap();
     s.execute("lweight", &json!({"lineweight": 0.5})).unwrap();
     s.execute("setvar", &json!({"name": "THICKNESS", "value": 2.5})).unwrap();
@@ -364,7 +364,7 @@ fn properties_palette_current_property_commands() {
 #[test]
 fn pickadd_controls_idle_picks() {
     // Issue #6: the palette's PICKADD toggle must change how clicks select.
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.execute("line", &json!({"points": [[0, 0], [10, 0]]})).unwrap();
     let a = s.doc().unwrap().model.last().unwrap().handle;
     s.execute("line", &json!({"points": [[0, 5], [10, 5]]})).unwrap();
@@ -394,7 +394,7 @@ fn pickadd_controls_idle_picks() {
 
 #[test]
 fn fillet_two_lines() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.execute("line", &json!({"points": [[0, 0], [10, 0]]})).unwrap();
     s.execute("line", &json!({"points": [[0, 0], [0, 10]]})).unwrap();
     let hs: Vec<_> = s.doc().unwrap().model.handles();
@@ -407,7 +407,7 @@ fn fillet_two_lines() {
 
 #[test]
 fn offset_zero_distance_is_rejected() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.execute("line", &json!({"points": [[0, 0], [10, 0]]})).unwrap();
     let r = s.execute("offset", &json!({"handle": "100", "distance": 0, "side": [1, 1]}));
     assert!(r.is_err(), "offset distance 0 made a coincident copy: {r:?}");
@@ -416,7 +416,7 @@ fn offset_zero_distance_is_rejected() {
 
 #[test]
 fn offset_circle_and_polyline() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     let c = s.execute("circle", &json!({"center": [0, 0], "radius": 5})).unwrap();
     s.execute("offset", &json!({"handle": c["handle"], "distance": 1, "side": [0, 0]})).unwrap();
     let r = s.execute("rectang", &json!({"p1": [0, 0], "p2": [10, 10]})).unwrap();
@@ -435,7 +435,7 @@ fn offset_circle_and_polyline() {
 
 #[test]
 fn copy_rotate_scale_mirror() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     let l = s.execute("line", &json!({"points": [[0, 0], [1, 0]]})).unwrap();
     let h = l["handles"][0].clone();
     s.execute("copy", &json!({"handles": [h], "delta": [0, 2], "count": 3})).unwrap();
@@ -452,7 +452,7 @@ fn copy_rotate_scale_mirror() {
 #[test]
 fn copy_and_rotate_drag_as_a_transform_of_the_selection() {
     fn start(cmd: &str) -> Session {
-        let mut s = crate::legacy_test_session();
+        let mut s = Session::new();
         s.execute("line", &json!({"points": [[0, 0], [1, 0]]})).unwrap();
         for t in [cmd, "all", "", "0,0"] {
             s.cmdline(t).unwrap();
@@ -470,7 +470,7 @@ fn copy_and_rotate_drag_as_a_transform_of_the_selection() {
 
     // MIRROR: geometry is mirrored by the matrix; text, which stays readable, is transformed
     // object by object and comes with the extra geometry.
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.execute("line", &json!({"points": [[0, 0], [1, 0]]})).unwrap();
     s.execute("text", &json!({"at": [2, 2], "height": 1, "text": "A"})).unwrap();
     for t in ["mirror", "all", "", "0,0"] {
@@ -484,7 +484,7 @@ fn copy_and_rotate_drag_as_a_transform_of_the_selection() {
     assert!(t.insert.xy().near(Vec2::new(-2.0, 2.0), 1e-9) && t.rotation.abs() < 1e-9, "mirrored, still reading left to right");
 
     // PASTECLIP drags the clipboard.
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     let l = s.execute("line", &json!({"points": [[0, 0], [1, 0]]})).unwrap();
     s.execute("copyclip", &json!({"handles": [l["handles"][0].clone()]})).unwrap();
     s.cmdline("pasteclip").unwrap();
@@ -501,7 +501,7 @@ fn scale_reference_typed_and_picked() {
         let EntityKind::Line(l) = &e.kind else { panic!("expected a line") };
         l.b.xy()
     }
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.execute("line", &json!({"points": [[0, 0], [56, 0]]})).unwrap();
     // Typed lengths: 56 → 100.
     for t in ["scale", "all", "", "0,0", "r"] {
@@ -534,7 +534,7 @@ fn scale_reference_typed_and_picked() {
 
 #[test]
 fn layers_and_properties() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.execute("layer.new", &json!({"name": "Walls", "color": "red", "current": true})).unwrap();
     let c = s.execute("circle", &json!({"center": [0, 0], "radius": 1})).unwrap();
     let h = cadcraft_doc::Handle::parse_hex(c["handle"].as_str().unwrap()).unwrap();
@@ -551,7 +551,7 @@ fn layers_and_properties() {
 fn properties_set_transparency() {
     use cadcraft_doc::Transparency;
     // Issue #132: `properties.set` used to ignore `transparency`.
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     let r = s.execute("line", &json!({"points": [[0, 0], [10, 0]]})).unwrap();
     let h = r["handles"][0].as_str().unwrap().to_string();
     let hh = cadcraft_doc::Handle::parse_hex(&h).unwrap();
@@ -583,7 +583,7 @@ fn properties_set_transparency() {
 #[test]
 fn properties_set_thickness() {
     // Issue #1722: `properties.set` used to ignore `thickness` while still reporting a change.
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     let r = s.execute("circle", &json!({"center": [0, 0], "radius": 5})).unwrap();
     let h = r["handle"].as_str().unwrap().to_string();
     let hh = cadcraft_doc::Handle::parse_hex(&h).unwrap();
@@ -598,7 +598,7 @@ fn properties_set_thickness() {
 
 #[test]
 fn zoom_extents_fits_drawing() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.viewport_px = (1000.0, 500.0);
     s.execute("line", &json!({"points": [[0, 0], [100, 10]]})).unwrap();
     s.execute("zoom.extents", &json!({})).unwrap();
@@ -609,7 +609,7 @@ fn zoom_extents_fits_drawing() {
 
 #[test]
 fn setvar_point_variables_take_point_objects() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     for name in ["SNAPBASE", "LIMMIN", "LIMMAX", "INSBASE"] {
         // GETVAR's own value (an object with z) writes back, and an {x, y} object equals the array form.
         let got = sysvars::get(&s, name).unwrap();
@@ -622,7 +622,7 @@ fn setvar_point_variables_take_point_objects() {
 
 #[test]
 fn sysvars_roundtrip() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.execute("setvar", &json!({"name": "osmode", "value": 7})).unwrap();
     assert_eq!(s.settings.osmode, 7);
     s.execute("setvar", &json!({"name": "LTSCALE", "value": 2.5})).unwrap();
@@ -640,7 +640,7 @@ fn sysvars_roundtrip() {
 
 #[test]
 fn setvar_clayer_keeps_numeric_layer_name() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.execute("layer.new", &json!({"name": "10"})).unwrap();
     s.execute("setvar", &json!({"name": "CLAYER", "value": "10"})).unwrap();
     assert_eq!(sysvars::get(&s, "CLAYER"), Some(json!("10")));
@@ -660,7 +660,7 @@ fn setvar_clayer_keeps_numeric_layer_name() {
 
 #[test]
 fn setvar_at_command_line() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     // One line, as typed in issue #30: Space separates the inputs.
     s.cmdline("SETVAR LUNITS 4").unwrap();
     assert!(s.running.is_none());
@@ -694,7 +694,7 @@ fn setvar_at_command_line() {
 
 #[test]
 fn setvar_keeps_header_types() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     assert!(s.execute("setvar", &json!({"name": "LUNITS", "value": "x"})).is_err());
     assert!(s.execute("setvar", &json!({"name": "LUNITS", "value": 2.5})).is_err());
     s.execute("setvar", &json!({"name": "LUNITS", "value": 3.0})).unwrap();
@@ -705,7 +705,7 @@ fn setvar_keeps_header_types() {
 
 #[test]
 fn setvar_rejects_out_of_range_units() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     for (name, v) in [("LUPREC", 100), ("LUNITS", 9), ("LUNITS", 0), ("AUPREC", -5), ("AUNITS", 5)] {
         assert!(s.execute("setvar", &json!({"name": name, "value": v})).is_err(), "{name} {v}");
     }
@@ -716,7 +716,7 @@ fn setvar_rejects_out_of_range_units() {
 
 #[test]
 fn setvar_rejects_out_of_range_osmode() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.execute("setvar", &json!({"name": "OSMODE", "value": 4133})).unwrap();
     for v in [4294967296u64, 65536, 32768] {
         assert!(s.execute("setvar", &json!({"name": "OSMODE", "value": v})).is_err(), "{v}");
@@ -728,7 +728,7 @@ fn setvar_rejects_out_of_range_osmode() {
 
 #[test]
 fn dynamic_input_pointer_settings() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     assert_eq!(sysvars::get(&s, "DYNPIFORMAT"), Some(json!(0)));
     assert_eq!(sysvars::get(&s, "dynpicoords"), Some(json!(0)));
     s.execute("setvar", &json!({"name": "dynpiformat", "value": 1})).unwrap();
@@ -739,7 +739,7 @@ fn dynamic_input_pointer_settings() {
 
 #[test]
 fn script_runs_commands() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.script("LINE 0,0 10,0 10,10\n\nCIRCLE 5,5 2\nTEXT 0,-2 0.5 0 Hello world\n").unwrap();
     assert_eq!(kinds(&s), vec!["Line", "Line", "Circle", "Text"]);
     let t = s.doc().unwrap().model.last().unwrap();
@@ -748,14 +748,14 @@ fn script_runs_commands() {
 
 #[test]
 fn script_splits_line_at_keyword_prompt() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.script("POLYGON 6 200,20 I 15").unwrap();
     assert_eq!(kinds(&s), vec!["Polyline"]);
 }
 
 #[test]
 fn enter_repeats_last_command() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.cmdline("circle 0,0 1").unwrap();
     s.cmdline("").unwrap();
     assert_eq!(s.running.as_ref().map(|r| r.id.as_str()), Some("circle"));
@@ -765,7 +765,7 @@ fn enter_repeats_last_command() {
 
 #[test]
 fn cancel_keeps_partial_line_as_one_undo() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.cmdline("line 0,0 1,0 2,0").unwrap();
     s.cancel();
     assert_eq!(s.doc().unwrap().model.len(), 2);
@@ -776,7 +776,7 @@ fn cancel_keeps_partial_line_as_one_undo() {
 #[test]
 fn every_interactive_command_starts_and_cancels() {
     for c in command_specs().iter().filter(|c| c.interactive.is_some()) {
-        let mut s = crate::legacy_test_session();
+        let mut s = Session::new();
         if (c.enabled)(&s).is_err() {
             // Unavailable in a new drawing (e.g. pasting with an empty clipboard): refused.
             assert!(s.start(c.id).is_err() && s.running.is_none(), "{}", c.id);
@@ -802,7 +802,7 @@ fn sample_drawing_builds() {
 
 #[test]
 fn count_from_the_menu_shows_its_result() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.cmdline("count").unwrap();
     s.cmdline("").unwrap();
     assert_eq!(s.log.last().map(String::as_str), Some("No block references in model space."));
@@ -820,7 +820,7 @@ fn count_from_the_menu_shows_its_result() {
 
 #[test]
 fn osnap_toggle() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.execute("osnap", &json!({"modes": ["end", "mid", "cen"]})).unwrap();
     assert_eq!(s.settings.osmode, 7);
     s.execute("osnap", &json!({"on": false})).unwrap();
@@ -829,7 +829,7 @@ fn osnap_toggle() {
 
 #[test]
 fn dimlinear_interactive_and_continue() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.cmdline("dimlinear 0,0 10,0 5,2").unwrap();
     assert!(s.running.is_none());
     s.cmdline("dimcontinue 25,0").unwrap();
@@ -844,7 +844,7 @@ fn dimlinear_interactive_and_continue() {
 
 #[test]
 fn dim_auto_vertical_and_radius() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.execute("dimlinear", &json!({"p1": [0, 0], "p2": [3, 8], "at": [6, 4]})).unwrap();
     let c = s.execute("circle", &json!({"center": [20, 0], "radius": 2})).unwrap();
     s.execute("dimradius", &json!({"handle": c["handle"], "at": [23, 1]})).unwrap();
@@ -856,7 +856,7 @@ fn dim_auto_vertical_and_radius() {
 
 #[test]
 fn area_of_hatch_excludes_island() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.execute("pline", &json!({"vertices": [[0, 0], [10, 0], [10, 10], [0, 10]], "closed": true})).unwrap();
     s.execute("pline", &json!({"vertices": [[4, 4], [6, 4], [6, 6], [4, 6]], "closed": true})).unwrap();
     s.execute("hatch", &json!({"points": [[1, 1]], "pattern": "SOLID"})).unwrap();
@@ -865,7 +865,7 @@ fn area_of_hatch_excludes_island() {
     assert!((r["area"].as_f64().unwrap() - 96.0).abs() < 1e-6);
     assert!((r["perimeter"].as_f64().unwrap() - 48.0).abs() < 1e-6);
     // A loop nested inside the island is filled again: 100 - 36 + 4.
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.execute("pline", &json!({"vertices": [[0, 0], [10, 0], [10, 10], [0, 10]], "closed": true})).unwrap();
     s.execute("pline", &json!({"vertices": [[2, 2], [8, 2], [8, 8], [2, 8]], "closed": true})).unwrap();
     s.execute("pline", &json!({"vertices": [[4, 4], [6, 4], [6, 6], [4, 6]], "closed": true})).unwrap();
@@ -877,7 +877,7 @@ fn area_of_hatch_excludes_island() {
 
 #[test]
 fn hatch_by_pick_point_with_island() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.execute("rectang", &json!({"p1": [0, 0], "p2": [10, 10]})).unwrap();
     s.execute("circle", &json!({"center": [5, 5], "radius": 2})).unwrap();
     s.cmdline("hatch 1,1").unwrap();
@@ -887,14 +887,14 @@ fn hatch_by_pick_point_with_island() {
     // Hatches go to the back of the draw order.
     assert!(matches!(s.doc().unwrap().model.iter().next().unwrap().kind, EntityKind::Hatch(_)));
     // No boundary → error message, no hatch.
-    let mut s2 = crate::legacy_test_session();
+    let mut s2 = Session::new();
     s2.execute("line", &json!({"points": [[0, 0], [5, 0]]})).unwrap();
     assert!(s2.execute("hatch", &json!({"points": [[1, 1]]})).is_err());
 }
 
 #[test]
 fn hatch_from_overlapping_lines() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.execute("line", &json!({"points": [[-1, 0], [11, 0]]})).unwrap();
     s.execute("line", &json!({"points": [[10, -1], [10, 6]]})).unwrap();
     s.execute("line", &json!({"points": [[11, 5], [-1, 5]]})).unwrap();
@@ -908,7 +908,7 @@ fn hatch_from_overlapping_lines() {
 /// Outer rectangle [0,0]-[20,20] with a [5,5]-[10,10] square hole drawn as four LINEs or as one
 /// closed polyline (issue #106).
 fn square_hole_fixture(lines: bool) -> Session {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.execute("rectang", &json!({"p1": [0, 0], "p2": [20, 20]})).unwrap();
     let sq = [[5, 5], [10, 5], [10, 10], [5, 10]];
     if lines {
@@ -990,7 +990,7 @@ fn gradient_pick_point_keeps_island_of_separate_lines() {
 
 #[test]
 fn boundary_point_batch_is_capped() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     let sq = [[0, 0], [20, 0], [20, 20], [0, 20]];
     for i in 0..4 {
         s.execute("line", &json!({"points": [sq[i], sq[(i + 1) % 4]]})).unwrap();
@@ -1015,7 +1015,7 @@ fn boundary_pick_point_keeps_island_of_separate_lines() {
         assert!((areas[0] - 25.0).abs() < 1e-6 && (areas[1] - 400.0).abs() < 1e-6, "{areas:?}");
     }
     // Four separate outer lines and no hole: still exactly one boundary.
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     let sq = [[0, 0], [20, 0], [20, 20], [0, 20]];
     for i in 0..4 {
         s.execute("line", &json!({"points": [sq[i], sq[(i + 1) % 4]]})).unwrap();
@@ -1032,7 +1032,7 @@ fn boundary_pick_point_keeps_island_of_separate_lines() {
 
 #[test]
 fn block_insert_with_attributes() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.execute("circle", &json!({"center": [0, 0], "radius": 1})).unwrap();
     s.execute("attdef", &json!({"tag": "TAG", "prompt": "Tag?", "default": "A1", "at": [1.2, 0]})).unwrap();
     s.execute("selectall", &json!({})).unwrap();
@@ -1059,7 +1059,7 @@ fn block_insert_with_attributes() {
 
 #[test]
 fn mleader_and_qdim() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.cmdline("mleader 0,0 3,2").unwrap();
     s.cmdline("NOTE A").unwrap();
     assert!(
@@ -1097,7 +1097,7 @@ fn line_dist(c: Vec2, p: Vec2, q: Vec2) -> f64 {
 
 #[test]
 fn line_first_point_deferred_tangent() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.cmdline("circle 0,0 5").unwrap();
     s.execute("osnap", &json!({"modes": ["tan"]})).unwrap();
     s.cmdline("line").unwrap();
@@ -1127,7 +1127,7 @@ fn line_first_point_deferred_tangent() {
 
 #[test]
 fn line_deferred_tangent_with_typed_polar() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.cmdline("circle 0,0 5").unwrap();
     s.execute("osnap", &json!({"modes": ["tan"]})).unwrap();
     s.cmdline("line").unwrap();
@@ -1148,7 +1148,7 @@ fn line_deferred_tangent_with_typed_polar() {
 
 #[test]
 fn line_belt_tangent_to_tangent() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.cmdline("circle 0,0 10").unwrap();
     s.cmdline("circle 30,0 4").unwrap();
     s.execute("osnap", &json!({"modes": ["tan"]})).unwrap();
@@ -1182,7 +1182,7 @@ fn line_belt_tangent_to_tangent() {
 
 #[test]
 fn line_deferred_tangent_without_solution_reprompts() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.cmdline("circle 0,0 10").unwrap();
     s.cmdline("circle 0,0 4").unwrap();
     s.execute("osnap", &json!({"modes": ["tan"]})).unwrap();
@@ -1210,7 +1210,7 @@ fn line_deferred_tangent_without_solution_reprompts() {
 
 #[test]
 fn deferred_pick_elsewhere_is_a_plain_point() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     let curve = snap::SnapCurve::Circle { center: Vec2::ZERO, radius: 5.0 };
     let d = snap::Deferred { mode: snap::mode::TAN, curve, at: Vec2::new(0.0, 5.0) };
     // CIRCLE's center prompt doesn't resolve deferred snaps: it gets the picked point.
@@ -1229,7 +1229,7 @@ fn deferred_pick_elsewhere_is_a_plain_point() {
 #[test]
 fn arc_refuses_zero_radius() {
     for params in [json!({"center": [0, 0], "radius": 0, "start": 0, "end": 90}), json!({"start": [0, 0], "center": [0, 0], "end": [1, 0]})] {
-        let mut s = crate::legacy_test_session();
+        let mut s = Session::new();
         let err = s.execute("arc", &params).unwrap_err().to_string();
         assert!(err.contains("do not define an arc"), "{params}: {err}");
         let info = s.execute("drawing.inspect", &json!({})).unwrap();
@@ -1238,7 +1238,7 @@ fn arc_refuses_zero_radius() {
         assert_eq!(info["undo"], json!([]), "{params}: {info}");
     }
     // The positive-radius control still adds the quarter circle.
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.execute("arc", &json!({"center": [0, 0], "radius": 5, "start": 0, "end": 90})).unwrap();
     match &s.doc().unwrap().model.iter().next().unwrap().kind {
         EntityKind::Arc(a) => assert_eq!((a.radius, a.start, a.end), (5.0, 0.0, std::f64::consts::FRAC_PI_2)),
@@ -1248,7 +1248,7 @@ fn arc_refuses_zero_radius() {
 
 /// The single polyline in a fresh drawing after typing `script`, then pressing Enter.
 fn typed_pline(script: &str) -> cadcraft_doc::LwPolyline {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     for line in script.split('\n') {
         s.cmdline(line).unwrap();
     }
@@ -1302,7 +1302,7 @@ fn pline_width_answers_taper_the_next_segment() {
 
 #[test]
 fn press_and_drag_selection_window() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.cmdline("line 0,0 10,0").unwrap();
     s.cmdline("").unwrap();
     s.cmdline("circle 50,50 1").unwrap();
@@ -1333,7 +1333,7 @@ fn press_and_drag_selection_window() {
 
 #[test]
 fn block_rotation_property_turns_attribute_text() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.execute("attdef", &json!({"tag": "TAG", "at": [10, 0], "default": "D", "height": 2.5})).unwrap();
     let def = s.doc().unwrap().model.last().unwrap().handle;
     s.execute("block", &json!({"name": "B", "base": [0, 0], "handles": [def.hex()], "keep": "delete"})).unwrap();
@@ -1352,7 +1352,7 @@ fn block_rotation_property_turns_attribute_text() {
 
 #[test]
 fn bare_variable_name_runs_setvar() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.cmdline("pickadd").unwrap();
     assert!(s.current_prompt().is_some());
     s.cmdline("0").unwrap();
@@ -1366,7 +1366,7 @@ fn bare_variable_name_runs_setvar() {
 
 #[test]
 fn typed_ltscale_asks_for_the_scale() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.execute("setvar", &json!({"name": "LTSCALE", "value": 2.5})).unwrap();
     s.cmdline("ltscale").unwrap();
     assert!(s.prompt_text().contains("Enter new linetype scale factor <2.5000>"), "{}", s.prompt_text());
@@ -1385,7 +1385,7 @@ fn typed_ltscale_asks_for_the_scale() {
 
 #[test]
 fn format_thickness_asks_for_the_thickness() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.start("thickness").unwrap();
     assert!(s.prompt_text().contains("Enter new value for THICKNESS <0.0000>"), "{}", s.prompt_text());
     // After text that is not a number, the prompt asks again.
@@ -1413,7 +1413,7 @@ fn format_thickness_asks_for_the_thickness() {
 
 #[test]
 fn new_objects_take_the_current_thickness() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.execute("thickness", &json!({"thickness": 2.5})).unwrap();
     s.execute("line", &json!({"points": [[0, 0], [10, 0]]})).unwrap();
     s.execute("arc", &json!({"center": [0, 0], "radius": 3, "start": 0, "end": 90})).unwrap();
@@ -1447,7 +1447,7 @@ fn setvar_prompt_open(s: &Session) -> bool {
 
 #[test]
 fn every_variable_name_starts_setvar_unless_it_is_a_command() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     let names: Vec<String> = match crate::sysvars::list(&s) {
         Value::Object(m) => m.keys().cloned().collect(),
         _ => Vec::new(),
@@ -1480,7 +1480,7 @@ fn every_variable_name_starts_setvar_unless_it_is_a_command() {
 
 #[test]
 fn hostile_variable_like_input_never_panics() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     let long = "a".repeat(1 << 20);
     for t in [
         "'",
@@ -1510,7 +1510,7 @@ fn hostile_variable_like_input_never_panics() {
 
 #[test]
 fn chamfer_rejects_negative_distances() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     let h1 = s.execute("line", &json!({"points": [[0, 0], [10, 0]]})).unwrap();
     let h2 = s.execute("line", &json!({"points": [[0, 0], [0, 10]]})).unwrap();
     let before = format!("{:?}", s.doc().unwrap().model.iter().map(|e| e.kind.clone()).collect::<Vec<_>>());
@@ -1522,7 +1522,7 @@ fn chamfer_rejects_negative_distances() {
 
 #[test]
 fn array_counts_reject_invalid_values() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     s.execute("line", &json!({"points": [[0, 0], [1, 0]]})).unwrap();
     for bad in [json!(-3), json!(0), json!(2.5)] {
         for key in ["count", "rows", "levels"] {
@@ -1541,7 +1541,7 @@ fn array_counts_reject_invalid_values() {
 
 #[test]
 fn setvar_rejects_non_finite_text_for_real_variables() {
-    let mut s = crate::legacy_test_session();
+    let mut s = Session::new();
     for name in ["LTSCALE", "TEXTSIZE", "SNAPANG"] {
         let before = s.execute("getvar", &json!({"name": name})).unwrap();
         for text in ["nan", "inf", "-inf"] {

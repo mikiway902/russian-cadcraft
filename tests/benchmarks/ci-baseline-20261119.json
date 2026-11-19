@@ -1,0 +1,139 @@
+{
+  "date": "2026-11-19",
+  "platform": "Linux x86_64",
+  "command": "CARGO_BUILD_JOBS=4 RUST_TEST_THREADS=4 cargo xtask ci",
+  "result": "all 7 steps passed",
+  "steps": [
+    "fmt",
+    "clippy",
+    "test",
+    "i18n",
+    "assets",
+    "layers",
+    "wasm"
+  ],
+  "workspace_test_phase": {
+    "passed": 3983,
+    "failed": 0,
+    "ignored": 26,
+    "test_binaries": 143,
+    "doctests_ran": true
+  },
+  "ignored_cases": [
+    [
+      "roundtrip::dwg::conformance::complex_linetype_rotation_is_correct_in_native_objects",
+      "Confirmed native DWG mismatch: a pi/2 linetype rotation is stored as pi/2 degrees; DXF unit interpretation needs investigation"
+    ],
+    [
+      "roundtrip::dwg::entities::common_property_interactions_with_named_plot_style",
+      "Confirmed DWG bridge loss: named plot style is lost in combination with other properties"
+    ],
+    [
+      "roundtrip::dwg::entities::named_plot_style_is_preserved",
+      "Confirmed DWG bridge loss: named plot style Review becomes ByLayer, including R2018"
+    ],
+    [
+      "roundtrip::dwg::entities::nondefault_extrusion_is_preserved",
+      "Confirmed loss on the shared DXF path: non-default extrusion becomes (0,0,1)"
+    ],
+    [
+      "roundtrip::dwg::entities::plot_style_byblock_is_preserved",
+      "Confirmed loss on the shared DXF path: ByBlock plot style becomes ByLayer"
+    ],
+    [
+      "roundtrip::dwg::entities::text_alignment_without_points",
+      "Confirmed change: missing justified TEXT align_pt becomes (0,0,elevation), moving text"
+    ],
+    [
+      "roundtrip::dwg::entities::text_literal_escapes",
+      "Confirmed DWG bridge loss: literal Unicode/MIF escape text is decoded again, including R2018"
+    ],
+    [
+      "roundtrip::dwg::extended::closed_fit_splines",
+      "Confirmed DWG loss: periodic closed fit spline reopens as an open spline"
+    ],
+    [
+      "roundtrip::dwg::extended::constant_attributes",
+      "Confirmed shared DXF loss: ATTRIB constant flag becomes false"
+    ],
+    [
+      "roundtrip::dwg::extended::header_current_layer",
+      "Confirmed DWG loss: current layer CLAYER becomes 0"
+    ],
+    [
+      "roundtrip::dwg::extended::layer_plot_styles",
+      "Confirmed DWG loss: named layer plot style Review becomes Normal"
+    ],
+    [
+      "roundtrip::dwg::extended::leaders_3d",
+      "Confirmed shared DXF loss: LEADER vertex Z coordinates become zero"
+    ],
+    [
+      "roundtrip::dwg::extended::mtext_carets",
+      "Confirmed DWG loss: a space following an MTEXT caret is consumed"
+    ],
+    [
+      "roundtrip::dwg::extended::mtext_columns",
+      "Confirmed DWG loss: MTEXT columns disappear"
+    ],
+    [
+      "roundtrip::dwg::extended::unknown_entities_are_preserved_or_explicitly_refused",
+      "Confirmed DWG data loss: saving an unregistered entity succeeds but drops it instead of preserving it or returning an error"
+    ],
+    [
+      "roundtrip::dxf::attributes::legacy_placement_is_independent_of_an_intermediate_modern_save",
+      "Confirmed DXF placement loss (#2255): R2018 save changes subsequent legacy ATTRIB placement; existing reader fix #1942"
+    ],
+    [
+      "roundtrip::dxf::common::writer_must_distinguish_bylayer_from_byblock_plot_style",
+      "Known writer loss: ByLayer and ByBlock plot styles produce identical files"
+    ],
+    [
+      "roundtrip::dxf::common::writes_nondefault_extrusion_groups",
+      "Known writer loss: a non-default extrusion is omitted; the independent LINE read test passes"
+    ],
+    [
+      "roundtrip::dxf::entities::nondefault_extrusion_is_preserved",
+      "Known writer loss: groups 210/220/230 are omitted; a LINE's normal becomes (0,0,1)"
+    ],
+    [
+      "roundtrip::dxf::entities::plot_style_byblock_is_preserved",
+      "Known writer loss: ByBlock plot style becomes ByLayer on the first R2000 ASCII save"
+    ],
+    [
+      "roundtrip::dxf::extended::constant_attributes",
+      "Confirmed DXF loss: ATTRIB constant flag becomes false"
+    ],
+    [
+      "roundtrip::dxf::extended::leaders_3d",
+      "Confirmed DXF loss: LEADER vertex Z coordinates become zero"
+    ],
+    [
+      "roundtrip::dxf::extended::mtext_columns",
+      "Confirmed DXF loss: MTEXT column group 48 is also read as Common.ltscale"
+    ],
+    [
+      "roundtrip::dxf::extended::multiline_attributes",
+      "Confirmed DXF read loss (#2255): multiline header changes Left to Center and synthesizes align_pt; existing fix #1942"
+    ],
+    [
+      "roundtrip::handle_limits::dxf_exhausted_handles_are_preserved_or_refused",
+      "Confirmed DXF data loss: exhausted generated handles produce a successful save that reopens with no model entities"
+    ],
+    [
+      "i18n::tests::translation_gaps",
+      "a report, printed by `cargo xtask i18n`"
+    ]
+  ],
+  "log_sha256": "9678b6888389bd23a61dfcd85d7109c80b8c858b44f3dc851d579d5eb58b579f",
+  "russian_translation_report": [
+    "ru: 346 strings fall back to English"
+  ],
+  "scope_limits": [
+    "26 pre-existing ignored tests are not claimed passed.",
+    "WASM check completed with four dead-code warnings.",
+    "CI i18n step is a gap report, not proof of every translation in every language.",
+    "No Windows/macOS build or installer acceptance in this run.",
+    "Standalone model worker was tested separately; it is not part of the root workspace."
+  ]
+}

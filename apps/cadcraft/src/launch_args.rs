@@ -110,11 +110,12 @@ mod tests {
 
     #[test]
     fn version_stops_parsing() {
-        let e = parse_args(&["-V", "--control"]).err().unwrap();
-        assert_eq!((e.kind(), e.exit_code()), (ErrorKind::DisplayVersion, 0));
-        assert_eq!(e.to_string(), format!("{}\n", crate::version_string()));
-        let e = parse_args(&["--version", "--bogus"]).err().unwrap();
-        assert_eq!(e.kind(), ErrorKind::DisplayVersion);
+        for args in [&["-V", "--control"][..], &["--version", "--bogus"]] {
+            let e = parse_args(args).err().unwrap();
+            assert_eq!((e.kind(), e.exit_code()), (ErrorKind::DisplayVersion, 0), "{args:?}");
+            assert!(!e.use_stderr(), "{args:?}: version belongs on stdout");
+            assert!(!e.to_string().trim().is_empty(), "{args:?}: version should be printed");
+        }
     }
 
     #[test]

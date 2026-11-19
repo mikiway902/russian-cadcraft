@@ -52,7 +52,7 @@
 	> Greater than	> Більше ніж
 	A variable name starts with a letter and has only letters, digits and _	Ім'я змінної починається з літери й містить лише літери, цифри та _
 	About	Про програму
-	About CADCraft	Про CADCraft
+	About CADCraftGOST	Про CADCraftGOST
 	Absolute	Абсолютні
 	Add Leader	Додати виноску
 	Additional angles	Додаткові кути
@@ -115,7 +115,7 @@
 	ByBlock	За блоком
 	ByColor	За кольором
 	ByLayer	За шаром
-	CADCraft Help	Довідка CADCraft
+	CADCraftGOST Help	Довідка CADCraftGOST
 	Cancel	Скасувати
 	Cartesian (x, y)	Декартові (x, y)
 	Center	Центр
@@ -721,7 +721,7 @@
 	Quick Select...	Швидкий вибір...
 	QuickCalc	Калькулятор
 	QuickCalc Pick	Вибір для калькулятора
-	Quit CADCraft	Вийти з CADCraft
+	Quit CADCraftGOST	Вийти з CADCraftGOST
 	Radius	Радіус
 	Raster Image	Растрове зображення
 	Ray	Промінь
@@ -1230,7 +1230,7 @@
 @plural	{n} contributor	{n} учасник|{n} учасники|{n} учасників
 	Drawing as bytes	Креслення як байти
 	Services	Служби
-	Hide CADCraft	Приховати CADCraft
+	Hide CADCraftGOST	Приховати CADCraftGOST
 	Hide Others	Приховати інші
 	Accessibility	Спеціальні можливості
 	Show System Cursor	Показувати системний курсор
@@ -1380,7 +1380,7 @@
 	Customize	Налаштування інтерфейсу
 	Edit Command Aliases (PGP)...	Редагувати псевдоніми команд (PGP)...
 	Check for Updates…	Перевірити оновлення…
-	CADCraft is up to date.	Встановлено найновішу версію CADCraft.
+	CADCraftGOST is up to date.	Встановлено найновішу версію CADCraftGOST.
 	Could not check for updates.	Не вдалося перевірити оновлення.
 	Save changes to block "{name}"?	Зберегти зміни в блоці «{name}»?
 	Add a drawing file as a block library	Додати файл креслення як бібліотеку блоків

@@ -327,7 +327,7 @@ pub struct Headless {
 
 impl Default for Headless {
     fn default() -> Self {
-        Headless { session: Session::new() }
+        Headless { session: cadcraft_engine::extensions::new_session() }
     }
 }
 
