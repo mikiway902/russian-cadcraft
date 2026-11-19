@@ -48,7 +48,7 @@ use crate::animation::AnimationPref;
 use crate::theme::{self, ThemePref};
 
 /// The host storage key for [`CadApp::profile_json`].
-pub const PROFILE_KEY: &str = "cadcraft.profile";
+pub const PROFILE_KEY: &str = "cadcraftgost.profile";
 
 /// The largest saved profile [`CadApp::load_profile`] reads: everything [`CadApp::profile_json`]
 /// writes — a full ALIASEDIT alias set (up to [`MAX_ALIAS_PROFILE_BYTES`]) and the profile

@@ -14,10 +14,10 @@ fn main() {
     }
     res.set("ProductName", "CADCraftGOST")
         .set("FileDescription", "CADCraftGOST computer-aided design")
-        .set("CompanyName", "Learning Machines LLC")
+        .set("CompanyName", "CADCraftGOST contributors")
         .set("LegalCopyright", "Copyright (c) 2026 ArtCraft Team and the CADCraft contributors. MIT OR Apache-2.0.")
-        .set("OriginalFilename", "cadcraft.exe")
-        .set("InternalName", "cadcraft");
+        .set("OriginalFilename", "cadcraftgost.exe")
+        .set("InternalName", "cadcraftgost");
     if let Err(e) = res.compile() {
         if std::env::var_os("CADCRAFT_REQUIRE_WINRES").is_some() {
             eprintln!("embedding Windows resources failed: {e}");

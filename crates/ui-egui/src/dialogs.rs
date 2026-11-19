@@ -364,8 +364,10 @@ fn about(ctx: &egui::Context, open: &mut bool) {
                         RichText::new(crate::tl!("CADCraftGOST is an independent fork of CADCraft by the ArtCraft team and community."))
                             .color(t.text_dim),
                     );
-                    ui.hyperlink_to("getartcraft.com/apps/cadcraft", "https://getartcraft.com/apps/cadcraft");
-                    ui.hyperlink_to("github.com/mikiway902/russian-cadcraft", "https://github.com/mikiway902/russian-cadcraft");
+                    ui.hyperlink_to(crate::tl!("Original CADCraft — source and author attribution"), "https://github.com/storytold/cadcraft");
+                    ui.hyperlink_to(crate::tl!("CADCraftGOST source"), cadcraft_engine::identity::REPOSITORY_URL);
+                    ui.hyperlink_to(crate::tl!("CADCraftGOST releases"), cadcraft_engine::identity::RELEASES_URL);
+                    ui.hyperlink_to(crate::tl!("CADCraftGOST support"), cadcraft_engine::identity::ISSUES_URL);
                     ui.add_space(6.0);
                     ui.label(RichText::new(crate::tl!("MIT OR Apache-2.0. Not affiliated with Autodesk, Inc.")).small().color(t.text_faint));
                 }

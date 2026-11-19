@@ -4,23 +4,22 @@
 #
 #   curl -fsSLO https://raw.githubusercontent.com/flatpak/flatpak-builder-tools/master/cargo/flatpak-cargo-generator.py
 #   python3 flatpak-cargo-generator.py Cargo.lock -o packaging/linux/flatpak/cargo-sources.json
-#   flatpak-builder --user --install --force-clean build-flatpak packaging/linux/flatpak/ai.storyteller.cadcraft.yml
-#   flatpak run ai.storyteller.cadcraft
+#   flatpak-builder --user --install --force-clean build-flatpak packaging/linux/flatpak/io.github.mikiway902.cadcraftgost.yml
+#   flatpak run io.github.mikiway902.cadcraftgost
 #
 # For Flathub, replace the `dir` source with a `git` source pinned to a release tag and commit.
-# The single-file .flatpak attached to each release comes from ai.storyteller.cadcraft.bundle.yml,
+# The single-file .flatpak attached to each release comes from io.github.mikiway902.cadcraftgost.bundle.yml,
 # which repackages the prebuilt release binaries. Keep runtime-version and finish-args identical.
-id: ai.storyteller.cadcraft
+id: io.github.mikiway902.cadcraftgost
 runtime: org.freedesktop.Platform
 runtime-version: '26.08'
 sdk: org.freedesktop.Sdk
 sdk-extensions:
   - org.freedesktop.Sdk.Extension.rust-stable
-command: cadcraft
+command: cadcraftgost
 finish-args:
   # The shared updater inspects and updates this installation via flatpak-spawn --host.
   - --talk-name=org.freedesktop.Flatpak
-  - --filesystem=xdg-data/ArtCraft/versions:ro
   # Display: Wayland first; X11 only when no Wayland compositor is running.
   - --socket=wayland
   - --socket=fallback-x11
@@ -48,18 +47,18 @@ modules:
         CARGO_NET_OFFLINE: 'true'
     build-commands:
       - cargo --offline build --release --locked -p cadcraft -p cadcraft-cli
-      - install -Dm755 target/release/cadcraft /app/bin/cadcraft
-      - install -Dm755 target/release/cadcraft-cli /app/bin/cadcraft-cli
-      - install -Dm644 packaging/linux/ai.storyteller.cadcraft.desktop /app/share/applications/ai.storyteller.cadcraft.desktop
-      - install -Dm644 packaging/linux/ai.storyteller.cadcraft.mime.xml /app/share/mime/packages/ai.storyteller.cadcraft.xml
+      - install -Dm755 target/release/cadcraft /app/bin/cadcraftgost
+      - install -Dm755 target/release/cadcraft-cli /app/bin/cadcraftgost-cli
+      - install -Dm644 packaging/linux/io.github.mikiway902.cadcraftgost.desktop /app/share/applications/io.github.mikiway902.cadcraftgost.desktop
+      - install -Dm644 packaging/linux/io.github.mikiway902.cadcraftgost.mime.xml /app/share/mime/packages/io.github.mikiway902.cadcraftgost.xml
       - mkdir -p /app/share/icons && cp -R assets/app-icon/hicolor /app/share/icons/
-      - install -Dm644 NOTICE /app/share/doc/cadcraft/NOTICE
-      - install -Dm644 ATTRIBUTION.md /app/share/doc/cadcraft/ATTRIBUTION.md
+      - install -Dm644 NOTICE /app/share/doc/cadcraftgost/NOTICE
+      - install -Dm644 ATTRIBUTION.md /app/share/doc/cadcraftgost/ATTRIBUTION.md
       - >-
         version=$(awk '/^\[/{p=($0=="[workspace.package]");next} p&&$1=="version"{gsub(/[" ]/,"",$3);print $3;exit}' Cargo.toml);
         install -d /app/share/metainfo;
         sed -e "s/@VERSION@/$version/" -e "s/@DATE@/$(date -u +%Y-%m-%d)/"
-        packaging/linux/ai.storyteller.cadcraft.metainfo.xml.in > /app/share/metainfo/ai.storyteller.cadcraft.metainfo.xml
+        packaging/linux/io.github.mikiway902.cadcraftgost.metainfo.xml.in > /app/share/metainfo/io.github.mikiway902.cadcraftgost.metainfo.xml
     sources:
       - type: dir
         path: ../../..

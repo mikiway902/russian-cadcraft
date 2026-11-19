@@ -11,3 +11,4 @@ workspace = true
 [dependencies]
 serde_json = { workspace = true }
 chrono = { workspace = true }
+tiny-skia = { workspace = true }

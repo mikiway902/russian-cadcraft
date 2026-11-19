@@ -11,7 +11,7 @@ use crate::CadApp;
 use crate::theme::Tokens;
 
 /// The host storage key for [`prefs_json`].
-pub const PREFS_KEY: &str = "cadcraft.autosave";
+pub const PREFS_KEY: &str = "cadcraftgost.autosave";
 
 /// SAVETIME, SAVEFILEPATH and ISAVEBAK as JSON for the host's storage.
 pub fn prefs_json() -> String {

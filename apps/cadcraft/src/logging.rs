@@ -2,9 +2,9 @@
 //!
 //! Without a logger every `log::warn!`/`log::error!`/`log::info!` in the workspace (a broken app
 //! icon, the GPU canvas set-up, the control server) vanished. A launch from a desktop menu has no
-//! terminal, so the file is what a bug report can attach: `<settings dir>/logs/cadcraft.log`
+//! terminal, so the file is what a bug report can attach: `<settings dir>/logs/cadcraftgost.log`
 //! (`CADCRAFT_CONFIG_DIR`, or the platform settings directory; empty means none; see `env.rs`).
-//! Each start moves the previous log to `cadcraft.1.log` (and that one to `.2`), so the log of a
+//! Each start moves the previous log to `cadcraftgost.1.log` (and that one to `.2`), so the log of a
 //! run that crashed survives the next launch.
 //!
 //! Levels: `info` for CADCraft's own crates, `warn` for everything else (wgpu and naga are
@@ -27,10 +27,10 @@ use std::time::SystemTime;
 use log::LevelFilter;
 
 /// The current log file's name inside the log directory.
-pub const LOG_FILE: &str = "cadcraft.log";
+pub const LOG_FILE: &str = "cadcraftgost.log";
 /// The log directory inside the settings directory.
 pub const LOG_DIR: &str = "logs";
-/// How many previous logs are kept (`cadcraft.1.log` … `cadcraft.<KEEP>.log`).
+/// How many previous logs are kept (`cadcraftgost.1.log` … `cadcraftgost.<KEEP>.log`).
 pub const KEEP: usize = 2;
 /// The log file stops growing past this size (a runaway warning can't fill the disk).
 pub const MAX_FILE_BYTES: u64 = 16 * 1024 * 1024;
@@ -127,7 +127,7 @@ fn civil_from_days(days: u64) -> (i64, u32, u32) {
 }
 
 fn numbered(dir: &Path, n: usize) -> PathBuf {
-    if n == 0 { dir.join(LOG_FILE) } else { dir.join(format!("cadcraft.{n}.log")) }
+    if n == 0 { dir.join(LOG_FILE) } else { dir.join(format!("cadcraftgost.{n}.log")) }
 }
 
 /// Shift the previous logs up one (`.log` → `.1.log` → … → `.<KEEP>.log`, the oldest dropped)
@@ -432,9 +432,9 @@ mod tests {
             std::fs::write(&path, format!("run {run}")).expect("write");
         }
         assert_eq!(read(&dir.join(LOG_FILE)), "run 4");
-        assert_eq!(read(&dir.join("cadcraft.1.log")), "run 3");
-        assert_eq!(read(&dir.join("cadcraft.2.log")), "run 2");
-        assert!(!dir.join("cadcraft.3.log").exists(), "only {KEEP} old logs are kept");
+        assert_eq!(read(&dir.join("cadcraftgost.1.log")), "run 3");
+        assert_eq!(read(&dir.join("cadcraftgost.2.log")), "run 2");
+        assert!(!dir.join("cadcraftgost.3.log").exists(), "only {KEEP} old logs are kept");
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -543,7 +543,7 @@ mod tests {
         // A second launch rotates: the first log becomes `.1`.
         let second = AppLogger::new(Filter::parse(DEFAULT_FILTER), false);
         assert_eq!(second.attach_dir(&dir).expect("attach again"), dir.join(LOG_FILE));
-        assert_eq!(read(&dir.join("cadcraft.1.log")), text);
+        assert_eq!(read(&dir.join("cadcraftgost.1.log")), text);
         let _ = std::fs::remove_dir_all(&dir);
     }
 

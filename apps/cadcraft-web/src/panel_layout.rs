@@ -4,7 +4,7 @@ use cadcraft_ui_egui::{UiState, docking};
 use serde_json::{Value, json};
 
 #[cfg(target_arch = "wasm32")]
-pub const KEY: &str = "cadcraft.panel-layout";
+pub const KEY: &str = "cadcraftgost.panel-layout";
 const MAX_BYTES: usize = 64 * 1024;
 
 /// Serialize only validated panel placement and visibility, with a bounded record size.

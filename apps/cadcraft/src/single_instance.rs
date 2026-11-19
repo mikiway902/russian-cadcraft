@@ -3,7 +3,7 @@
 //!
 //! Outlook attachments, Explorer double-clicks and Open With all start `cadcraft.exe "<file>"`, so
 //! without single instance, every file got its own process and window. The first CADCraft listens on a Unix
-//! domain socket (Windows 10 1803 and later) in `%LOCALAPPDATA%\CADCraft`. The socket is named after the
+//! domain socket (Windows 10 1803 and later) in `%LOCALAPPDATA%\io.github.mikiway902.cadcraftgost`. The socket is named after the
 //! Windows session (`instance-Console.sock`), so two sign-ins of the same user never open files in each
 //! other's windows. The exchange is one line each way, a JSON request naming absolute paths and `ok`,
 //! and the running app opens the paths exactly as File ▸ Open would. `--new-window` opens a window
@@ -115,18 +115,20 @@ pub fn claim(files: &[String], may_hand_off: bool) -> Claim {
     }
 }
 
-/// The socket in `%LOCALAPPDATA%\CADCraft`.
+/// The socket in `%LOCALAPPDATA%\io.github.mikiway902.cadcraftgost`.
 #[cfg(windows)]
 fn socket_path() -> Option<std::path::PathBuf> {
     let name = socket_name(std::env::var("SESSIONNAME").ok().as_deref());
-    std::env::var_os("LOCALAPPDATA").filter(|v| !v.is_empty()).map(|d| std::path::PathBuf::from(d).join("CADCraft").join(name))
+    std::env::var_os("LOCALAPPDATA")
+        .filter(|v| !v.is_empty())
+        .map(|d| std::path::PathBuf::from(d).join(cadcraft_engine::identity::PRODUCT_ID).join(name))
 }
 
 /// The socket's file name for a Windows session (`SESSIONNAME`: `Console`, `RDP-Tcp#3`…): a 64-bit
 /// FNV-1a hash of the whole name, so two sessions of one user practically never share a socket
 /// (`RDP-Tcp#3` and `RDP-Tcp3` stay apart; a user has a handful of sessions, not billions), and the
 /// name has a fixed, short length. A Windows socket path holds at most 107
-/// bytes including `%LOCALAPPDATA%\CADCraft\`, so the name must not grow with the session's.
+/// bytes including `%LOCALAPPDATA%\io.github.mikiway902.cadcraftgost\`, so the name must not grow with the session's.
 #[cfg_attr(not(windows), allow(dead_code))]
 fn socket_name(session: Option<&str>) -> String {
     let hash = session.unwrap_or_default().bytes().fold(0xcbf2_9ce4_8422_2325_u64, |h, b| (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3));

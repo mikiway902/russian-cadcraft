@@ -11,9 +11,9 @@
   <key>CFBundleName</key>
   <string>CADCraftGOST</string>
   <key>CFBundleExecutable</key>
-  <string>CADCraft</string>
+  <string>CADCraftGOST</string>
   <key>CFBundleIdentifier</key>
-  <string>ai.storyteller.cadcraft</string>
+  <string>io.github.mikiway902.cadcraftgost</string>
   <key>CFBundleInfoDictionaryVersion</key>
   <string>6.0</string>
   <key>CFBundlePackageType</key>
@@ -29,7 +29,7 @@
   <key>CADCraftBuildCommit</key>
   <string>@BUILD_SHA@</string>
   <key>CFBundleIconFile</key>
-  <string>CADCraft</string>
+  <string>CADCraftGOST</string>
   <key>LSApplicationCategoryType</key>
   <string>public.app-category.graphics-design</string>
   <!-- Must match MACOSX_DEPLOYMENT_TARGET in package.sh. Big Sur is the first release on
@@ -50,7 +50,7 @@
   <array>
     <dict>
       <key>UTTypeIdentifier</key>
-      <string>ai.storyteller.cadcraft.dxf</string>
+      <string>io.github.mikiway902.cadcraftgost.dxf</string>
       <key>UTTypeDescription</key>
       <string>Drawing Exchange Format</string>
       <key>UTTypeConformsTo</key>
@@ -65,7 +65,7 @@
     </dict>
     <dict>
       <key>UTTypeIdentifier</key>
-      <string>ai.storyteller.cadcraft.dwg</string>
+      <string>io.github.mikiway902.cadcraftgost.dwg</string>
       <key>UTTypeDescription</key>
       <string>Drawing</string>
       <key>UTTypeConformsTo</key>
@@ -89,9 +89,9 @@
       <key>LSHandlerRank</key>
       <string>Alternate</string>
       <key>LSItemContentTypes</key>
-      <array><string>ai.storyteller.cadcraft.dxf</string></array>
+      <array><string>io.github.mikiway902.cadcraftgost.dxf</string></array>
       <key>CFBundleTypeIconFile</key>
-      <string>CADCraft</string>
+      <string>CADCraftGOST</string>
     </dict>
     <dict>
       <key>CFBundleTypeName</key>
@@ -101,9 +101,9 @@
       <key>LSHandlerRank</key>
       <string>Alternate</string>
       <key>LSItemContentTypes</key>
-      <array><string>ai.storyteller.cadcraft.dwg</string></array>
+      <array><string>io.github.mikiway902.cadcraftgost.dwg</string></array>
       <key>CFBundleTypeIconFile</key>
-      <string>CADCraft</string>
+      <string>CADCraftGOST</string>
     </dict>
   </array>
 

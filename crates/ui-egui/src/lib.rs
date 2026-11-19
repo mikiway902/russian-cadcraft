@@ -8,15 +8,19 @@
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 #![forbid(unsafe_code)]
 
-/// CADCraft as craft-update knows it, with its 128 px icon and accent colour: the update
-/// prompt shows both, and an AppImage's menu entry gets the icon.
+/// Fork-only release and installation identity: never inherit upstream aliases or binary names.
 #[cfg(not(target_arch = "wasm32"))]
 pub const UPDATE_APP: craft_update::app::App = craft_update::app::App {
-    name: "CADCraftGOST",
-    repo: "mikiway902/russian-cadcraft",
-    icon_png: Some(include_bytes!("../../../assets/app-icon/hicolor/128x128/apps/ai.storyteller.cadcraft.png")),
-    accent: Some([0x3e, 0xa6, 0xe8]),
-    ..craft_update::suite::CADCRAFT
+    id: cadcraft_engine::identity::PACKAGE,
+    name: cadcraft_engine::identity::NAME,
+    tagline: "ESKD drafting and engineering documentation",
+    repo: cadcraft_engine::identity::REPOSITORY,
+    former_ids: &[],
+    former_names: &[],
+    icon_png: Some(include_bytes!("../../../assets/app-icon/hicolor/128x128/apps/io.github.mikiway902.cadcraftgost.png")),
+    accent: Some([0x22, 0xb5, 0xa5]),
+    developer: "CADCraftGOST contributors",
+    bundle_id_override: Some(cadcraft_engine::identity::PRODUCT_ID),
 };
 
 pub mod aliasdlg;
@@ -86,7 +90,7 @@ use serde_json::{Value, json};
 pub use control::{ControlRequest, ControlResponse, PendingReply};
 
 /// The host storage key for [`CadApp::prefs_json`].
-pub const PREFS_KEY: &str = "cadcraft.prefs";
+pub const PREFS_KEY: &str = "cadcraftgost.prefs";
 
 /// How many recently opened drawings are kept (AutoCAD's default for its file history).
 pub const RECENT_FILES: usize = 9;

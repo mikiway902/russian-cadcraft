@@ -9,7 +9,7 @@
 //! `CADCRAFT_VSYNC=1` presents with vsync on Linux/BSD, where the default is the low-latency
 //! present mode (`CADCRAFT_VSYNC=0` selects that elsewhere); see `cadcraft_ui_egui::gpu::surface_config`.
 //!
-//! `log` records go to standard error and `<settings dir>/logs/cadcraft.log` (`RUST_LOG` sets the
+//! `log` records go to standard error and `<settings dir>/logs/cadcraftgost.log` (`RUST_LOG` sets the
 //! levels); see [`logging`]. The `CADCRAFT_*` variables are read once, at startup; see [`env`].
 #![cfg_attr(all(target_os = "windows", not(debug_assertions)), windows_subsystem = "windows")]
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
@@ -266,7 +266,7 @@ fn window_options(restoring: bool) -> eframe::NativeOptions {
     }
 }
 
-const APP_ID: &str = "ai.storyteller.cadcraft";
+const APP_ID: &str = cadcraft_engine::identity::PRODUCT_ID;
 
 /// The key eframe saves the main window state under in its storage.
 const WINDOW_KEY: &str = "window";
@@ -284,7 +284,7 @@ fn app_icon() -> Option<egui::IconData> {
 }
 
 fn version_string() -> String {
-    format!("cadcraft {}", cadcraft_engine::build_version())
+    format!("cadcraftgost {}", cadcraft_engine::build_version())
 }
 
 /// Parse CLI options (`--control`, `--sample`, files, `--version`), install logging and I/O hooks, build the services and app, and run eframe.

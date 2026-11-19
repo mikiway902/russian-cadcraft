@@ -2,13 +2,13 @@
 <!-- AppStream metadata (software centres, Flathub). Template: package.sh and the Flatpak
      manifest substitute @VERSION@ and @DATE@ from Cargo.toml and the build date. -->
 <component type="desktop-application">
-  <id>ai.storyteller.cadcraft</id>
+  <id>io.github.mikiway902.cadcraftgost</id>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>MIT OR Apache-2.0</project_license>
   <name>CADCraftGOST</name>
   <summary>Draft, dimension and plot 2D drawings</summary>
-  <developer id="ai.storyteller">
-    <name>Learning Machines LLC</name>
+  <developer id="io.github.mikiway902">
+    <name>CADCraftGOST contributors</name>
   </developer>
   <description>
     <p>
@@ -17,13 +17,13 @@
       and DWG drawings, exports SVG and PNG, and can be driven by AI agents over MCP.
     </p>
   </description>
-  <launchable type="desktop-id">ai.storyteller.cadcraft.desktop</launchable>
-  <icon type="stock">ai.storyteller.cadcraft</icon>
+  <launchable type="desktop-id">io.github.mikiway902.cadcraftgost.desktop</launchable>
+  <icon type="stock">io.github.mikiway902.cadcraftgost</icon>
   <!-- Only url types known to appstream 0.15 (Ubuntu 22.04, where CI validates): no vcs-browser. -->
-  <url type="homepage">https://getartcraft.com/apps/cadcraft</url>
-  <url type="bugtracker">https://github.com/storytold/cadcraft/issues</url>
-  <url type="help">https://github.com/storytold/cadcraft</url>
-  <url type="contact">https://discord.gg/artcraft</url>
+  <url type="homepage">https://github.com/mikiway902/russian-cadcraft</url>
+  <url type="bugtracker">https://github.com/mikiway902/russian-cadcraft/issues</url>
+  <url type="help">https://github.com/mikiway902/russian-cadcraft</url>
+  <url type="contact">https://github.com/mikiway902/russian-cadcraft/issues</url>
   <categories>
     <category>Graphics</category>
     <category>Engineering</category>
@@ -34,12 +34,6 @@
     <keyword>DXF</keyword>
     <keyword>DWG</keyword>
   </keywords>
-  <screenshots>
-    <screenshot type="default">
-      <caption>A mechanical part drawing with dimensions, hatching and layers</caption>
-      <image>https://raw.githubusercontent.com/storytold/cadcraft/main/docs/images/ui-bracket.png</image>
-    </screenshot>
-  </screenshots>
   <branding>
     <color type="primary" scheme_preference="light">#9ee3f2</color>
     <color type="primary" scheme_preference="dark">#0b6f88</color>
@@ -53,7 +47,7 @@
     <control>tablet</control>
   </supports>
   <provides>
-    <binary>cadcraft</binary>
+    <binary>cadcraftgost</binary>
   </provides>
   <content_rating type="oars-1.1"/>
   <releases>

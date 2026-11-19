@@ -6369,6 +6369,7 @@ version = "0.21.0"
 dependencies = [
  "chrono",
  "serde_json",
+ "tiny-skia",
 ]
 
 [[package]]

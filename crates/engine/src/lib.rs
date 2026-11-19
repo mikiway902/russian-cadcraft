@@ -23,6 +23,7 @@ mod finite;
 pub mod grip_dims;
 pub mod grips;
 mod guard;
+pub mod identity;
 pub mod keyboard;
 pub mod lisp;
 pub mod mtext_edit;

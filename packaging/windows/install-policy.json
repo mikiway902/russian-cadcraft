@@ -1,9 +1,9 @@
 {
-  "id": "cadcraft",
+  "id": "cadcraftgost",
   "name": "CADCraftGOST",
-  "upgradeCode": "119D7D76-0167-4A9E-8F37-09DA0235F68E",
+  "upgradeCode": "71E34A30-EE3D-4B6A-9DD4-2C08D67E98AB",
   "sources": [
-    "cadcraft.wxs"
+    "cadcraftgost.wxs"
   ],
   "icon": "assets/app-icon/cadcraft.ico",
   "localization": [],
@@ -11,43 +11,43 @@
     "UI"
   ],
   "payloads": [
-    "cadcraft-cli.exe",
-    "cadcraft.exe"
+    "cadcraftgost-cli.exe",
+    "cadcraftgost.exe"
   ],
   "registry": [
     [
       "-1",
-      "Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\cadcraft.exe",
+      "Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\cadcraftgost.exe",
       "",
       "[#CadcraftExe]"
     ],
     [
       "-1",
-      "Software\\Classes\\Applications\\cadcraft.exe\\shell\\open\\command",
+      "Software\\Classes\\Applications\\cadcraftgost.exe\\shell\\open\\command",
       "",
       "\"[#CadcraftExe]\" \"%1\""
     ],
     [
       "-1",
       "Software\\Classes\\.dxf\\OpenWithProgids",
-      "CADCraft.Drawing",
+      "CADCraftGOST.Drawing",
       ""
     ],
     [
       "-1",
       "Software\\Classes\\.dwg\\OpenWithProgids",
-      "CADCraft.Drawing",
+      "CADCraftGOST.Drawing",
       ""
     ],
     [
       "-1",
-      "Software\\Classes\\CADCraft.Drawing\\shell\\open\\command",
+      "Software\\Classes\\CADCraftGOST.Drawing\\shell\\open\\command",
       "",
       "\"[#CadcraftExe]\" \"%1\""
     ],
     [
       "-1",
-      "Software\\Learning Machines LLC\\CADCraft",
+      "Software\\CADCraftGOST",
       "DesktopShortcut",
       "1"
     ]
