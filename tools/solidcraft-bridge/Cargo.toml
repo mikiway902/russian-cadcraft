@@ -1,0 +1,33 @@
+[workspace]
+resolver = "3"
+members = ["."]
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[package]
+name = "cadcraft-model-worker"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.95"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+craft-jsonrpc = { git = "https://github.com/storytold/craft-libs", rev = "b6222158fbc2a628f27d2c1fff9f648cd194404c" }
+solidcraft-kernel = { git = "https://github.com/tangency-labs/solidcraft", rev = "c5f47e501169c7f0f9e8191b2541e689e2f018e8" }
+solidcraft-geom = { git = "https://github.com/tangency-labs/solidcraft", rev = "c5f47e501169c7f0f9e8191b2541e689e2f018e8" }
+solidcore-record = { git = "https://github.com/tangency-labs/solidcraft", rev = "c5f47e501169c7f0f9e8191b2541e689e2f018e8" }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["float_roundtrip"] }
+sha2 = "0.10"
+thiserror = "2"
+
+[profile.dev]
+opt-level = 1
+
+[profile.release]
+overflow-checks = true

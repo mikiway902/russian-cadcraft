@@ -1,5 +1,6 @@
 *~
 /target
+/tools/solidcraft-bridge/target/
 /plan/
 /plans/
 /dist/

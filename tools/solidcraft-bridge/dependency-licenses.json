@@ -1,0 +1,512 @@
+{
+  "generated_by": "cargo metadata --locked --format-version 1 (no compilation)",
+  "upstream_revision": "c5f47e501169c7f0f9e8191b2541e689e2f018e8",
+  "scope": "selected standalone dependency graph, includes target-conditional dependencies",
+  "policy_review": "Existing main-lock foldhash Zlib, unicode-ident Unicode-3.0 and memchr Unlicense alternatives require owner policy review; no new identifier outside allowlist added by this closure. SPDX metadata is not full source/notice audit.",
+  "packages": [
+    {
+      "name": "allocator-api2",
+      "version": "0.2.21",
+      "license": "MIT OR Apache-2.0",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "in_linux_closure": true,
+      "already_in_main_lock": true
+    },
+    {
+      "name": "autocfg",
+      "version": "1.5.1",
+      "license": "Apache-2.0 OR MIT",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "in_linux_closure": true,
+      "already_in_main_lock": true
+    },
+    {
+      "name": "block-buffer",
+      "version": "0.10.4",
+      "license": "MIT OR Apache-2.0",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "in_linux_closure": true,
+      "already_in_main_lock": true
+    },
+    {
+      "name": "bumpalo",
+      "version": "3.20.4",
+      "license": "MIT OR Apache-2.0",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "in_linux_closure": false,
+      "already_in_main_lock": false
+    },
+    {
+      "name": "cfg-if",
+      "version": "1.0.5",
+      "license": "MIT OR Apache-2.0",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "in_linux_closure": true,
+      "already_in_main_lock": true
+    },
+    {
+      "name": "cpufeatures",
+      "version": "0.2.17",
+      "license": "MIT OR Apache-2.0",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "in_linux_closure": true,
+      "already_in_main_lock": true
+    },
+    {
+      "name": "craft-jsonrpc",
+      "version": "0.1.0",
+      "license": "MIT OR Apache-2.0",
+      "source": "git+https://github.com/storytold/craft-libs?rev=b6222158fbc2a628f27d2c1fff9f648cd194404c#b6222158fbc2a628f27d2c1fff9f648cd194404c",
+      "in_linux_closure": true,
+      "already_in_main_lock": true
+    },
+    {
+      "name": "crossbeam-deque",
+      "version": "0.8.8",
+      "license": "MIT OR Apache-2.0",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "in_linux_closure": true,
+      "already_in_main_lock": true
+    },
+    {
+      "name": "crossbeam-epoch",
+      "version": "0.9.21",
+      "license": "MIT OR Apache-2.0",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "in_linux_closure": true,
+      "already_in_main_lock": true
+    },
+    {
+      "name": "crossbeam-utils",
+      "version": "0.8.23",
+      "license": "MIT OR Apache-2.0",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "in_linux_closure": true,
+      "already_in_main_lock": true
+    },
+    {
+      "name": "crypto-common",
+      "version": "0.1.7",
+      "license": "MIT OR Apache-2.0",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "in_linux_closure": true,
+      "already_in_main_lock": true
+    },
+    {
+      "name": "digest",
+      "version": "0.10.7",
+      "license": "MIT OR Apache-2.0",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "in_linux_closure": true,
+      "already_in_main_lock": true
+    },
+    {
+      "name": "either",
+      "version": "1.19.0",
+      "license": "MIT OR Apache-2.0",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "in_linux_closure": true,
+      "already_in_main_lock": true
+    },
+    {
+      "name": "equivalent",
+      "version": "1.0.3",
+      "license": "Apache-2.0 OR MIT",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "in_linux_closure": true,
+      "already_in_main_lock": true
+    },
+    {
+      "name": "foldhash",
+      "version": "0.2.0",
+      "license": "Zlib",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "in_linux_closure": true,
+      "already_in_main_lock": true
+    },
+    {
+      "name": "futures-core",
+      "version": "0.3.34",
+      "license": "MIT OR Apache-2.0",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "in_linux_closure": false,
+      "already_in_main_lock": true
+    },
+    {
+      "name": "futures-task",
+      "version": "0.3.34",
+      "license": "MIT OR Apache-2.0",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "in_linux_closure": false,
+      "already_in_main_lock": true
+    },
+    {
+      "name": "futures-util",
+      "version": "0.3.34",
+      "license": "MIT OR Apache-2.0",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "in_linux_closure": false,
+      "already_in_main_lock": true
+    },
+    {
+      "name": "generic-array",
+      "version": "0.14.7",
+      "license": "MIT",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "in_linux_closure": true,
+      "already_in_main_lock": true
+    },
+    {
+      "name": "hashbrown",
+      "version": "0.16.1",
+      "license": "MIT OR Apache-2.0",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "in_linux_closure": true,
+      "already_in_main_lock": true
+    },
+    {
+      "name": "itoa",
+      "version": "1.0.19",
+      "license": "MIT OR Apache-2.0",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "in_linux_closure": true,
+      "already_in_main_lock": false
+    },
+    {
+      "name": "js-sys",
+      "version": "0.3.107",
+      "license": "MIT OR Apache-2.0",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "in_linux_closure": false,
+      "already_in_main_lock": false
+    },
+    {
+      "name": "libc",
+      "version": "0.2.191",
+      "license": "MIT OR Apache-2.0",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "in_linux_closure": false,
+      "already_in_main_lock": true
+    },
+    {
+      "name": "log",
+      "version": "0.4.35",
+      "license": "MIT OR Apache-2.0",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "in_linux_closure": true,
+      "already_in_main_lock": false
+    },
+    {
+      "name": "memchr",
+      "version": "2.8.3",
+      "license": "Unlicense OR MIT",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "in_linux_closure": true,
+      "already_in_main_lock": true
+    },
+    {
+      "name": "num-traits",
+      "version": "0.2.19",
+      "license": "MIT OR Apache-2.0",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "in_linux_closure": true,
+      "already_in_main_lock": true
+    },
+    {
+      "name": "pin-project-lite",
+      "version": "0.2.17",
+      "license": "Apache-2.0 OR MIT",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "in_linux_closure": false,
+      "already_in_main_lock": true
+    },
+    {
+      "name": "proc-macro2",
+      "version": "1.0.107",
+      "license": "MIT OR Apache-2.0",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "in_linux_closure": true,
+      "already_in_main_lock": true
+    },
+    {
+      "name": "quote",
+      "version": "1.0.47",
+      "license": "MIT OR Apache-2.0",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "in_linux_closure": true,
+      "already_in_main_lock": true
+    },
+    {
+      "name": "rayon",
+      "version": "1.12.0",
+      "license": "MIT OR Apache-2.0",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "in_linux_closure": true,
+      "already_in_main_lock": true
+    },
+    {
+      "name": "rayon-core",
+      "version": "1.13.0",
+      "license": "MIT OR Apache-2.0",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "in_linux_closure": true,
+      "already_in_main_lock": true
+    },
+    {
+      "name": "robust",
+      "version": "1.2.0",
+      "license": "MIT OR Apache-2.0",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "in_linux_closure": true,
+      "already_in_main_lock": false
+    },
+    {
+      "name": "rustversion",
+      "version": "1.0.23",
+      "license": "MIT OR Apache-2.0",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "in_linux_closure": false,
+      "already_in_main_lock": true
+    },
+    {
+      "name": "serde",
+      "version": "1.0.229",
+      "license": "MIT OR Apache-2.0",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "in_linux_closure": true,
+      "already_in_main_lock": true
+    },
+    {
+      "name": "serde_core",
+      "version": "1.0.229",
+      "license": "MIT OR Apache-2.0",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "in_linux_closure": true,
+      "already_in_main_lock": true
+    },
+    {
+      "name": "serde_derive",
+      "version": "1.0.229",
+      "license": "MIT OR Apache-2.0",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "in_linux_closure": true,
+      "already_in_main_lock": true
+    },
+    {
+      "name": "serde_json",
+      "version": "1.0.154",
+      "license": "MIT OR Apache-2.0",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "in_linux_closure": true,
+      "already_in_main_lock": true
+    },
+    {
+      "name": "sha2",
+      "version": "0.10.9",
+      "license": "MIT OR Apache-2.0",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "in_linux_closure": true,
+      "already_in_main_lock": true
+    },
+    {
+      "name": "slab",
+      "version": "0.4.12",
+      "license": "MIT",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "in_linux_closure": false,
+      "already_in_main_lock": true
+    },
+    {
+      "name": "smallvec",
+      "version": "1.16.6",
+      "license": "MIT OR Apache-2.0",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "in_linux_closure": true,
+      "already_in_main_lock": false
+    },
+    {
+      "name": "solidcore",
+      "version": "1.0.1",
+      "license": "Apache-2.0",
+      "source": "git+https://github.com/tangency-labs/solidcraft?rev=c5f47e501169c7f0f9e8191b2541e689e2f018e8#c5f47e501169c7f0f9e8191b2541e689e2f018e8",
+      "in_linux_closure": true,
+      "already_in_main_lock": false
+    },
+    {
+      "name": "solidcore-convert",
+      "version": "0.1.0",
+      "license": "Apache-2.0",
+      "source": "git+https://github.com/tangency-labs/solidcraft?rev=c5f47e501169c7f0f9e8191b2541e689e2f018e8#c5f47e501169c7f0f9e8191b2541e689e2f018e8",
+      "in_linux_closure": true,
+      "already_in_main_lock": false
+    },
+    {
+      "name": "solidcore-ops",
+      "version": "0.1.0",
+      "license": "Apache-2.0",
+      "source": "git+https://github.com/tangency-labs/solidcraft?rev=c5f47e501169c7f0f9e8191b2541e689e2f018e8#c5f47e501169c7f0f9e8191b2541e689e2f018e8",
+      "in_linux_closure": true,
+      "already_in_main_lock": false
+    },
+    {
+      "name": "solidcore-record",
+      "version": "0.1.0",
+      "license": "Apache-2.0",
+      "source": "git+https://github.com/tangency-labs/solidcraft?rev=c5f47e501169c7f0f9e8191b2541e689e2f018e8#c5f47e501169c7f0f9e8191b2541e689e2f018e8",
+      "in_linux_closure": true,
+      "already_in_main_lock": false
+    },
+    {
+      "name": "solidcore-step",
+      "version": "0.1.0",
+      "license": "Apache-2.0",
+      "source": "git+https://github.com/tangency-labs/solidcraft?rev=c5f47e501169c7f0f9e8191b2541e689e2f018e8#c5f47e501169c7f0f9e8191b2541e689e2f018e8",
+      "in_linux_closure": true,
+      "already_in_main_lock": false
+    },
+    {
+      "name": "solidcore-tess",
+      "version": "0.1.0",
+      "license": "Apache-2.0",
+      "source": "git+https://github.com/tangency-labs/solidcraft?rev=c5f47e501169c7f0f9e8191b2541e689e2f018e8#c5f47e501169c7f0f9e8191b2541e689e2f018e8",
+      "in_linux_closure": true,
+      "already_in_main_lock": false
+    },
+    {
+      "name": "solidcraft-geom",
+      "version": "0.45.0-rc.4",
+      "license": "MIT OR Apache-2.0",
+      "source": "git+https://github.com/tangency-labs/solidcraft?rev=c5f47e501169c7f0f9e8191b2541e689e2f018e8#c5f47e501169c7f0f9e8191b2541e689e2f018e8",
+      "in_linux_closure": true,
+      "already_in_main_lock": false
+    },
+    {
+      "name": "solidcraft-kernel",
+      "version": "0.45.0-rc.4",
+      "license": "MIT OR Apache-2.0",
+      "source": "git+https://github.com/tangency-labs/solidcraft?rev=c5f47e501169c7f0f9e8191b2541e689e2f018e8#c5f47e501169c7f0f9e8191b2541e689e2f018e8",
+      "in_linux_closure": true,
+      "already_in_main_lock": false
+    },
+    {
+      "name": "solidcraft-profile",
+      "version": "0.45.0-rc.4",
+      "license": "MIT OR Apache-2.0",
+      "source": "git+https://github.com/tangency-labs/solidcraft?rev=c5f47e501169c7f0f9e8191b2541e689e2f018e8#c5f47e501169c7f0f9e8191b2541e689e2f018e8",
+      "in_linux_closure": true,
+      "already_in_main_lock": false
+    },
+    {
+      "name": "solidcraft-smlib",
+      "version": "0.45.0-rc.4",
+      "license": "MIT OR Apache-2.0",
+      "source": "git+https://github.com/tangency-labs/solidcraft?rev=c5f47e501169c7f0f9e8191b2541e689e2f018e8#c5f47e501169c7f0f9e8191b2541e689e2f018e8",
+      "in_linux_closure": true,
+      "already_in_main_lock": false
+    },
+    {
+      "name": "spade",
+      "version": "2.15.1",
+      "license": "MIT OR Apache-2.0",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "in_linux_closure": true,
+      "already_in_main_lock": false
+    },
+    {
+      "name": "syn",
+      "version": "3.0.10",
+      "license": "MIT OR Apache-2.0",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "in_linux_closure": true,
+      "already_in_main_lock": false
+    },
+    {
+      "name": "thiserror",
+      "version": "2.0.21",
+      "license": "MIT OR Apache-2.0",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "in_linux_closure": true,
+      "already_in_main_lock": true
+    },
+    {
+      "name": "thiserror-impl",
+      "version": "2.0.21",
+      "license": "MIT OR Apache-2.0",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "in_linux_closure": true,
+      "already_in_main_lock": true
+    },
+    {
+      "name": "typenum",
+      "version": "1.20.1",
+      "license": "MIT OR Apache-2.0",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "in_linux_closure": true,
+      "already_in_main_lock": true
+    },
+    {
+      "name": "unicode-ident",
+      "version": "1.0.27",
+      "license": "(MIT OR Apache-2.0) AND Unicode-3.0",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "in_linux_closure": true,
+      "already_in_main_lock": true
+    },
+    {
+      "name": "version_check",
+      "version": "0.9.5",
+      "license": "MIT/Apache-2.0",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "in_linux_closure": true,
+      "already_in_main_lock": true
+    },
+    {
+      "name": "wasm-bindgen",
+      "version": "0.2.130",
+      "license": "MIT OR Apache-2.0",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "in_linux_closure": false,
+      "already_in_main_lock": false
+    },
+    {
+      "name": "wasm-bindgen-macro",
+      "version": "0.2.130",
+      "license": "MIT OR Apache-2.0",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "in_linux_closure": false,
+      "already_in_main_lock": false
+    },
+    {
+      "name": "wasm-bindgen-macro-support",
+      "version": "0.2.130",
+      "license": "MIT OR Apache-2.0",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "in_linux_closure": false,
+      "already_in_main_lock": false
+    },
+    {
+      "name": "wasm-bindgen-shared",
+      "version": "0.2.130",
+      "license": "MIT OR Apache-2.0",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "in_linux_closure": false,
+      "already_in_main_lock": false
+    },
+    {
+      "name": "web-time",
+      "version": "1.1.0",
+      "license": "MIT OR Apache-2.0",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "in_linux_closure": true,
+      "already_in_main_lock": true
+    },
+    {
+      "name": "zmij",
+      "version": "1.0.23",
+      "license": "MIT",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "in_linux_closure": true,
+      "already_in_main_lock": true
+    }
+  ]
+}
