@@ -1,7 +1,7 @@
 //! Thin typed controls for the shared model/projection/dimension commands.
-use super::gost::Editor;
-use super::{Action, no_drawing, set_temp, temp};
+use super::Editor;
 use crate::CadApp;
+use crate::managers::{Action, no_drawing, set_temp, temp};
 use serde_json::{Value, json};
 fn text(ui: &mut egui::Ui, label: &str, value: &mut String) {
     ui.horizontal(|ui| {

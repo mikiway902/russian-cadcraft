@@ -14,9 +14,13 @@ workspace = true
 name = "cadcraft-web"
 path = "src/main.rs"
 
+[features]
+default = ["gost"]
+gost = ["cadcraft-engine/gost", "cadcraft-ui-egui/gost"]
+
 [dependencies]
-cadcraft-engine = { workspace = true }
-cadcraft-ui-egui = { workspace = true }
+cadcraft-engine = { workspace = true, default-features = false }
+cadcraft-ui-egui = { workspace = true, default-features = false }
 cadcraft-io = { workspace = true }
 cadcraft-fonts = { workspace = true }
 # The host messages (storytold/craft-libs): one contract and one bridge for the web builds.

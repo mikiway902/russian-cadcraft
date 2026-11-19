@@ -15,6 +15,17 @@ use std::{
     sync::Arc,
 };
 
+pub(super) const EXTENSION: super::Extension = super::Extension {
+    id: "specification",
+    version: 1,
+    commands: specs,
+    drawing_preset: None,
+    document_changed: |session, event| after_command(session, event.before, event.uid),
+    command_override: None,
+    copy: None,
+    clipboard: None,
+};
+
 const CMD: &str = "gost.specification";
 const META: &str = "specification";
 const PART: &str = "specification-part";
@@ -683,7 +694,7 @@ fn rebuild(d: &mut Drawing, r: &mut Record) -> Result<Vec<String>> {
         let name = format!("GOST-SPEC-{}", h.hex());
         let mut kinds = pages.get(n).map(|c| table_page(d, c, n == 0)).unwrap_or_default();
         if n < pages.len() {
-            kinds.extend(super::sheet::text_document(d, &r.fields, n + 1, pages.len())?);
+            kinds.extend(super::gost::sheet::text_document(d, &r.fields, n + 1, pages.len())?);
         }
         // Replacing only this owned block is copy-on-write and leaves all unrelated blocks intact.
         block(d, &name, kinds);
@@ -740,7 +751,7 @@ fn create(s: &mut Session, p: &Value) -> Result<Value> {
     let m = manual(p)?;
     let fields = match spec_fields(p)? {
         Some(fields) => fields,
-        None => super::book::document_fields(s.doc()?)?,
+        None => super::gost::book::document_fields(s.doc()?)?,
     };
     let count =
         entities(s.doc()?).try_fold(0usize, |n, e| Ok::<_, crate::EngineError>(n + usize::from(data::load::<Record>(&e.common, META)?.is_some())))?;

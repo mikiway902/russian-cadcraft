@@ -13,6 +13,25 @@ use cadcraft_geom::{
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::{collections::BTreeSet, sync::Arc};
+
+pub(super) const EXTENSION: super::Extension = super::Extension {
+    id: "drawing",
+    version: 1,
+    commands: specs,
+    drawing_preset: None,
+    document_changed: |session, event| after_command(session, event.before, event.uid, event.command),
+    command_override: None,
+    copy: Some(super::CopyHooks { tracks: owns_copy_links, apply: copied_entities }),
+    clipboard: None,
+};
+
+fn owns_copy_links(drawing: &Drawing, handles: &[Handle]) -> bool {
+    handles.iter().filter_map(|h| drawing.entity(*h)).any(|entity| match &entity.kind {
+        EntityKind::Insert(insert) => insert.block.starts_with("GOST-PROJECTION-"),
+        EntityKind::Dimension(_) => entity.common.xdata.iter().any(|tag| tag.code == 1001 && tag.value.eq_ignore_ascii_case("CADCRAFTGOST")),
+        _ => false,
+    })
+}
 const BODY: &str = "solid-mesh";
 const VIEW: &str = "projection-view";
 const DIM: &str = "projection-dimension";
@@ -1020,5 +1039,5 @@ pub(super) fn after_command(s: &mut Session, before: Option<&Arc<Drawing>>, uid:
 }
 
 #[cfg(test)]
-#[path = "projection_tests.rs"]
+#[path = "drawing_tests.rs"]
 mod tests;

@@ -293,12 +293,7 @@ fn run_new(s: &mut Session, p: &Value) -> Result<Value> {
     }
     let metric = bool_or(p, "metric", s.settings.measureinit);
     let i = crate::extensions::new_drawing(s, metric);
-    if metric && s.extension_defaults {
-        s.state_mut()?.space = cadcraft_doc::Space::Paper("GOST1".into());
-        s.zoom_extents()?;
-        let st = s.state_mut()?;
-        st.saved = st.doc.clone();
-    }
+    crate::extensions::activate_new_drawing(s, metric)?;
     Ok(json!({ "index": i, "title": s.docs.get(i).map(|d| d.title.clone()) }))
 }
 

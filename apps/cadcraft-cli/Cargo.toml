@@ -17,10 +17,14 @@ path = "src/main.rs"
 [lints]
 workspace = true
 
+[features]
+default = ["gost"]
+gost = ["cadcraft-engine/gost", "cadcraft-mcp/gost"]
+
 [dependencies]
-cadcraft-engine = { workspace = true }
+cadcraft-engine = { workspace = true, default-features = false }
 cadcraft-io = { workspace = true }
-cadcraft-mcp = { workspace = true }
+cadcraft-mcp = { workspace = true, default-features = false }
 cadcraft-render = { workspace = true }
 clap = { workspace = true }
 same-file = { workspace = true }

@@ -414,7 +414,7 @@ fn field_width(tag: &str, first: bool) -> f64 {
 }
 
 /// Text-document forms 2/2a, appendix B. No rotated graphical-only field 26.
-pub(super) fn text_document(
+pub(in crate::extensions) fn text_document(
     d: &cadcraft_doc::Drawing,
     fields: &BTreeMap<String, String>,
     number: usize,
@@ -596,7 +596,7 @@ fn run_inner(s: &mut Session, p: &Value) -> Result<Value> {
     }))
 }
 
-fn run(s: &mut Session, p: &Value) -> Result<Value> {
+pub(super) fn run(s: &mut Session, p: &Value) -> Result<Value> {
     let before = s.state()?.doc.clone();
     let result = run_inner(s, p);
     if result.is_err() {

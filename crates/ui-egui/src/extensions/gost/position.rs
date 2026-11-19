@@ -1,6 +1,6 @@
-use super::gost::Editor;
-use super::{Action, no_drawing, set_temp, temp};
+use super::Editor;
 use crate::CadApp;
+use crate::managers::{Action, no_drawing, set_temp, temp};
 use serde_json::json;
 #[derive(Clone, PartialEq)]
 struct State {

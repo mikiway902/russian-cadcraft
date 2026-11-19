@@ -158,7 +158,7 @@ fn common_fields(fs: &[Frame]) -> BTreeMap<String, String> {
         .map(|f| f.record.fields.iter().filter(|(k, _)| shared(k)).map(|(k, v)| (k.clone(), v.clone())).collect())
         .unwrap_or_default()
 }
-pub(super) fn document_fields(d: &Drawing) -> Result<BTreeMap<String, String>> {
+pub(in crate::extensions) fn document_fields(d: &Drawing) -> Result<BTreeMap<String, String>> {
     Ok(common_fields(&frames(d)?))
 }
 

@@ -1,0 +1,202 @@
+{
+  "date": "2026-11-19",
+  "platform": "Linux x86_64",
+  "command": "CARGO_BUILD_JOBS=4 RUST_TEST_THREADS=4 cargo xtask ci",
+  "gate": "all 8 steps passed",
+  "steps": [
+    "fmt",
+    "clippy",
+    "test",
+    "i18n",
+    "assets",
+    "layers",
+    "wasm",
+    "extensions"
+  ],
+  "counts": {
+    "passed": 3983,
+    "failed": 0,
+    "ignored": 26,
+    "test_targets": 144,
+    "feature_off_integration_passed": 2
+  },
+  "feature_off_hosts": [
+    "cadcraft-cli native",
+    "cadcraft native",
+    "cadcraft-web wasm32-unknown-unknown"
+  ],
+  "default_gui": {
+    "observed": "Menu invocation opened the physically moved solid dialog, real Apply body created body with IDs1–8; associative view dialog loaded its target and disabled layout field.",
+    "registered_gost_commands": 32,
+    "body": {
+      "faces": [
+        [
+          0,
+          3,
+          2,
+          1
+        ],
+        [
+          4,
+          5,
+          6,
+          7
+        ],
+        [
+          0,
+          1,
+          5,
+          4
+        ],
+        [
+          1,
+          2,
+          6,
+          5
+        ],
+        [
+          2,
+          3,
+          7,
+          6
+        ],
+        [
+          3,
+          0,
+          4,
+          7
+        ]
+      ],
+      "handle": "181",
+      "ids": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
+      ],
+      "representation": "closed-polyhedral-mesh",
+      "vertices": [
+        {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0
+        },
+        {
+          "x": 40.0,
+          "y": 0.0,
+          "z": 0.0
+        },
+        {
+          "x": 40.0,
+          "y": 20.0,
+          "z": 0.0
+        },
+        {
+          "x": 0.0,
+          "y": 20.0,
+          "z": 0.0
+        },
+        {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 30.0
+        },
+        {
+          "x": 40.0,
+          "y": 0.0,
+          "z": 30.0
+        },
+        {
+          "x": 40.0,
+          "y": 20.0,
+          "z": 30.0
+        },
+        {
+          "x": 0.0,
+          "y": 20.0,
+          "z": 30.0
+        }
+      ]
+    },
+    "view": {
+      "handle": "182",
+      "layout": "GOST1",
+      "parameters": {
+        "cut": null,
+        "direction": {
+          "x": 0.0,
+          "y": -1.0,
+          "z": 0.0
+        },
+        "hidden": true,
+        "issues": [],
+        "label": null,
+        "scale": 1.0,
+        "sources": [
+          385
+        ],
+        "up": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 1.0
+        }
+      },
+      "representation": "associative-polyhedral-view"
+    }
+  },
+  "disabled_gui": {
+    "observed": "No GOST commands; empty native document, Layout1/Layout2, Standard/ISO-25 styles, real LINE 0,0 20,10 created geometry on layer0; Undo removed it.",
+    "line": {
+      "count": 1,
+      "entities": [
+        {
+          "color": "ByLayer",
+          "geometry": {
+            "a": {
+              "x": 0.0,
+              "y": 0.0,
+              "z": 0.0
+            },
+            "b": {
+              "x": 20.0,
+              "y": 10.0,
+              "z": 0.0
+            },
+            "type": "line"
+          },
+          "handle": "100",
+          "layer": "0",
+          "transparency": "ByLayer",
+          "type": "Line"
+        }
+      ],
+      "offset": 0,
+      "returned": 1
+    }
+  },
+  "screenshots": [
+    {
+      "name": "body-through-registry.png",
+      "sha256": "44ff3bfe806329c91bb781c8a4cfe4ab9b3cfd5358f692c791ca852f1045c7aa"
+    },
+    {
+      "name": "view-through-registry.png",
+      "sha256": "6a17d2a91d073114452eb9e14496642bbf9b721ed6b760a2941ad6e00292c63a"
+    },
+    {
+      "name": "native-line-fit.png",
+      "sha256": "8a7119c3e018ccc62db984ccc735b4725f6b9f9aa65c733afba6196203766a2f"
+    }
+  ],
+  "log_sha256": "366846db4d9189994121140cb5cd9ded9bc2da90dc8df125f561aff425e0d5d2",
+  "limits": [
+    "No Windows/macOS runtime acceptance.",
+    "26 existing ignored tests are not claimed passed.",
+    "WASM has the four existing dead-code warnings.",
+    "The current Drawing Extension remains polyhedral; B-Rep bridge is still isolated."
+  ]
+}

@@ -11,12 +11,16 @@ default-run = "cadcraft"
 [lints]
 workspace = true
 
+[features]
+default = ["gost"]
+gost = ["cadcraft-engine/gost", "cadcraft-ui-egui/gost", "cadcraft-mcp/gost"]
+
 [dependencies]
-cadcraft-engine = { workspace = true }
-cadcraft-ui-egui = { workspace = true }
+cadcraft-engine = { workspace = true, default-features = false }
+cadcraft-ui-egui = { workspace = true, default-features = false }
 cadcraft-io = { workspace = true }
 # For the shared per-session control-token helper (control_server.rs authentication).
-cadcraft-mcp = { workspace = true }
+cadcraft-mcp = { workspace = true, default-features = false }
 eframe = { workspace = true, features = ["clipboard", "wgpu", "accesskit", "wayland", "x11", "links", "persistence"] }
 egui = { workspace = true }
 serde_json = { workspace = true }

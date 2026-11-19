@@ -25,9 +25,9 @@ cadcraft-constraints = { path = "crates/constraints" }
 cadcraft-fonts = { path = "crates/fonts" }
 cadcraft-render = { path = "crates/render" }
 cadcraft-io = { path = "crates/io" }
-cadcraft-engine = { path = "crates/engine" }
-cadcraft-ui-egui = { path = "crates/ui-egui" }
-cadcraft-mcp = { path = "crates/mcp" }
+cadcraft-engine = { path = "crates/engine", default-features = false }
+cadcraft-ui-egui = { path = "crates/ui-egui", default-features = false }
+cadcraft-mcp = { path = "crates/mcp", default-features = false }
 craft-mcp = { git = "https://github.com/storytold/craft-libs", rev = "b6222158fbc2a628f27d2c1fff9f648cd194404c" }
 craft-jsonrpc = { git = "https://github.com/storytold/craft-libs", rev = "b6222158fbc2a628f27d2c1fff9f648cd194404c" }
 # SVG/SVGZ import and export geometry (craft-libs#778).

@@ -9,13 +9,17 @@ rust-version = "1.95"
 [lints]
 workspace = true
 
+[features]
+default = ["gost"]
+gost = ["cadcraft-engine/gost"]
+
 [dependencies]
 craft-ui = { workspace = true }
 cadcraft-geom = { workspace = true }
 cadcraft-color = { workspace = true }
 cadcraft-doc = { workspace = true }
 cadcraft-render = { workspace = true }
-cadcraft-engine = { workspace = true }
+cadcraft-engine = { workspace = true, default-features = false }
 cadcraft-io = { workspace = true }
 craft-image-codecs = { workspace = true }
 cadcraft-fonts = { workspace = true }

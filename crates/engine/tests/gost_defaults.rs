@@ -1,3 +1,5 @@
+#![cfg(feature = "gost")]
+
 use cadcraft_engine::{
     doc::{Drawing, EntityKind, Space},
     fonts,

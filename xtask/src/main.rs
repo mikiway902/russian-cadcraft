@@ -22,8 +22,9 @@ commands:
   layers          enforce the crate dependency layering (plan/architecture.md §3)
   wasm            cargo check --target wasm32-unknown-unknown for the wasm-safe crates
   test            cargo nextest run (cargo test without nextest) plus the doctests
+  extensions      test native drafting without GOST and check feature-off CLI/desktop/web hosts
   i18n            print the strings each interface language shows in English (never fails)
-  ci              fmt --check, clippy -D warnings, test, i18n, assets, layers, wasm (stops at first failure)
+  ci              fmt --check, clippy -D warnings, test, i18n, assets, layers, wasm, extensions (stops at first failure)
   corpus [DIR] [--out DIR] [--keep-saved] [--same-format]
                   open -> save -> reopen every DXF/DWG of a real-file corpus (DIR, default
                   $CADCRAFT_CORPUS_DIR or ../cadcraft-corpus) and write report.md + report.json
@@ -43,6 +44,7 @@ fn main() -> ExitCode {
         Some("layers") => cmd_layers(),
         Some("wasm") => cmd_wasm(),
         Some("test") => cmd_test(),
+        Some("extensions") => cmd_extensions(),
         Some("i18n") => cmd_i18n(),
         Some("ci") => cmd_ci(),
         Some("corpus") => cmd_corpus(&rest),
@@ -185,6 +187,21 @@ fn cmd_i18n() -> Result<(), String> {
     }
     Ok(())
 }
+/// The opt-out is a supported product build, not merely an empty command catalog.
+fn cmd_extensions() -> Result<(), String> {
+    let checks: &[&[&str]] = &[
+        &["test", "--locked", "-p", "cadcraft-engine", "--no-default-features", "--test", "extensions_disabled"],
+        &["check", "--locked", "-p", "cadcraft-cli", "--no-default-features"],
+        &["check", "--locked", "-p", "cadcraft", "--no-default-features"],
+        &["check", "--locked", "-p", "cadcraft-web", "--no-default-features", "--target", "wasm32-unknown-unknown"],
+    ];
+    for args in checks {
+        let mut command = cargo();
+        command.args(*args);
+        run(command, &format!("cargo {}", args.join(" ")))?;
+    }
+    Ok(())
+}
 
 fn cmd_ci() -> Result<(), String> {
     type Step = (&'static str, Box<dyn Fn() -> Result<(), String>>);
@@ -210,6 +227,7 @@ fn cmd_ci() -> Result<(), String> {
         ("assets", Box::new(|| assets::run(&root()))),
         ("layers", Box::new(cmd_layers)),
         ("wasm", Box::new(cmd_wasm)),
+        ("extensions", Box::new(cmd_extensions)),
     ];
     let mut done = Vec::new();
     for (name, f) in &steps {

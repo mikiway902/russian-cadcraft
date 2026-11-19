@@ -498,7 +498,7 @@ impl Session {
         cmd::constraints::after_command(self, before, ok);
         assoc::after_command(self, before, uid);
         if ok {
-            cmd::gost::after_command(self, before, uid, command)?;
+            crate::extensions::after_command(self, crate::extensions::DocumentChange { before, uid, command })?;
         }
         Ok(())
     }

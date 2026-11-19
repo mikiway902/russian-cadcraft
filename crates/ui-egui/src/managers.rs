@@ -17,13 +17,6 @@ use crate::{CadApp, Pick};
 
 /// The Block Attribute Manager (BATTMAN).
 mod battman;
-mod gost;
-mod gost_book;
-mod gost_marks;
-mod gost_position;
-mod gost_projection;
-mod gost_requirements;
-mod gost_specification;
 /// Named Viewports (View > Viewports > Named Viewports...).
 mod named_vports;
 
@@ -33,25 +26,11 @@ pub fn route(app: &mut CadApp, id: &str, params: &Value) -> Option<Result<Value,
     if !params.is_null() {
         return None;
     }
+    if let Some(spec) = crate::extensions::command_dialog(id) {
+        app.ui.dialog = Some(spec.name.into());
+        return Some(Ok(Value::Null));
+    }
     let dialog = match id {
-        "gost.setup" => "gostsetup",
-        "gost.sheet" => "gostsheet",
-        "gost.check" => "gostcheck",
-        "gost.document" => "gostdocument",
-        "gost.sheet.set" => "gostsheetproperties",
-        "gost.roughness" => "gostroughness",
-        "gost.weld" => "gostweld",
-        "gost.thread" => "gostthread",
-        "gost.symbol.edit" => "gostsymboledit",
-        "gost.tolerance" => "gosttolerance",
-        "gost.requirements" | "gost.requirements.templates" => "gostrequirements",
-        "gost.specification" | "gost.specification.edit" => "gostspecification",
-        "gost.position" => "gostposition",
-        "gost.position.edit" => "gostpositionedit",
-        "gost.solid" => "gostsolid",
-        "gost.projection" => "gostprojection",
-        "gost.section.view" => "gostsectionview",
-        "gost.projection.dimension" => "gostviewdimension",
         "battman" => "battman",
         "linetype" | "lt" | "ltype" => "linetype",
         "ddptype" | "ptype" => "ptype",
@@ -73,14 +52,13 @@ pub fn route(app: &mut CadApp, id: &str, params: &Value) -> Option<Result<Value,
 
 /// Show the dialog named `name`; closes it (`open = false`) if it isn't one of these.
 pub fn dialog(app: &mut CadApp, ctx: &egui::Context, name: &str, open: &mut bool) {
+    if let Some(spec) = crate::extensions::named_dialog(name) {
+        if let Some((cmd, p)) = (spec.render)(app, ctx, name, open) {
+            let _ = app.run(cmd, p);
+        }
+        return;
+    }
     let action = match name {
-        "gostsetup" | "gostsheet" | "gostcheck" => gost::dialog(app, ctx, name, open),
-        "gostdocument" | "gostsheetproperties" => gost_book::dialog(app, ctx, name, open),
-        "gostroughness" | "gostweld" | "gostthread" | "gostsymboledit" | "gosttolerance" => gost_marks::dialog(app, ctx, name, open),
-        "gostrequirements" => gost_requirements::dialog(app, ctx, open),
-        "gostspecification" => gost_specification::dialog(app, ctx, open),
-        "gostposition" | "gostpositionedit" => gost_position::dialog(app, ctx, name, open),
-        "gostsolid" | "gostprojection" | "gostsectionview" | "gostviewdimension" => gost_projection::dialog(app, ctx, name, open),
         "battman" => battman::dialog(app, ctx, open),
         "linetype" => linetype(app, ctx, open),
         "ptype" => point_style(app, ctx, open),
@@ -103,7 +81,7 @@ pub fn dialog(app: &mut CadApp, ctx: &egui::Context, name: &str, open: &mut bool
 }
 
 /// A command to run after the dialog is drawn.
-type Action = Option<(&'static str, Value)>;
+pub(crate) type Action = Option<(&'static str, Value)>;
 
 fn fmt_num(v: f64) -> String {
     let s = format!("{v:.4}");
@@ -117,15 +95,15 @@ fn num_field(ui: &mut egui::Ui, id: impl egui::AsIdSalt, v: f64, label: Option<e
     expr_field(ui, ui.make_persistent_id(id), &fmt_num(v), label).and_then(|t| t.parse::<f64>().ok()).filter(|v| v.is_finite())
 }
 
-fn temp<T: Clone + Send + Sync + 'static>(ctx: &egui::Context, id: &str) -> Option<T> {
+pub(crate) fn temp<T: Clone + Send + Sync + 'static>(ctx: &egui::Context, id: &str) -> Option<T> {
     ctx.data_mut(|d| d.get_temp::<T>(egui::Id::unique(id)))
 }
 
-fn set_temp<T: Clone + Send + Sync + 'static>(ctx: &egui::Context, id: &str, v: T) {
+pub(crate) fn set_temp<T: Clone + Send + Sync + 'static>(ctx: &egui::Context, id: &str, v: T) {
     ctx.data_mut(|d| d.insert_temp(egui::Id::unique(id), v));
 }
 
-fn no_drawing(ctx: &egui::Context, title: &str, open: &mut bool) {
+pub(crate) fn no_drawing(ctx: &egui::Context, title: &str, open: &mut bool) {
     egui::Window::new(title).open(open).collapsible(false).resizable(false).show(ctx, |ui| {
         ui.label("Open a drawing first.");
     });

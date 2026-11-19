@@ -6,7 +6,7 @@ use super::{
 // CENTERMARK / CENTERLINE
 // =====================================================================================
 
-/// Add a line on the CENTER linetype (loading it from the standard library when missing).
+/// Add native centre geometry using the drawing's layer/linetype preferences.
 fn add_center_line(s: &mut Session, a: Vec2, b: Vec2) -> Result<Handle> {
     let d = s.doc_mut()?;
     if d.linetype("CENTER").is_none()
@@ -15,13 +15,17 @@ fn add_center_line(s: &mut Session, a: Vec2, b: Vec2) -> Result<Handle> {
         d.linetypes.push(lt);
     }
     let h = s.add_entity(line(a, b))?;
-    s.doc_mut()?.modify_entity(h, |e| e.common.linetype = "CENTER".into())?;
-    if s.doc()?.header.str("CENTERLAYER", "") == "GOST-CENTER" {
-        s.doc_mut()?.modify_entity(h, |e| {
-            e.common.layer = "GOST-CENTER".into();
-            e.common.linetype = "GOST-CENTER".into();
-        })?;
-    }
+    let drawing = s.doc_mut()?;
+    let layer = drawing.header.vars.get("CENTERLAYER").and_then(cadcraft_doc::HVal::as_str).unwrap_or("");
+    let layer = drawing.layer(layer).map(|layer| layer.name.clone());
+    let linetype = drawing.header.vars.get("CENTERLTYPE").and_then(cadcraft_doc::HVal::as_str).unwrap_or("CENTER");
+    let linetype = drawing.linetype(linetype).map_or_else(|| "CENTER".into(), |linetype| linetype.name.clone());
+    drawing.modify_entity(h, |entity| {
+        if let Some(layer) = layer {
+            entity.common.layer = layer;
+        }
+        entity.common.linetype = linetype;
+    })?;
     Ok(h)
 }
 
@@ -66,9 +70,10 @@ fn center_line(s: &mut Session, h1: Handle, h2: Handle) -> Result<Handle> {
 }
 
 pub(super) fn run_centermark(s: &mut Session, p: &Value) -> Result<Value> {
-    if s.doc()?.header.str("CENTERLAYER", "") == "GOST-CENTER" {
-        let spec = crate::cmd::find_command("gost.center").ok_or_else(|| bad("centermark", "GOST axes command unavailable"))?;
-        return (spec.run)(s, p);
+    if let Some(result) =
+        crate::extensions::override_command(s, crate::extensions::CommandContext { command: "centermark", params: p, resolved_name: None })
+    {
+        return result;
     }
     let hs = targets(s, p)?;
     if hs.is_empty() {

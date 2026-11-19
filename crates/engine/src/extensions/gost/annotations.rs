@@ -5,9 +5,9 @@ use cadcraft_doc::{Common, EntityKind, HAlign, Handle, Solid, Text, VAlign};
 use cadcraft_geom::Vec2;
 use serde_json::{Value, json};
 
-use super::super::helpers::line;
-use super::super::machines::SelectRun;
-use super::super::{CommandSpec, bad, find_command, point_req, size_param, targets};
+use crate::cmd::helpers::line;
+use crate::cmd::machines::SelectRun;
+use crate::cmd::{CommandSpec, bad, find_command, point_req, size_param, targets};
 use crate::{Accept, Input, Interactive, Prompt, Result, Session, Step};
 
 const LETTERS: &str = "АБВГДЕЖЗИКЛМНПРСТУФЦЧШЩЭЮЯ";
@@ -106,7 +106,7 @@ fn text(at: Vec2, value: String, height: f64) -> EntityKind {
     })
 }
 
-fn center(s: &mut Session, p: &Value) -> Result<Value> {
+pub(super) fn center(s: &mut Session, p: &Value) -> Result<Value> {
     let cmd = "gost.center";
     ready(s, cmd, "GOST-CENTER")?;
     let scale = annotation_scale(s, p, cmd)?;

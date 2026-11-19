@@ -3,13 +3,53 @@
 use egui::vec2;
 use serde_json::{Value, json};
 
-use super::{Action, no_drawing, set_temp, temp};
 use crate::CadApp;
+use crate::extensions::{DialogSpec, ExtensionDescriptor};
+use crate::managers::{Action, no_drawing, set_temp, temp};
+
+mod book;
+mod marks;
+mod position;
+mod projection;
+mod requirements;
+mod specification;
+
+pub(super) const DESCRIPTOR: ExtensionDescriptor = ExtensionDescriptor {
+    id: "gost",
+    dialogs: &[
+        DialogSpec { commands: &["gost.setup"], name: "gostsetup", render: dialog },
+        DialogSpec { commands: &["gost.sheet"], name: "gostsheet", render: dialog },
+        DialogSpec { commands: &["gost.check"], name: "gostcheck", render: dialog },
+        DialogSpec { commands: &["gost.document"], name: "gostdocument", render: book::dialog },
+        DialogSpec { commands: &["gost.sheet.set"], name: "gostsheetproperties", render: book::dialog },
+        DialogSpec { commands: &["gost.roughness"], name: "gostroughness", render: marks::dialog },
+        DialogSpec { commands: &["gost.weld"], name: "gostweld", render: marks::dialog },
+        DialogSpec { commands: &["gost.thread"], name: "gostthread", render: marks::dialog },
+        DialogSpec { commands: &["gost.symbol.edit"], name: "gostsymboledit", render: marks::dialog },
+        DialogSpec { commands: &["gost.tolerance"], name: "gosttolerance", render: marks::dialog },
+        DialogSpec {
+            commands: &["gost.requirements", "gost.requirements.templates"],
+            name: "gostrequirements",
+            render: |app, ctx, _, open| requirements::dialog(app, ctx, open),
+        },
+        DialogSpec {
+            commands: &["gost.specification", "gost.specification.edit"],
+            name: "gostspecification",
+            render: |app, ctx, _, open| specification::dialog(app, ctx, open),
+        },
+        DialogSpec { commands: &["gost.position"], name: "gostposition", render: position::dialog },
+        DialogSpec { commands: &["gost.position.edit"], name: "gostpositionedit", render: position::dialog },
+        DialogSpec { commands: &["gost.solid"], name: "gostsolid", render: projection::dialog },
+        DialogSpec { commands: &["gost.projection"], name: "gostprojection", render: projection::dialog },
+        DialogSpec { commands: &["gost.section.view"], name: "gostsectionview", render: projection::dialog },
+        DialogSpec { commands: &["gost.projection.dimension"], name: "gostviewdimension", render: projection::dialog },
+    ],
+};
 
 /// Like the text editor, a manager cache belongs to consecutive UI passes only.
 /// The accepted snapshot distinguishes an intentional draft from a stale clean editor.
 #[derive(Clone)]
-pub(super) struct Editor<T> {
+struct Editor<T> {
     pub pass: u64,
     pub selection: String,
     revision: u64,
@@ -152,7 +192,7 @@ fn field_label(tag: &str) -> &str {
     }
 }
 
-pub(super) fn dialog(app: &mut CadApp, ctx: &egui::Context, name: &str, open: &mut bool) -> Action {
+fn dialog(app: &mut CadApp, ctx: &egui::Context, name: &str, open: &mut bool) -> Action {
     let Ok(doc) = app.session.state() else {
         no_drawing(ctx, crate::tl!("GOST / ESKD"), open);
         return None;

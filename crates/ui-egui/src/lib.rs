@@ -38,6 +38,7 @@ pub mod control;
 pub mod credits;
 pub mod dialogs;
 pub mod docking;
+pub mod extensions;
 pub mod fault;
 // The Find and Replace window behind the FIND command.
 pub mod finddlg;

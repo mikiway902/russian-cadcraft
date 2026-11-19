@@ -273,7 +273,7 @@ fn defs_for(src: &Drawing, ents: &[Entity]) -> Drawing {
     d.table_styles = pick(&src.table_styles, &used.table_styles, |t| &t.name);
     d.blocks = src.blocks.iter().filter(|(k, _)| used.blocks.contains(&up(k))).map(|(k, b)| (k.clone(), b.clone())).collect();
     d.layouts.clear();
-    crate::cmd::gost::prepare_clipboard_blocks(&mut d);
+    crate::extensions::prepare_clipboard_blocks(&mut d);
     d
 }
 

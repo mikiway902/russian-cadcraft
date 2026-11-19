@@ -1,7 +1,7 @@
 //! Book properties edit the same authoritative engine records used by CLI/MCP.
-use super::gost::Editor;
-use super::{Action, no_drawing, set_temp, temp};
+use super::Editor;
 use crate::CadApp;
+use crate::managers::{Action, no_drawing, set_temp, temp};
 use egui::vec2;
 use serde_json::{Value, json};
 use std::collections::BTreeMap;

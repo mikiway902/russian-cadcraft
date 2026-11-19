@@ -1,6 +1,6 @@
 //! Typed property controls for native engineering symbols; no separate rendering path.
-use super::{Action, no_drawing, set_temp, temp};
 use crate::CadApp;
+use crate::managers::{Action, no_drawing, set_temp, temp};
 use egui::vec2;
 use serde_json::{Value, json};
 

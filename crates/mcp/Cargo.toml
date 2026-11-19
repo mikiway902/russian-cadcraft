@@ -8,10 +8,14 @@ license.workspace = true
 [lints]
 workspace = true
 
+[features]
+default = ["gost"]
+gost = ["cadcraft-engine/gost"]
+
 [dependencies]
 craft-mcp = { workspace = true }
 craft-jsonrpc = { workspace = true }
-cadcraft-engine = { workspace = true }
+cadcraft-engine = { workspace = true, default-features = false }
 cadcraft-render = { workspace = true }
 cadcraft-io = { workspace = true }
 clap = { workspace = true }

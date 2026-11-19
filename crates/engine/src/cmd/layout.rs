@@ -226,16 +226,19 @@ impl Interactive for NewLayoutM {
 }
 
 fn run_new(s: &mut Session, p: &Value) -> Result<Value> {
-    let d = s.doc()?;
-    let name = match str_param(p, "name") {
-        Some(n) => check_name("layout.new", d, n, None)?,
-        None => next_layout_name(d),
+    let name = {
+        let drawing = s.doc()?;
+        match str_param(p, "name") {
+            Some(name) => check_name("layout.new", drawing, name, None)?,
+            None => next_layout_name(drawing),
+        }
     };
-    if p.get("viewport").is_none() && d.header.str("TEXTSTYLE", "") == "GOST" {
-        let spec = find_command("gost.sheet").ok_or_else(|| bad("layout.new", "GOST sheet generator unavailable"))?;
-        let sheet = (spec.run)(s, &json!({"layout": name}))?;
-        return Ok(json!({"name": name, "viewport": null, "gost": sheet}));
+    if let Some(result) =
+        crate::extensions::override_command(s, crate::extensions::CommandContext { command: "layout.new", params: p, resolved_name: Some(&name) })
+    {
+        return result;
     }
+    let d = s.doc()?;
     let page = default_page(d);
     let order = d.layouts.iter().map(|l| l.tab_order).max().unwrap_or(0).saturating_add(1);
     s.doc_mut()?.layouts.push(Layout { page, ..Layout::new(&name, order) });

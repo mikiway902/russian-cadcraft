@@ -60,7 +60,7 @@ pub(crate) fn at_elevation(s: &Session, p: Vec2) -> Vec3 {
 fn edit_entities(s: &mut Session, hs: &[Handle], copy: bool, edit: impl Fn(&mut Entity)) -> Result<Vec<Handle>> {
     let d = s.doc_mut()?;
     let mut out = Vec::new();
-    let track_links = copy && crate::cmd::gost::owns_copy_links(d, hs);
+    let track_links = copy && crate::extensions::owns_copy_links(d, hs);
     let mut copied = Vec::new();
     for h in hs {
         let Some(sp) = d.space_of(*h) else { continue };
@@ -86,7 +86,7 @@ fn edit_entities(s: &mut Session, hs: &[Handle], copy: bool, edit: impl Fn(&mut 
         }
     }
     if !copied.is_empty() {
-        crate::cmd::gost::copied_entities(d, &copied)?;
+        crate::extensions::copied_entities(d, &copied)?;
     }
     Ok(out)
 }
