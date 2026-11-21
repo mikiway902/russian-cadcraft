@@ -78,7 +78,13 @@ try {
   foreach ($row in (Read-Rows $database 'SELECT `Directory`, `Directory_Parent`, `DefaultDir` FROM `Directory`' 3)) {
     $directories[$row[0]] = @($row[1], $row[2])
   }
-  if ($directories['INSTALLFOLDER'][1] -ne 'cadcraftgost') { throw 'Expected the independent cadcraftgost install folder.' }
+  # DefaultDir is target[:source], with each name optionally encoded as short|long.
+  # Compare the destination long name, not WiX's generated DOS alias or source directory.
+  $defaultDir = [string]$directories['INSTALLFOLDER'][1]
+  $targetDir = ($defaultDir -split ':', 2)[0]
+  if (($targetDir -split '\|')[-1] -ne 'cadcraftgost') {
+    throw "Expected the independent cadcraftgost install folder; DefaultDir=$defaultDir."
+  }
   $programs = $directories['INSTALLFOLDER'][0]
   if ($programs -eq 'ProgramFiles6432Folder') { $programs = $directories[$programs][0] }
   if ($programs -notin 'ProgramFilesFolder', 'ProgramFiles64Folder') {

@@ -260,5 +260,12 @@
   не наследуется через exit code нового PowerShell process; добавлена такая же
   escaped error annotation в дочерний checker. Его AST и настоящий trap
   проверены PowerShell 7.7.0; Windows COM/MSI здесь не запускался.
+- `3c6b7f0b` также отправлен в `main`. [Windows policy run 44933550712](https://github.com/mikiway902/russian-cadcraft/actions/runs/44933550712)
+  теперь показал точную причину: сравнение всего `Directory.DefaultDir` с именем каталога.
+  Согласно [формату MSI](https://learn.microsoft.com/en-us/windows/win32/msi/directory-table),
+  это `short|long:source`, а не только destination name. Checker выделяет target long name;
+  запрет установки в оригинальный каталог не ослаблен. PowerShell 7.7.0 выполнил
+  настоящий AST проверки: 10 positive/negative target/source/alias cases прошли.
+  Повторная проверка Windows COM/MSI выполняется только соответствующим Actions job.
 
 Ни один из этих результатов не закрывает полный новый roadmap. Точные B-Rep-проекции, сборки, нормативные профили, полная русификация, кроссплатформенные установки и выпуск остаются в активном плане.
