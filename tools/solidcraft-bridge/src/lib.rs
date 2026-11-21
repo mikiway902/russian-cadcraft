@@ -1,4 +1,4 @@
-//! Isolated, experimental STEP/IGES to raw analytic HLR worker; no GUI dependencies.
+//! Isolated native SolidCraft/STEP/IGES to raw analytic HLR worker; no GUI dependencies.
 //! Coordinates and measures are normalized by the upstream importer to millimetres.
 #![forbid(unsafe_code)]
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
@@ -22,6 +22,8 @@ use std::{
     },
     time::{Duration, Instant},
 };
+
+mod native;
 
 pub const UPSTREAM_REV: &str = "c5f47e501169c7f0f9e8191b2541e689e2f018e8";
 pub const MAX_MESSAGE_BYTES: usize = 16 * 1024;
@@ -116,10 +118,17 @@ impl Watch for Budget {
     }
 }
 
+struct LoadedBody {
+    body: solidcraft_kernel::Body,
+    closed: bool,
+    refused: bool,
+}
+
 struct Model {
     requested_path: PathBuf,
     fingerprint: Fingerprint,
-    import: StepImport,
+    bodies: Vec<LoadedBody>,
+    import_issues: usize,
 }
 
 pub struct Worker {
@@ -198,18 +207,28 @@ impl Worker {
                     "protocol": "cadcraft-model-worker/1", "stage": "prototype",
                     "upstream": {"revision": UPSTREAM_REV, "version": "0.45.0-rc.4"},
                     "methods": ["v1.capabilities", "v1.load", "v1.view", "v1.source_status"],
-                    "formats": ["step", "stp", "iges", "igs"],
+                    "formats": ["sc", "step", "stp", "iges", "igs"],
                     "projection": "orthographic_raw_hlr", "curves": ["line", "arc", "cubic", "conic", "bezier"],
                     "units": units(), "placements": "all_imported_bodies_already_placed_including_hidden",
                     "notifications": "ignored_without_side_effects", "models_per_session": 1,
+                    "native": {"reader": "upstream_document_migrations_and_timeline_evaluation",
+                        "containers": ["solidcraft-container/1", "solvecraft-container/1"],
+                        "model_cache": "never_trusted_or_required",
+                        "assembly": "rigid_nested_occurrences_expressed_moves_and_settled_upstream_joint_placements",
+                        "metadata": "saved_design_component_properties_and_explicit_body_material_assignments",
+                        "identity": "payload_scoped_component_occurrence_feature_and_body_names_not_cross_rebuild_topology",
+                        "unsupported": ["unsettled_or_conflicting_joint_assemblies", "external_fonts", "mesh_features",
+                            "newer_unknown_geometry", "non_import_resource_blobs"]},
                     "limits": {"request_bytes": MAX_MESSAGE_BYTES, "response_bytes": MAX_RESPONSE_BYTES,
                         "requests": MAX_REQUESTS, "batch_items": 1, "file_bytes": MAX_FILE_BYTES,
                         "bodies": MAX_BODIES, "topology_items": MAX_TOPOLOGY, "nesting": MAX_DEPTH,
+                        "native_container_entries": 10_000, "native_expanded_bytes": MAX_FILE_BYTES,
+                        "native_joints": native::MAX_JOINTS, "native_links": native::MAX_JOINTS,
                         "references": MAX_REFERENCES, "tracks": MAX_TRACKS, "rays": MAX_RAYS,
                         "cooperative_work_seconds": WORK_SECONDS, "supervised_hard_work_seconds": 40, "hlr_threads": 1},
-                    "gaps": ["native_sc", "persistent_topology_remapping", "engineering_material_metadata",
+                    "gaps": ["persistent_topology_remapping",
                         "preview_mesh", "perspective", "sections", "certified_freeform_silhouettes",
-                        "hard_memory_sandbox", "original_unit_declaration", "path_race_against_concurrent_local_directory_mutation"]
+                        "hard_memory_sandbox", "original_step_iges_unit_declaration", "path_race_against_concurrent_local_directory_mutation"]
                 }))
             }
             "v1.load" => self.load(params(parameters)?),
@@ -252,14 +271,21 @@ impl Worker {
             .extension()
             .and_then(|x| x.to_str())
             .map(str::to_ascii_lowercase)
-            .ok_or_else(|| Error::Parameters("file extension must be STEP/STP/IGES/IGS".into()))?;
+            .ok_or_else(|| Error::Parameters("file extension must be SC/STEP/STP/IGES/IGS".into()))?;
         let is_step = match extension.as_str() {
             "step" | "stp" => true,
-            "iges" | "igs" => false,
-            _ => return Err(Error::Parameters("file extension must be STEP/STP/IGES/IGS".into())),
+            "sc" | "iges" | "igs" => false,
+            _ => return Err(Error::Parameters("file extension must be SC/STEP/STP/IGES/IGS".into())),
         };
         let bytes = self.read_source(&request.path)?;
         let source = fingerprint(&bytes);
+        if extension == "sc" {
+            let loaded = native::load(&bytes, &source)?;
+            ensure_response_size(&loaded.result)?;
+            self.model =
+                Some(Model { requested_path: request.path, fingerprint: source, bodies: loaded.bodies, import_issues: loaded.import_issues });
+            return Ok(loaded.result);
+        }
         let text = std::str::from_utf8(&bytes).map_err(|e| Error::Import(format!("UTF-8/ASCII text required: {e}")))?;
         if is_step {
             preflight_step(text)?;
@@ -273,19 +299,7 @@ impl Worker {
         let mut bodies = Vec::new();
         for (index, imported) in import.bodies.iter().enumerate() {
             budget.check()?;
-            let measure = solidcraft_kernel::measure(&imported.body)
-                .map_err(|e| Error::Geometry(e.to_string()))
-                .and_then(|m| {
-                    if m.measured_by == "mesh" {
-                        return Err(Error::Geometry("mesh measures are not exact-surface measures".into()));
-                    }
-                    if !m.volume.is_finite() || !m.area.is_finite() || !m.centroid.is_finite() || !m.bbox.min.is_finite() || !m.bbox.max.is_finite() {
-                        return Err(Error::Geometry("non-finite exact-surface measure".into()));
-                    }
-                    Ok(json!({"status": "ok", "value": m, "volume_valid": imported.closed,
-                        "provenance": "numerical_integration_on_exact_surfaces"}))
-                })
-                .unwrap_or_else(|e| json!({"status": "error", "message": e.to_string()}));
+            let measure = exact_measure(&imported.body, imported.closed);
             let record = imported.body.record();
             bodies.push(json!({"placement": index, "body": index,
                 "source_item": imported.source_item, "face_origin": imported.face_origin,
@@ -308,7 +322,9 @@ impl Worker {
             "warnings": import.warnings, "report": import.report,
             "checks_settled": !import.report.checking()});
         ensure_response_size(&result)?;
-        self.model = Some(Model { requested_path: request.path, fingerprint: source, import });
+        let import_issues = import.report.issues.len() + import.warnings.len();
+        let bodies = import.bodies.into_iter().map(|b| LoadedBody { body: b.body, closed: b.closed, refused: b.refused.is_some() }).collect();
+        self.model = Some(Model { requested_path: request.path, fingerprint: source, bodies, import_issues });
         Ok(result)
     }
 
@@ -336,7 +352,7 @@ impl Worker {
         let budget = Budget::new();
         let mut prepared = Vec::new();
         let mut placements = Vec::new();
-        for (index, imported) in model.import.bodies.iter().enumerate() {
+        for (index, imported) in model.bodies.iter().enumerate() {
             budget.check()?;
             prepared.push(
                 hlr::prepare_cancellable(imported.body.record(), &options, &|| budget.cancelled())
@@ -350,8 +366,8 @@ impl Worker {
         let mut quality = Quality {
             unsupported_faces: drawing.unsupported.len(),
             unsupported_trims: prepared.iter().map(|p| p.report.unsupported_trims.len()).sum(),
-            import_issues: model.import.report.issues.len() + model.import.warnings.len(),
-            open_bodies: model.import.bodies.iter().filter(|b| !b.closed || b.refused.is_some()).count(),
+            import_issues: model.import_issues,
+            open_bodies: model.bodies.iter().filter(|b| !b.closed || b.refused).count(),
             ..Default::default()
         };
         for piece in drawing.lines.iter().flat_map(|line| &line.pieces) {
@@ -377,7 +393,7 @@ impl Worker {
         let reports: Vec<_> = prepared.iter().map(|p| &p.report).collect();
         let result = json!({"source": model.fingerprint, "units": units(), "basis": {"x": view.x, "y": view.y, "direction": view.d},
             "scale": 1, "quality": quality, "prepare_reports": reports, "drawing": drawing,
-            "source_mapping": "placement indexes v1.load bodies; edge/face are that body record indices; face_origin maps faces to payload entities",
+            "source_mapping": "placement indexes v1.load bodies; edge/face are result-local record indices; face_origin when present maps faces to payload entities, not cross-rebuild topology",
             "visibility_contract": "raw_uncertain_and_covered_preserved_no_mesh_fallback"});
         ensure_response_size(&result)?;
         Ok(result)
@@ -394,25 +410,7 @@ fn units() -> Value {
 }
 
 fn validate_import(import: &StepImport) -> Result<(), Error> {
-    if import.bodies.is_empty() {
-        return Err(Error::Import("no exact B-rep bodies imported".into()));
-    }
-    if import.bodies.len() > MAX_BODIES {
-        return Err(Error::Limit("imported body count"));
-    }
-    let mut count = 0usize;
-    for imported in &import.bodies {
-        if imported.body.is_mesh() {
-            return Err(Error::Geometry("mesh-only imported bodies are not supported".into()));
-        }
-        let record = imported.body.record();
-        for n in [record.faces.len(), record.edges.len(), record.vertices.len(), record.shells.len()] {
-            count = count.checked_add(n).ok_or(Error::Limit("topology count overflow"))?;
-        }
-        if count > MAX_TOPOLOGY {
-            return Err(Error::Limit("total topology items"));
-        }
-    }
+    validate_bodies(import.bodies.iter().map(|b| &b.body))?;
     let mut stack: Vec<_> = import.tree.iter().map(|n| (n, 1usize)).collect();
     let mut visited = 0usize;
     while let Some((node, depth)) = stack.pop() {
@@ -499,6 +497,46 @@ fn ensure_response_size(value: &Value) -> Result<(), Error> {
     serde_json::to_writer(SizeWriter { written: 0 }, value).map_err(|_| Error::Limit("response bytes"))
 }
 
+fn validate_bodies<'a>(bodies: impl Iterator<Item = &'a solidcraft_kernel::Body>) -> Result<(), Error> {
+    let mut topology = 0usize;
+    let mut count = 0usize;
+    for body in bodies {
+        count += 1;
+        if count > MAX_BODIES {
+            return Err(Error::Limit("imported body count"));
+        }
+        if body.is_mesh() {
+            return Err(Error::Geometry("mesh-only imported bodies are not supported".into()));
+        }
+        let record = body.record();
+        for n in [record.faces.len(), record.edges.len(), record.vertices.len(), record.shells.len()] {
+            topology = topology.checked_add(n).ok_or(Error::Limit("topology count overflow"))?;
+        }
+        if topology > MAX_TOPOLOGY {
+            return Err(Error::Limit("total topology items"));
+        }
+    }
+    if count == 0 {
+        return Err(Error::Import("no exact B-rep bodies imported".into()));
+    }
+    Ok(())
+}
+
+fn exact_measure(body: &solidcraft_kernel::Body, closed: bool) -> Value {
+    solidcraft_kernel::measure(body)
+        .map_err(|e| Error::Geometry(e.to_string()))
+        .and_then(|m| {
+            if m.measured_by == "mesh" {
+                return Err(Error::Geometry("mesh measures are not exact-surface measures".into()));
+            }
+            if !m.volume.is_finite() || !m.area.is_finite() || !m.centroid.is_finite() || !m.bbox.min.is_finite() || !m.bbox.max.is_finite() {
+                return Err(Error::Geometry("non-finite exact-surface measure".into()));
+            }
+            Ok(json!({"status": "ok", "value": m, "volume_valid": closed,
+                "provenance": "numerical_integration_on_exact_surfaces"}))
+        })
+        .unwrap_or_else(|e| json!({"status": "error", "message": e.to_string()}))
+}
 #[cfg(test)]
 mod tests {
     use super::*;

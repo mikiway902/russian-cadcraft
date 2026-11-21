@@ -28,15 +28,20 @@ fn actual_worker_obeys_jsonrpc_framing_and_notifications_have_no_effects() {
         {"jsonrpc":"2.0","id":5,"method":"v1.capabilities"}])
     )
     .unwrap();
+    writeln!(input, "{}", json!({"jsonrpc":"2.0","id":"model-status","method":"v1.source_status","params":{}})).unwrap();
+    writeln!(input, "{}", json!({"jsonrpc":"2.0","id":1.25,"method":"v1.load","params":{"path":"/fractional-must-not-load.sc"}})).unwrap();
     drop(input);
     let responses: Vec<Value> = BufReader::new(output).lines().map(|line| serde_json::from_str(&line.unwrap()).unwrap()).collect();
-    assert_eq!(responses.len(), 5, "notifications must not emit a reply");
+    assert_eq!(responses.len(), 7, "notifications must not emit a reply");
     assert_eq!(responses[0]["error"]["code"], -32700);
     assert_eq!(responses[1]["id"], 1);
     assert_eq!(responses[1]["result"]["protocol"], "cadcraft-model-worker/1");
     assert_eq!(responses[2]["error"]["data"]["kind"], "no_model");
     assert_eq!(responses[3]["error"]["code"], -32601);
     assert_eq!(responses[4]["error"]["code"], -32600);
+    assert_eq!(responses[5]["id"], "model-status");
+    assert_eq!(responses[5]["error"]["data"]["kind"], "no_model");
+    assert_eq!(responses[6]["error"]["code"], -32600);
     assert!(child.wait().unwrap().success());
 }
 

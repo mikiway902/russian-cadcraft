@@ -21,6 +21,8 @@ craft-jsonrpc = { git = "https://github.com/storytold/craft-libs", rev = "b62221
 solidcraft-kernel = { git = "https://github.com/tangency-labs/solidcraft", rev = "c5f47e501169c7f0f9e8191b2541e689e2f018e8" }
 solidcraft-geom = { git = "https://github.com/tangency-labs/solidcraft", rev = "c5f47e501169c7f0f9e8191b2541e689e2f018e8" }
 solidcore-record = { git = "https://github.com/tangency-labs/solidcraft", rev = "c5f47e501169c7f0f9e8191b2541e689e2f018e8" }
+solidcraft-doc = { git = "https://github.com/tangency-labs/solidcraft", rev = "c5f47e501169c7f0f9e8191b2541e689e2f018e8", default-features = false }
+solidcraft-format = { git = "https://github.com/tangency-labs/solidcraft", rev = "c5f47e501169c7f0f9e8191b2541e689e2f018e8", default-features = false }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["float_roundtrip"] }
 sha2 = "0.10"

@@ -3,6 +3,53 @@
   "upstream_revision": "c5f47e501169c7f0f9e8191b2541e689e2f018e8",
   "scope": "selected standalone dependency graph, includes target-conditional dependencies",
   "policy_review": "Existing main-lock foldhash Zlib, unicode-ident Unicode-3.0 and memchr Unlicense alternatives require owner policy review; no new identifier outside allowlist added by this closure. SPDX metadata is not full source/notice audit.",
+  "native_loading_review": {
+    "dependency_resolution": "cargo metadata only, no build/test/lint/formatter; native graph resolved with the original worker lock retained",
+    "native_api_sources": [
+      "https://github.com/tangency-labs/solidcraft/blob/c5f47e501169c7f0f9e8191b2541e689e2f018e8/crates/doc/src/document.rs",
+      "https://github.com/tangency-labs/solidcraft/blob/c5f47e501169c7f0f9e8191b2541e689e2f018e8/crates/doc/src/eval.rs",
+      "https://github.com/tangency-labs/solidcraft/blob/c5f47e501169c7f0f9e8191b2541e689e2f018e8/crates/doc/src/assembly.rs",
+      "https://github.com/tangency-labs/solidcraft/blob/c5f47e501169c7f0f9e8191b2541e689e2f018e8/crates/doc/src/joints.rs",
+      "https://github.com/tangency-labs/solidcraft/blob/c5f47e501169c7f0f9e8191b2541e689e2f018e8/crates/format/src/container.rs"
+    ],
+    "excluded_unconditional_heavy_io": {
+      "source": "https://github.com/tangency-labs/solidcraft/blob/c5f47e501169c7f0f9e8191b2541e689e2f018e8/crates/io/Cargo.toml",
+      "not_selected": [
+        "solidcraft-engine",
+        "solidcraft-io",
+        "GUI",
+        "plugins",
+        "cadmpeg",
+        "OpenPGP",
+        "mesh/exporter I/O"
+      ]
+    },
+    "license_selection": "New Cargo packages select MIT or Apache-2.0 from their OR expressions, except the exact existing root-lock zlib-rs 0.6.8. No GPL/LGPL license is selected (r-efi 6.0.0 selects MIT). This includes target-conditional packages.",
+    "existing_exact_exception": {
+      "package": "zlib-rs",
+      "version": "0.6.8",
+      "license": "Zlib",
+      "root_lock_checksum": "b268e58e7c693d7c271f93ffc4ba3b380412554231c85bf61ca7af91042a4112",
+      "license_source": "https://crates.io/api/v1/crates/zlib-rs/0.6.8/download (LICENSE: copyright 2024 Trifecta Tech Foundation)",
+      "reason": "Exact package/version already present in approved root Cargo.lock; not a new license exception"
+    },
+    "embedded_assets": [
+      {
+        "name": "Unmodified upstream Liberation Sans Regular",
+        "license": "OFL-1.1",
+        "copyright": [
+          "Digitized data copyright (c) 2010 Google Corporation with Reserved Font Arimo, Tinos and Cousine.",
+          "Copyright (c) 2012 Red Hat, Inc. with Reserved Font Name Liberation."
+        ],
+        "source": "https://github.com/tangency-labs/solidcraft/blob/c5f47e501169c7f0f9e8191b2541e689e2f018e8/crates/sketch/assets/fonts/liberation-sans/LiberationSans-Regular.ttf",
+        "license_source": "https://github.com/tangency-labs/solidcraft/blob/c5f47e501169c7f0f9e8191b2541e689e2f018e8/crates/sketch/assets/fonts/liberation-sans/OFL.txt",
+        "notice": "licenses/OFL-LiberationSans.txt",
+        "sha256": "075e71be4c58beda172ecb574a799308f04c3d054c6a5b7434954d3b0f1b28d8",
+        "embedding_evidence": "https://github.com/tangency-labs/solidcraft/blob/c5f47e501169c7f0f9e8191b2541e689e2f018e8/crates/sketch/src/fonts.rs#L13",
+        "policy": "Reviewed under the repository's existing OFL-1.1 allowlist: reuse the unmodified dependency-embedded font without copying TTF into this repository; the full notice must accompany a distributed worker. This asset is separate from Cargo SPDX metadata."
+      }
+    ]
+  },
   "packages": [
     {
       "name": "allocator-api2",
@@ -507,6 +554,591 @@
       "source": "registry+https://github.com/rust-lang/crates.io-index",
       "in_linux_closure": true,
       "already_in_main_lock": true
+    },
+    {
+      "name": "adler2",
+      "version": "2.0.1",
+      "license": "0BSD OR MIT OR Apache-2.0",
+      "selected_license": "MIT",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "already_in_main_lock": true,
+      "license_evidence": "https://crates.io/api/v1/crates/adler2/2.0.1/download (Cargo.toml and packaged license files)"
+    },
+    {
+      "name": "bitflags",
+      "version": "2.13.2",
+      "license": "MIT OR Apache-2.0",
+      "selected_license": "MIT",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "already_in_main_lock": true,
+      "license_evidence": "https://crates.io/api/v1/crates/bitflags/2.13.2/download (Cargo.toml and packaged license files)"
+    },
+    {
+      "name": "bytemuck",
+      "version": "1.25.2",
+      "license": "Zlib OR Apache-2.0 OR MIT",
+      "selected_license": "MIT",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "already_in_main_lock": true,
+      "license_evidence": "https://crates.io/api/v1/crates/bytemuck/1.25.2/download (Cargo.toml and packaged license files)"
+    },
+    {
+      "name": "bytemuck_derive",
+      "version": "1.12.1",
+      "license": "Zlib OR Apache-2.0 OR MIT",
+      "selected_license": "MIT",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "already_in_main_lock": true,
+      "license_evidence": "https://crates.io/api/v1/crates/bytemuck_derive/1.12.1/download (Cargo.toml and packaged license files)"
+    },
+    {
+      "name": "byteorder-lite",
+      "version": "0.1.0",
+      "license": "Unlicense OR MIT",
+      "selected_license": "MIT",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "already_in_main_lock": true,
+      "license_evidence": "https://crates.io/api/v1/crates/byteorder-lite/0.1.0/download (Cargo.toml and packaged license files)"
+    },
+    {
+      "name": "cfg_aliases",
+      "version": "0.2.2",
+      "license": "MIT",
+      "selected_license": "MIT",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "already_in_main_lock": true,
+      "license_evidence": "https://crates.io/api/v1/crates/cfg_aliases/0.2.2/download (Cargo.toml and packaged license files)"
+    },
+    {
+      "name": "constant_time_eq",
+      "version": "0.6.1",
+      "license": "CC0-1.0 OR MIT-0 OR Apache-2.0",
+      "selected_license": "MIT",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "already_in_main_lock": false,
+      "license_evidence": "https://crates.io/api/v1/crates/constant_time_eq/0.6.1/download (Cargo.toml and packaged license files)"
+    },
+    {
+      "name": "crc32fast",
+      "version": "1.5.5",
+      "license": "MIT OR Apache-2.0",
+      "selected_license": "MIT",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "already_in_main_lock": false,
+      "license_evidence": "https://crates.io/api/v1/crates/crc32fast/1.5.5/download (Cargo.toml and packaged license files)"
+    },
+    {
+      "name": "fdeflate",
+      "version": "0.3.7",
+      "license": "MIT OR Apache-2.0",
+      "selected_license": "MIT",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "already_in_main_lock": true,
+      "license_evidence": "https://crates.io/api/v1/crates/fdeflate/0.3.7/download (Cargo.toml and packaged license files)"
+    },
+    {
+      "name": "flate2",
+      "version": "1.1.11",
+      "license": "MIT OR Apache-2.0",
+      "selected_license": "MIT",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "already_in_main_lock": false,
+      "license_evidence": "https://crates.io/api/v1/crates/flate2/1.1.11/download (Cargo.toml and packaged license files)"
+    },
+    {
+      "name": "font-types",
+      "version": "0.12.7",
+      "license": "MIT OR Apache-2.0",
+      "selected_license": "MIT",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "already_in_main_lock": true,
+      "license_evidence": "https://crates.io/api/v1/crates/font-types/0.12.7/download (Cargo.toml and packaged license files)"
+    },
+    {
+      "name": "getrandom",
+      "version": "0.4.3",
+      "license": "MIT OR Apache-2.0",
+      "selected_license": "MIT",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "already_in_main_lock": true,
+      "license_evidence": "https://crates.io/api/v1/crates/getrandom/0.4.3/download (Cargo.toml and packaged license files)"
+    },
+    {
+      "name": "harfrust",
+      "version": "0.12.0",
+      "license": "MIT",
+      "selected_license": "MIT",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "already_in_main_lock": true,
+      "license_evidence": "https://crates.io/api/v1/crates/harfrust/0.12.0/download (Cargo.toml and packaged license files)"
+    },
+    {
+      "name": "hashbrown",
+      "version": "0.17.1",
+      "license": "MIT OR Apache-2.0",
+      "selected_license": "MIT",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "already_in_main_lock": true,
+      "license_evidence": "https://crates.io/api/v1/crates/hashbrown/0.17.1/download (Cargo.toml and packaged license files)"
+    },
+    {
+      "name": "image",
+      "version": "0.25.10",
+      "license": "MIT OR Apache-2.0",
+      "selected_license": "MIT",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "already_in_main_lock": true,
+      "license_evidence": "https://crates.io/api/v1/crates/image/0.25.10/download (Cargo.toml and packaged license files)"
+    },
+    {
+      "name": "indexmap",
+      "version": "2.14.2",
+      "license": "Apache-2.0 OR MIT",
+      "selected_license": "MIT",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "already_in_main_lock": true,
+      "license_evidence": "https://crates.io/api/v1/crates/indexmap/2.14.2/download (Cargo.toml and packaged license files)"
+    },
+    {
+      "name": "miniz_oxide",
+      "version": "0.8.9",
+      "license": "MIT OR Zlib OR Apache-2.0",
+      "selected_license": "MIT",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "already_in_main_lock": true,
+      "license_evidence": "https://crates.io/api/v1/crates/miniz_oxide/0.8.9/download (Cargo.toml and packaged license files)"
+    },
+    {
+      "name": "miniz_oxide",
+      "version": "0.9.1",
+      "license": "MIT OR Zlib OR Apache-2.0",
+      "selected_license": "MIT",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "already_in_main_lock": true,
+      "license_evidence": "https://crates.io/api/v1/crates/miniz_oxide/0.9.1/download (Cargo.toml and packaged license files)"
+    },
+    {
+      "name": "moxcms",
+      "version": "0.8.1",
+      "license": "BSD-3-Clause OR Apache-2.0",
+      "selected_license": "Apache-2.0",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "already_in_main_lock": true,
+      "license_evidence": "https://crates.io/api/v1/crates/moxcms/0.8.1/download (Cargo.toml and packaged license files)"
+    },
+    {
+      "name": "nix",
+      "version": "0.32.0",
+      "license": "MIT",
+      "selected_license": "MIT",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "already_in_main_lock": false,
+      "license_evidence": "https://crates.io/api/v1/crates/nix/0.32.0/download (Cargo.toml and packaged license files)"
+    },
+    {
+      "name": "ntapi",
+      "version": "0.4.3",
+      "license": "Apache-2.0 OR MIT",
+      "selected_license": "MIT",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "already_in_main_lock": false,
+      "license_evidence": "https://crates.io/api/v1/crates/ntapi/0.4.3/download (Cargo.toml and packaged license files)"
+    },
+    {
+      "name": "objc2-core-foundation",
+      "version": "0.3.2",
+      "license": "Zlib OR Apache-2.0 OR MIT",
+      "selected_license": "MIT",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "already_in_main_lock": true,
+      "license_evidence": "https://crates.io/api/v1/crates/objc2-core-foundation/0.3.2/download (Cargo.toml and packaged license files)"
+    },
+    {
+      "name": "objc2-io-kit",
+      "version": "0.3.2",
+      "license": "Zlib OR Apache-2.0 OR MIT",
+      "selected_license": "MIT",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "already_in_main_lock": false,
+      "license_evidence": "https://crates.io/api/v1/crates/objc2-io-kit/0.3.2/download (Cargo.toml and packaged license files)"
+    },
+    {
+      "name": "once_cell",
+      "version": "1.21.4",
+      "license": "MIT OR Apache-2.0",
+      "selected_license": "MIT",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "already_in_main_lock": true,
+      "license_evidence": "https://crates.io/api/v1/crates/once_cell/1.21.4/download (Cargo.toml and packaged license files)"
+    },
+    {
+      "name": "png",
+      "version": "0.18.1",
+      "license": "MIT OR Apache-2.0",
+      "selected_license": "MIT",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "already_in_main_lock": true,
+      "license_evidence": "https://crates.io/api/v1/crates/png/0.18.1/download (Cargo.toml and packaged license files)"
+    },
+    {
+      "name": "pxfm",
+      "version": "0.1.30",
+      "license": "BSD-3-Clause OR Apache-2.0",
+      "selected_license": "Apache-2.0",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "already_in_main_lock": true,
+      "license_evidence": "https://crates.io/api/v1/crates/pxfm/0.1.30/download (Cargo.toml and packaged license files)"
+    },
+    {
+      "name": "r-efi",
+      "version": "6.0.0",
+      "license": "MIT OR Apache-2.0 OR LGPL-2.1-or-later",
+      "selected_license": "MIT",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "already_in_main_lock": true,
+      "license_evidence": "https://crates.io/api/v1/crates/r-efi/6.0.0/download (Cargo.toml and packaged license files)"
+    },
+    {
+      "name": "read-fonts",
+      "version": "0.41.0",
+      "license": "MIT OR Apache-2.0",
+      "selected_license": "MIT",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "already_in_main_lock": true,
+      "license_evidence": "https://crates.io/api/v1/crates/read-fonts/0.41.0/download (Cargo.toml and packaged license files)"
+    },
+    {
+      "name": "simd-adler32",
+      "version": "0.3.10",
+      "license": "MIT",
+      "selected_license": "MIT",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "already_in_main_lock": true,
+      "license_evidence": "https://crates.io/api/v1/crates/simd-adler32/0.3.10/download (Cargo.toml and packaged license files)"
+    },
+    {
+      "name": "solidcraft-color",
+      "version": "0.45.0-rc.4",
+      "license": "MIT OR Apache-2.0",
+      "selected_license": "MIT",
+      "source": "git+https://github.com/tangency-labs/solidcraft?rev=c5f47e501169c7f0f9e8191b2541e689e2f018e8#c5f47e501169c7f0f9e8191b2541e689e2f018e8",
+      "already_in_main_lock": false,
+      "license_evidence": "https://github.com/tangency-labs/solidcraft/blob/c5f47e501169c7f0f9e8191b2541e689e2f018e8/crates/color/Cargo.toml"
+    },
+    {
+      "name": "solidcraft-derive",
+      "version": "0.45.0-rc.4",
+      "license": "MIT OR Apache-2.0",
+      "selected_license": "MIT",
+      "source": "git+https://github.com/tangency-labs/solidcraft?rev=c5f47e501169c7f0f9e8191b2541e689e2f018e8#c5f47e501169c7f0f9e8191b2541e689e2f018e8",
+      "already_in_main_lock": false,
+      "license_evidence": "https://github.com/tangency-labs/solidcraft/blob/c5f47e501169c7f0f9e8191b2541e689e2f018e8/crates/derive/Cargo.toml"
+    },
+    {
+      "name": "solidcraft-develop",
+      "version": "0.45.0-rc.4",
+      "license": "MIT OR Apache-2.0",
+      "selected_license": "MIT",
+      "source": "git+https://github.com/tangency-labs/solidcraft?rev=c5f47e501169c7f0f9e8191b2541e689e2f018e8#c5f47e501169c7f0f9e8191b2541e689e2f018e8",
+      "already_in_main_lock": false,
+      "license_evidence": "https://github.com/tangency-labs/solidcraft/blob/c5f47e501169c7f0f9e8191b2541e689e2f018e8/crates/develop/Cargo.toml"
+    },
+    {
+      "name": "solidcraft-doc",
+      "version": "0.45.0-rc.4",
+      "license": "MIT OR Apache-2.0",
+      "selected_license": "MIT",
+      "source": "git+https://github.com/tangency-labs/solidcraft?rev=c5f47e501169c7f0f9e8191b2541e689e2f018e8#c5f47e501169c7f0f9e8191b2541e689e2f018e8",
+      "already_in_main_lock": false,
+      "license_evidence": "https://github.com/tangency-labs/solidcraft/blob/c5f47e501169c7f0f9e8191b2541e689e2f018e8/crates/doc/Cargo.toml"
+    },
+    {
+      "name": "solidcraft-format",
+      "version": "0.45.0-rc.4",
+      "license": "MIT OR Apache-2.0",
+      "selected_license": "MIT",
+      "source": "git+https://github.com/tangency-labs/solidcraft?rev=c5f47e501169c7f0f9e8191b2541e689e2f018e8#c5f47e501169c7f0f9e8191b2541e689e2f018e8",
+      "already_in_main_lock": false,
+      "license_evidence": "https://github.com/tangency-labs/solidcraft/blob/c5f47e501169c7f0f9e8191b2541e689e2f018e8/crates/format/Cargo.toml"
+    },
+    {
+      "name": "solidcraft-render",
+      "version": "0.45.0-rc.4",
+      "license": "MIT OR Apache-2.0",
+      "selected_license": "MIT",
+      "source": "git+https://github.com/tangency-labs/solidcraft?rev=c5f47e501169c7f0f9e8191b2541e689e2f018e8#c5f47e501169c7f0f9e8191b2541e689e2f018e8",
+      "already_in_main_lock": false,
+      "license_evidence": "https://github.com/tangency-labs/solidcraft/blob/c5f47e501169c7f0f9e8191b2541e689e2f018e8/crates/render/Cargo.toml"
+    },
+    {
+      "name": "solidcraft-sketch",
+      "version": "0.45.0-rc.4",
+      "license": "MIT OR Apache-2.0",
+      "selected_license": "MIT",
+      "source": "git+https://github.com/tangency-labs/solidcraft?rev=c5f47e501169c7f0f9e8191b2541e689e2f018e8#c5f47e501169c7f0f9e8191b2541e689e2f018e8",
+      "already_in_main_lock": false,
+      "license_evidence": "https://github.com/tangency-labs/solidcraft/blob/c5f47e501169c7f0f9e8191b2541e689e2f018e8/crates/sketch/Cargo.toml"
+    },
+    {
+      "name": "solidcraft-viewport",
+      "version": "0.45.0-rc.4",
+      "license": "MIT OR Apache-2.0",
+      "selected_license": "MIT",
+      "source": "git+https://github.com/tangency-labs/solidcraft?rev=c5f47e501169c7f0f9e8191b2541e689e2f018e8#c5f47e501169c7f0f9e8191b2541e689e2f018e8",
+      "already_in_main_lock": false,
+      "license_evidence": "https://github.com/tangency-labs/solidcraft/blob/c5f47e501169c7f0f9e8191b2541e689e2f018e8/crates/viewport/Cargo.toml"
+    },
+    {
+      "name": "syn",
+      "version": "2.0.119",
+      "license": "MIT OR Apache-2.0",
+      "selected_license": "MIT",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "already_in_main_lock": true,
+      "license_evidence": "https://crates.io/api/v1/crates/syn/2.0.119/download (Cargo.toml and packaged license files)"
+    },
+    {
+      "name": "sysinfo",
+      "version": "0.40.4",
+      "license": "MIT",
+      "selected_license": "MIT",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "already_in_main_lock": false,
+      "license_evidence": "https://crates.io/api/v1/crates/sysinfo/0.40.4/download (Cargo.toml and packaged license files)"
+    },
+    {
+      "name": "ttf-parser",
+      "version": "0.25.1",
+      "license": "MIT OR Apache-2.0",
+      "selected_license": "MIT",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "already_in_main_lock": false,
+      "license_evidence": "https://crates.io/api/v1/crates/ttf-parser/0.25.1/download (Cargo.toml and packaged license files)"
+    },
+    {
+      "name": "typed-path",
+      "version": "0.13.0",
+      "license": "MIT OR Apache-2.0",
+      "selected_license": "MIT",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "already_in_main_lock": true,
+      "license_evidence": "https://crates.io/api/v1/crates/typed-path/0.13.0/download (Cargo.toml and packaged license files)"
+    },
+    {
+      "name": "unicode-bidi",
+      "version": "0.3.18",
+      "license": "MIT OR Apache-2.0",
+      "selected_license": "MIT",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "already_in_main_lock": true,
+      "license_evidence": "https://crates.io/api/v1/crates/unicode-bidi/0.3.18/download (Cargo.toml and packaged license files)"
+    },
+    {
+      "name": "weezl",
+      "version": "0.1.12",
+      "license": "MIT OR Apache-2.0",
+      "selected_license": "MIT",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "already_in_main_lock": true,
+      "license_evidence": "https://crates.io/api/v1/crates/weezl/0.1.12/download (Cargo.toml and packaged license files)"
+    },
+    {
+      "name": "winapi",
+      "version": "0.3.9",
+      "license": "MIT/Apache-2.0",
+      "selected_license": "MIT",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "already_in_main_lock": false,
+      "license_evidence": "https://crates.io/api/v1/crates/winapi/0.3.9/download (Cargo.toml and packaged license files)"
+    },
+    {
+      "name": "winapi-i686-pc-windows-gnu",
+      "version": "0.4.0",
+      "license": "MIT/Apache-2.0",
+      "selected_license": "MIT",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "already_in_main_lock": false,
+      "license_evidence": "https://crates.io/api/v1/crates/winapi-i686-pc-windows-gnu/0.4.0/download (Cargo.toml and packaged license files)"
+    },
+    {
+      "name": "winapi-x86_64-pc-windows-gnu",
+      "version": "0.4.0",
+      "license": "MIT/Apache-2.0",
+      "selected_license": "MIT",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "already_in_main_lock": false,
+      "license_evidence": "https://crates.io/api/v1/crates/winapi-x86_64-pc-windows-gnu/0.4.0/download (Cargo.toml and packaged license files)"
+    },
+    {
+      "name": "windows",
+      "version": "0.62.2",
+      "license": "MIT OR Apache-2.0",
+      "selected_license": "MIT",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "already_in_main_lock": true,
+      "license_evidence": "https://crates.io/api/v1/crates/windows/0.62.2/download (Cargo.toml and packaged license files)"
+    },
+    {
+      "name": "windows-collections",
+      "version": "0.3.2",
+      "license": "MIT OR Apache-2.0",
+      "selected_license": "MIT",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "already_in_main_lock": true,
+      "license_evidence": "https://crates.io/api/v1/crates/windows-collections/0.3.2/download (Cargo.toml and packaged license files)"
+    },
+    {
+      "name": "windows-core",
+      "version": "0.62.2",
+      "license": "MIT OR Apache-2.0",
+      "selected_license": "MIT",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "already_in_main_lock": true,
+      "license_evidence": "https://crates.io/api/v1/crates/windows-core/0.62.2/download (Cargo.toml and packaged license files)"
+    },
+    {
+      "name": "windows-future",
+      "version": "0.3.2",
+      "license": "MIT OR Apache-2.0",
+      "selected_license": "MIT",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "already_in_main_lock": true,
+      "license_evidence": "https://crates.io/api/v1/crates/windows-future/0.3.2/download (Cargo.toml and packaged license files)"
+    },
+    {
+      "name": "windows-implement",
+      "version": "0.60.2",
+      "license": "MIT OR Apache-2.0",
+      "selected_license": "MIT",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "already_in_main_lock": true,
+      "license_evidence": "https://crates.io/api/v1/crates/windows-implement/0.60.2/download (Cargo.toml and packaged license files)"
+    },
+    {
+      "name": "windows-interface",
+      "version": "0.59.3",
+      "license": "MIT OR Apache-2.0",
+      "selected_license": "MIT",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "already_in_main_lock": true,
+      "license_evidence": "https://crates.io/api/v1/crates/windows-interface/0.59.3/download (Cargo.toml and packaged license files)"
+    },
+    {
+      "name": "windows-link",
+      "version": "0.2.1",
+      "license": "MIT OR Apache-2.0",
+      "selected_license": "MIT",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "already_in_main_lock": true,
+      "license_evidence": "https://crates.io/api/v1/crates/windows-link/0.2.1/download (Cargo.toml and packaged license files)"
+    },
+    {
+      "name": "windows-numerics",
+      "version": "0.3.1",
+      "license": "MIT OR Apache-2.0",
+      "selected_license": "MIT",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "already_in_main_lock": true,
+      "license_evidence": "https://crates.io/api/v1/crates/windows-numerics/0.3.1/download (Cargo.toml and packaged license files)"
+    },
+    {
+      "name": "windows-result",
+      "version": "0.4.1",
+      "license": "MIT OR Apache-2.0",
+      "selected_license": "MIT",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "already_in_main_lock": true,
+      "license_evidence": "https://crates.io/api/v1/crates/windows-result/0.4.1/download (Cargo.toml and packaged license files)"
+    },
+    {
+      "name": "windows-strings",
+      "version": "0.5.1",
+      "license": "MIT OR Apache-2.0",
+      "selected_license": "MIT",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "already_in_main_lock": true,
+      "license_evidence": "https://crates.io/api/v1/crates/windows-strings/0.5.1/download (Cargo.toml and packaged license files)"
+    },
+    {
+      "name": "windows-sys",
+      "version": "0.61.2",
+      "license": "MIT OR Apache-2.0",
+      "selected_license": "MIT",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "already_in_main_lock": true,
+      "license_evidence": "https://crates.io/api/v1/crates/windows-sys/0.61.2/download (Cargo.toml and packaged license files)"
+    },
+    {
+      "name": "windows-threading",
+      "version": "0.2.1",
+      "license": "MIT OR Apache-2.0",
+      "selected_license": "MIT",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "already_in_main_lock": true,
+      "license_evidence": "https://crates.io/api/v1/crates/windows-threading/0.2.1/download (Cargo.toml and packaged license files)"
+    },
+    {
+      "name": "zeroize",
+      "version": "1.9.2",
+      "license": "Apache-2.0 OR MIT",
+      "selected_license": "MIT",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "already_in_main_lock": false,
+      "license_evidence": "https://crates.io/api/v1/crates/zeroize/1.9.2/download (Cargo.toml and packaged license files)"
+    },
+    {
+      "name": "zeroize_derive",
+      "version": "1.5.0",
+      "license": "Apache-2.0 OR MIT",
+      "selected_license": "MIT",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "already_in_main_lock": false,
+      "license_evidence": "https://crates.io/api/v1/crates/zeroize_derive/1.5.0/download (Cargo.toml and packaged license files)"
+    },
+    {
+      "name": "zip",
+      "version": "9.7.3",
+      "license": "MIT",
+      "selected_license": "MIT",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "already_in_main_lock": false,
+      "license_evidence": "https://crates.io/api/v1/crates/zip/9.7.3/download (Cargo.toml and packaged license files)"
+    },
+    {
+      "name": "zlib-rs",
+      "version": "0.6.8",
+      "license": "Zlib",
+      "selected_license": "Zlib",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "already_in_main_lock": true,
+      "license_evidence": "https://crates.io/api/v1/crates/zlib-rs/0.6.8/download (Cargo.toml and packaged license files)"
+    },
+    {
+      "name": "zopfli",
+      "version": "0.8.4",
+      "license": "Apache-2.0",
+      "selected_license": "Apache-2.0",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "already_in_main_lock": false,
+      "license_evidence": "https://crates.io/api/v1/crates/zopfli/0.8.4/download (Cargo.toml and packaged license files)"
+    },
+    {
+      "name": "zune-core",
+      "version": "0.5.3",
+      "license": "MIT OR Apache-2.0 OR Zlib",
+      "selected_license": "MIT",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "already_in_main_lock": true,
+      "license_evidence": "https://crates.io/api/v1/crates/zune-core/0.5.3/download (Cargo.toml and packaged license files)"
+    },
+    {
+      "name": "zune-jpeg",
+      "version": "0.5.15",
+      "license": "MIT OR Apache-2.0 OR Zlib",
+      "selected_license": "MIT",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "already_in_main_lock": true,
+      "license_evidence": "https://crates.io/api/v1/crates/zune-jpeg/0.5.15/download (Cargo.toml and packaged license files)"
     }
   ]
 }

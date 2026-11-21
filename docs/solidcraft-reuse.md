@@ -1,12 +1,36 @@
-## Summary
+# SolidCraft: переиспользование и изолированный Bridge
 
-**Recommend a separate CADCraftGOST bridge worker reusing SolidCraft’s Rust crates—not its GUI and not only its existing CLI.** Existing CLI/MCP can prove STEP loading, measurements and bounded drawing output immediately, but **flatten noncircular projected conics into chords**. For editable exact ellipses, call the public `solidcraft_geom::hlr` API directly.
+**Выбран отдельный CADCraftGOST worker на публичных Rust-библиотеках SolidCraft, без его GUI.** Стоковый drawing snapshot аппроксимирует некруговые коники; собственный bridge вызывает публичный `solidcraft_geom::hlr` и сохраняет исходные rational Seg2.
 
 Pinned SolidCraft revision: **`c5f47e501169c7f0f9e8191b2541e689e2f018e8`**, version `0.45.0-rc.4`.
 
-**Artifact limitation:** this agent has only read/search tools; no write or shell tool is exposed. I could not create `local://solidcraft-reuse.md` or clone to `/tmp`. The complete report follows for the parent to persist. No builds/tests/formatters ran; no repository files changed.
+## Проверенная реализация — 21.11.2026
 
-# SolidCraft reuse report
+- `tools/solidcraft-bridge`: отдельный workspace, общий JSON-RPC framing из
+  `craft-jsonrpc`, точная геометрия из закреплённой ревизии SolidCraft/SolidCore.
+- STEP/IGES и `.sc`: native Document migrations, timeline evaluation, выражения
+  размещения, ограниченное решение joint-связей и применение world placement один раз.
+  Поддержаны plain JSON и native container с проверкой authoritative embedded blobs.
+  Preview/cache не заменяет повреждённый исходник; неизвестные ресурсы, сеточные
+  native features и неподдерживаемые случаи отклоняются атомарно.
+- Передаются определения/вхождения сборки, native IDs, сохранённая видимость,
+  свойства и явные материалы/плотность. Отсутствующие значения остаются `null`.
+  Эти IDs не гарантируют сопоставления рёбер и граней после перестроения.
+- **12 тестов пройдено**: `cargo test --locked --manifest-path tools/solidcraft-bridge/Cargo.toml --all-targets`.
+  Clippy `--all-targets -- -D warnings` прошёл.
+- Настоящий host `cadcraft_io::model_worker::Client` загрузил native цилиндр
+  радиуса 5 и высоты 20 мм: объём `1570.7963267948958` мм³, 10 рациональных
+  конических сегментов наклонного вида, `analytic_complete:true`.
+  Проверены сохранение сессии после remote method error и обнаружение изменения файла.
+- Native conversion `model_projection::decode`: 3 теста rational weights/midpoint,
+  signed arcs/near-full gaps и атомарного отказа на некорректные/чрезмерные данные.
+- [Протокол, ограничения и известные пробелы](../tools/solidcraft-bridge/protocol.schema.json),
+  [состав и лицензии выбранных зависимостей](../tools/solidcraft-bridge/dependency-licenses.json).
+  Liberation Sans, встроенный upstream sketch, требует сохранения отдельного OFL notice.
+- Это ещё не подключение к пользовательскому документу/GUI, не 3D-просмотр,
+  не persistent topology matching и не жёсткая OS memory/filesystem sandbox.
+  Этапы 4–6 не закрыты отдельным worker.
+
 
 ## 1. Sources and licensing
 
@@ -28,7 +52,7 @@ Read root `AGENTS.md`, workspace manifest, `NOTICE`, `LICENSE-BRAND`, and SolidC
 | Vendored SolidCore | Separate workspace, **Apache-2.0**; NVIDIA/SolidCore notices must remain. |
 | `crates/ui-kit`, `crates/look`, `crates/theme`, branding/app icons | **Not MIT/Apache**: covered by `LICENSE-BRAND`; another application needs written permission. Exclude them. |
 | NVIDIA USD BRep origins | SolidCore is a pure-Rust descendant of the Apache SMLib/SM_API components, not an OpenCascade dependency. Do not import the unrelated restricted components of the NVIDIA repository. |
-| Third-party dependencies | Manifests and notices examined; a complete transitive license verification was **not run**. Parent should verify the selected dependency closure before distribution. |
+| Third-party dependencies | Выбранный dependency closure и embedded-font notice зафиксированы в `tools/solidcraft-bridge/dependency-licenses.json`; изменение features/revision требует новой проверки. Это не лицензирование произвольной сборки всего upstream. |
 
 Sources: [NOTICE](https://github.com/tangency-labs/solidcraft/blob/c5f47e501169c7f0f9e8191b2541e689e2f018e8/NOTICE), [brand exceptions](https://github.com/tangency-labs/solidcraft/blob/c5f47e501169c7f0f9e8191b2541e689e2f018e8/LICENSE-BRAND), [SolidCore manifest](https://github.com/tangency-labs/solidcraft/blob/c5f47e501169c7f0f9e8191b2541e689e2f018e8/solidcore/Cargo.toml).
 
@@ -114,7 +138,12 @@ Relevant graph:
 
 ### Native `.sc`/assemblies/commands
 
-Add:
+Текущий worker использует `solidcraft-doc` и `solidcraft-format` с
+`default-features = false`, а также публичный kernel Model. `solidcraft-engine`,
+`solidcraft-io`, plugins и GUI не подключены. Это существенно уже альтернативы
+полного stock command runtime, показанной ниже.
+
+Для полного upstream command runtime возможна более тяжёлая альтернатива; она не используется текущим worker:
 
 ```toml
 solidcraft-engine = {
@@ -635,11 +664,12 @@ Do not advertise upstream CLI/MCP as implementing this proposed bridge contract 
 9. STEP engineering-material/density/designation transfer was not found in the real import result schema.
 10. Native exact model cache is optional and producer/evaluation-specific.
 11. Import/meshing success can be partial; warnings must reach users.
-12. No existing versioned CADCraftGOST bridge contract covers raw HLR, measurements, native references and metadata together.
+12. The current isolated prototype is not yet the full user-facing CADCraftGOST bridge: sections, preview and persistent topology matching remain open.
 
-## Verification handoff
+## Verification scope
 
-Static source inspection only. Parent should validate:
+The current checked implementation is summarized at the beginning of this document.
+The following broader acceptance scenarios remain independent requirements:
 
 - Small pinned worker dependency resolution, without GUI/brand crates.
 - STEP oblique cylinder retaining `Seg2::Conic`.
@@ -651,4 +681,4 @@ Static source inspection only. Parent should validate:
 - Native reference preservation and lost/ambiguous statuses.
 - Full section versus explicitly unsupported section kinds.
 
-These checks were **not executed**.
+The preceding static checklist is not a claim that every scenario has passed. See the dated implementation summary for the checks actually run.
