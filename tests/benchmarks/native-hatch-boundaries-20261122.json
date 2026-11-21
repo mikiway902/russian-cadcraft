@@ -1,0 +1,74 @@
+{
+  "date": "2026-11-22",
+  "platform": "linux-x86_64",
+  "scope": "native analytic HATCH boundary storage, DXF codec, render and inquiry; not host B-Rep section acceptance",
+  "fixture": {
+    "provenance": "Original synthetic geometry; no external CAD output copied",
+    "input_bytes": 906,
+    "header_units": "mm",
+    "outer_ellipse_radii_mm": [
+      10,
+      5
+    ],
+    "bore_radius_mm": 2,
+    "island_radius_mm": 1,
+    "island_representation": "four rational quadratic native SPLINE edges",
+    "expected_area_mm2": 147.6548547187203,
+    "source_under_target": "dimension-smoke/exact-hatch.dxf"
+  },
+  "observed": {
+    "cli_exit": 0,
+    "area_mm2": 147.65485463748368,
+    "area_absolute_error_mm2": 8.123660677483713e-08,
+    "perimeter_mm": 67.29179702427714,
+    "saved_dxf_bytes": 18723,
+    "gui_reopen_area_mm2": 147.65485463748368,
+    "native_loops": [
+      {
+        "vertices": 0,
+        "edges": 1
+      },
+      {
+        "vertices": 0,
+        "edges": 1
+      },
+      {
+        "vertices": 0,
+        "edges": 4
+      }
+    ],
+    "ellipse_material_visible": true,
+    "bore_unfilled": true,
+    "rational_island_visible": true,
+    "gui_exit": 0,
+    "screenshot_under_target": "coexistence/proof/exact-hatch-fitted.png"
+  },
+  "checks_observed": {
+    "io_hatch_cases_passed": 23,
+    "render_hatch_cases_passed": 18,
+    "engine_hatch_cases_passed": 64,
+    "native_model_cases_passed": 25,
+    "geometry_spline_cases_passed": 37,
+    "workspace_all_target_clippy_initial_pass": true,
+    "final_doc_io_engine_all_target_clippy_pass": true,
+    "feature_off_regressions_passed": 2,
+    "feature_off_cli_desktop_web_checked": true,
+    "wasm_checked": true,
+    "existing_wasm_dead_code_warnings": 4
+  },
+  "policies": {
+    "stored_boundary_polygonization": false,
+    "silent_degree_reduction_or_refitting": false,
+    "display_tessellation_bounded": true,
+    "line_arc_ellipse_area": "analytic Green-integral terms",
+    "spline_area": "existing native span-aware numerical policy, not symbolic certification",
+    "old_region_curve_payload": "explicitly rejected",
+    "polyline_refill_of_changed_exact_curve_sources": "explicit detach with message; exact frozen boundary retained",
+    "elevated_spline_recreate": "explicitly refused with atomic rollback instead of plane loss"
+  },
+  "limits": [
+    "No full GOST certification",
+    "Worker one-plane sections are tested separately; host section view integration remains in progress",
+    "No automatic exact curved-boundary source rebuild through the legacy polyline association engine"
+  ]
+}

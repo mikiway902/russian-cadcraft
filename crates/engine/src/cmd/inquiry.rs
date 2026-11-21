@@ -511,14 +511,15 @@ pub(super) fn object_area(s: &Session, h: Handle) -> Result<(f64, f64)> {
         }
         EntityKind::Hatch(hh) => {
             // Odd parity, as drawn: a loop nested inside an odd number of other loops is an unfilled island.
-            let geoms: Vec<Polyline> = hh.loops.iter().map(|l| Polyline { vertices: l.vertices.clone(), closed: true }).collect();
-            let polys: Vec<Vec<Vec2>> = geoms.iter().map(|g| g.tessellate(1e-3)).collect();
+            let mut budget = cadcraft_geom::MAX_TESSELLATED_POINTS;
+            let polys: Vec<Vec<Vec2>> = hh.loops.iter().map(|ring| ring.tessellate_within(1e-3, &mut budget)).collect();
             let mut total = (0.0, 0.0);
-            for (i, g) in geoms.iter().enumerate() {
+            for (i, ring) in hh.loops.iter().enumerate() {
                 let probe = polys.get(i).and_then(|p| p.first().copied());
                 let depth = probe.map_or(0, |pt| polys.iter().enumerate().filter(|(j, q)| *j != i && cadcraft_geom::point_in_polygon(q, pt)).count());
-                total.0 += if depth % 2 == 0 { g.area().abs() } else { -g.area().abs() };
-                total.1 += g.len();
+                let (area, perimeter) = ring.area_and_perimeter();
+                total.0 += if depth % 2 == 0 { area.abs() } else { -area.abs() };
+                total.1 += perimeter;
             }
             total
         }

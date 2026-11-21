@@ -12,7 +12,7 @@ use super::{Builder, Ctx, Ink, fill, ink, max_scale};
 use cadcraft_color::{Color, Rgb};
 use cadcraft_doc::library::{PatternLine, pattern_for};
 use cadcraft_doc::{Drawing, Entity, Gradient, Hatch};
-use cadcraft_geom::{Bounds2, PolyVertex, Polyline, Vec2, point_in_polygon};
+use cadcraft_geom::{Bounds2, PolyVertex, Vec2, point_in_polygon};
 use std::sync::atomic::{AtomicBool, Ordering};
 
 /// Draw a hatch entity: `rgb` is its resolved colour, `tol` the chord tolerance.
@@ -136,8 +136,8 @@ pub fn fill_loops(h: &Hatch, tol: f64) -> Vec<Vec<Vec2>> {
     let mut loops: Vec<Vec<Vec2>> = h
         .loops
         .iter()
-        .filter(|l| seen.insert(canonical_key(&l.vertices)))
-        .map(|l| Polyline { vertices: l.vertices.clone(), closed: true }.tessellate_within(tol, &mut budget))
+        .filter(|l| !l.edges.is_empty() || seen.insert(canonical_key(&l.vertices)))
+        .map(|l| l.tessellate_within(tol, &mut budget))
         .collect();
     dedup_polygons(&mut loops);
     let max_depth = match h.style {
@@ -677,6 +677,7 @@ mod tests {
     #[test]
     fn fill_loops_deduplicates_coincident_loops() {
         let loop1 = HatchLoop {
+            edges: Vec::new(),
             vertices: vec![
                 PolyVertex::new(Vec2::new(0.0, 0.0)),
                 PolyVertex::new(Vec2::new(10.0, 0.0)),

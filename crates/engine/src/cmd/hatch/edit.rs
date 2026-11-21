@@ -4,7 +4,7 @@
 
 use cadcraft_color::Color;
 use cadcraft_doc::{Drawing, EntityKind, Gradient, Handle, Hatch, HatchLoop, entity_bounds};
-use cadcraft_geom::{Bounds2, Polyline, Vec2, point_in_polygon};
+use cadcraft_geom::{Bounds2, Vec2, point_in_polygon};
 use serde_json::{Value, json};
 
 use super::assoc::{detach, same_shape};
@@ -30,7 +30,8 @@ fn hatches(s: &Session, p: &Value) -> Result<Vec<Handle>> {
 }
 
 fn outline(l: &HatchLoop) -> Vec<Vec2> {
-    Polyline { vertices: l.vertices.clone(), closed: true }.tessellate(1e-3)
+    let mut budget = cadcraft_geom::MAX_TESSELLATED_POINTS;
+    l.tessellate_within(1e-3, &mut budget)
 }
 
 /// Link the loops of `h` to closed objects of the same shape: the `boundary` objects when given,
@@ -40,6 +41,11 @@ fn link(d: &Drawing, handle: Handle, h: &mut Hatch, boundary: Option<&[Handle]>,
     let store = space.as_ref().and_then(|sp| d.space(sp));
     let mut missing = 0;
     for l in &mut h.loops {
+        if !l.edges.is_empty() {
+            l.sources.clear();
+            missing += 1;
+            continue;
+        }
         if boundary.is_none() && !l.sources.is_empty() {
             continue;
         }
@@ -443,9 +449,44 @@ pub(super) fn run_hatchedit(s: &mut Session, p: &Value) -> Result<Value> {
             None => {}
         }
         if recreate {
+            if h.elevation != 0.0 && h.loops.iter().flat_map(|ring| &ring.edges).any(|edge| matches!(edge, cadcraft_doc::HatchEdge::Spline(_))) {
+                return Err(bad("hatchedit", "native 2D SPLINE cannot recreate an elevated exact hatch boundary without losing its plane"));
+            }
             let mut new = Vec::new();
             for l in &h.loops {
-                new.push(s.add_entity(lwpoly(l.vertices.clone(), true))?);
+                if l.edges.is_empty() {
+                    new.push(s.add_entity(lwpoly(l.vertices.clone(), true))?);
+                } else {
+                    if associate {
+                        return Err(bad(
+                            "hatchedit",
+                            "exact edge paths can be recreated as native curves, but cannot be linked through polyline refill",
+                        ));
+                    }
+                    for primitive in l.primitives() {
+                        let kind = match primitive {
+                            cadcraft_doc::Prim::Seg(cadcraft_geom::Segment::Line(line)) => {
+                                EntityKind::Line(cadcraft_doc::Line { a: line.a.to3(h.elevation), b: line.b.to3(h.elevation) })
+                            }
+                            cadcraft_doc::Prim::Seg(cadcraft_geom::Segment::Arc { arc, .. }) => EntityKind::Arc(cadcraft_doc::Arc {
+                                center: arc.center.to3(h.elevation),
+                                radius: arc.radius,
+                                start: arc.start,
+                                end: arc.end,
+                            }),
+                            cadcraft_doc::Prim::Ellipse(ellipse) => EntityKind::Ellipse(cadcraft_doc::Ellipse {
+                                center: ellipse.center.to3(h.elevation),
+                                major: ellipse.major.to3(0.0),
+                                ratio: ellipse.ratio,
+                                start: ellipse.start,
+                                end: ellipse.end,
+                            }),
+                            cadcraft_doc::Prim::Spline(spline) => EntityKind::Spline(spline),
+                            _ => return Err(bad("hatchedit", "unsupported exact boundary primitive")),
+                        };
+                        new.push(s.add_entity(kind)?);
+                    }
+                }
             }
             if associate {
                 for (l, n) in h.loops.iter_mut().zip(&new) {

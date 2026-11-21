@@ -8,7 +8,7 @@
   "properties": {
     "jsonrpc": {"const": "2.0"},
     "id": {"type": ["integer", "string", "null"], "description": "JSON-RPC string or null IDs are accepted. Numeric IDs must be integer JSON tokens in serde_json's i64/u64 range; fractional/exponent tokens are refused by integer_ids_only=true. That shared-library option does not prohibit strings."},
-    "method": {"enum": ["v1.capabilities", "v1.load", "v1.view", "v1.preview", "v1.source_status", "v1.references", "v1.resolve_point"]},
+    "method": {"enum": ["v1.capabilities", "v1.load", "v1.view", "v1.section", "v1.preview", "v1.source_status", "v1.references", "v1.resolve_point"]},
     "params": {"type": "object"}
   },
   "allOf": [
@@ -37,6 +37,28 @@
           }
         }}
       }
+    },
+    {
+      "if": {"properties": {"method": {"const": "v1.section"}}},
+      "then": {"required": ["params"], "properties": {"params": {
+        "type": "object", "additionalProperties": false,
+        "required": ["source_sha256", "plane", "kept_side", "direction", "up"],
+        "properties": {
+          "source_sha256": {"$ref": "#/$defs/digest"},
+          "plane": {
+            "type": "object", "additionalProperties": false, "required": ["origin", "normal"],
+            "properties": {
+              "origin": {"$ref": "#/$defs/vector", "description": "World-millimetre point on the actual cutting plane; components bounded to +/-1e6."},
+              "normal": {"$ref": "#/$defs/vector", "description": "Nonzero finite normal, normalized before the exact half-space operation."}
+            }
+          },
+          "kept_side": {"enum": ["positive", "negative"], "description": "Positive keeps normal dot (world-origin)>=0; negative keeps <=0. No implicit camera-side choice."},
+          "direction": {"$ref": "#/$defs/vector", "description": "Must be normal to the plane, looking into the kept side (unit-vector cross norm <=1e-9, positive dot). General foreshortened cap views are explicitly refused."},
+          "up": {"$ref": "#/$defs/vector"},
+          "require_analytic": {"type": "boolean", "default": false, "description": "The unchanged conservative ordinary HLR acceptance policy applies to the CUT result; all cap curves must read exactly even when this is false. No uncertain-piece omission or fallback."},
+          "exclude_bodies": {"type": "array", "maxItems": 32, "uniqueItems": true, "default": [], "items": {"type": "integer", "minimum": 0, "maximum": 31}, "description": "Original v1.load body indices, not compact result indices. Every index must exist. Excluded bodies are absent from HLR and caps but retain explicit disposition entries. Hidden bodies are otherwise included."}
+        }
+      }}}
     },
     {
       "if": {"properties": {"method": {"const": "v1.preview"}}},
@@ -124,6 +146,62 @@
         "else": {"not": {"required": ["point"]}, "required": ["reason"]}
       }]
     },
+    "point2": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"type": "number", "minimum": -1000000, "maximum": 1000000}},
+    "cap_segment": {
+      "description": "Exact upstream native planar Seg2, never a cap polygonization. Conic is a rational quadratic whose endpoint weights are 1. Upstream planar recognition tolerance is retained per cap; this is not a symbolic or certified global-error claim.",
+      "oneOf": [
+        {"type":"object","additionalProperties":false,"required":["type","a","b"],"properties":{"type":{"const":"line"},"a":{"$ref":"#/$defs/point2"},"b":{"$ref":"#/$defs/point2"}}},
+        {"type":"object","additionalProperties":false,"required":["type","center","radius","start","sweep"],"properties":{"type":{"const":"arc"},"center":{"$ref":"#/$defs/point2"},"radius":{"type":"number","exclusiveMinimum":0},"start":{"type":"number"},"sweep":{"type":"number"}}},
+        {"type":"object","additionalProperties":false,"required":["type","p0","p1","p2","p3"],"properties":{"type":{"const":"cubic"},"p0":{"$ref":"#/$defs/point2"},"p1":{"$ref":"#/$defs/point2"},"p2":{"$ref":"#/$defs/point2"},"p3":{"$ref":"#/$defs/point2"}}},
+        {"type":"object","additionalProperties":false,"required":["type","a","apex","b","w"],"properties":{"type":{"const":"conic"},"a":{"$ref":"#/$defs/point2"},"apex":{"$ref":"#/$defs/point2"},"b":{"$ref":"#/$defs/point2"},"w":{"type":"number","exclusiveMinimum":0}}},
+        {"type":"object","additionalProperties":false,"required":["type","n","p"],"properties":{"type":{"const":"bezier"},"n":{"type":"integer","minimum":4,"maximum":9},"p":{"type":"array","minItems":10,"maxItems":10,"items":{"$ref":"#/$defs/point2"}}}}
+      ]
+    },
+    "cap_loop": {"type":"object","additionalProperties":false,"required":["segs"],"properties":{"segs":{"type":"array","minItems":1,"maxItems":10000,"items":{"$ref":"#/$defs/cap_segment"}}}},
+    "cap_region": {"type":"object","additionalProperties":false,"required":["outer","holes"],"properties":{"outer":{"$ref":"#/$defs/cap_loop"},"holes":{"type":"array","maxItems":10000,"items":{"$ref":"#/$defs/cap_loop"}}}},
+    "section_result": {
+      "type":"object",
+      "required":["protocol","source","units","basis","scale","quality","prepare_reports","drawing","source_mapping","visibility_contract","section"],
+      "properties": {
+        "protocol":{"const":"cadcraft-section/1"},
+        "source":{"type":"object","required":["sha256","bytes"],"properties":{"sha256":{"$ref":"#/$defs/digest"},"bytes":{"type":"integer","minimum":0,"maximum":8388608}}},
+        "units":{"type":"object"},"basis":{"type":"object"},"scale":{"const":1},"quality":{"type":"object"},"prepare_reports":{"type":"array","maxItems":32},"drawing":{"type":"object"},
+        "source_mapping":{"type":"string"},"visibility_contract":{"const":"raw_uncertain_and_covered_preserved_no_mesh_fallback"},
+        "section":{
+          "type":"object","additionalProperties":false,
+          "required":["plane","kept_side","status","bodies","caps","topology_identity","cap_coordinates","cap_contract","atomicity"],
+          "properties":{
+            "plane":{"type":"object","required":["origin","normal"],"properties":{"origin":{"$ref":"#/$defs/vector"},"normal":{"$ref":"#/$defs/vector"}}},
+            "kept_side":{"enum":["positive","negative"]},"status":{"enum":["empty","nonempty"]},
+            "topology_identity":{"const":"section_result_local_only"},
+            "cap_coordinates":{"const":"world_origin_screen_mm_same_basis_and_scale_as_drawing"},
+            "cap_contract":{"const":"outer_ccw_holes_cw_exact_segments_no_polygonization_no_paper_hatch_spacing"},
+            "atomicity":{"const":"all_selected_bodies_and_caps_or_error_source_snapshot_unchanged"},
+            "bodies":{"type":"array","maxItems":32,"items":{
+              "type":"object","additionalProperties":false,"required":["source_body","source_placement","result_body","status"],
+              "properties":{
+                "source_body":{"type":"integer","minimum":0,"maximum":31},"source_placement":{"type":"integer","minimum":0,"maximum":31},
+                "result_body":{"type":["integer","null"],"minimum":0,"maximum":31},"status":{"enum":["excluded","removed","retained","cut"]},
+                "topology":{"type":"object","required":["faces","edges","vertices","shells"],"additionalProperties":{"type":"integer","minimum":0,"maximum":10000}}
+              }
+            }},
+            "caps":{"type":"array","maxItems":10000,"items":{
+              "type":"object","additionalProperties":false,"required":["source_body","source_placement","result_body","face","region","provenance"],
+              "properties":{
+                "source_body":{"type":"integer","minimum":0,"maximum":31},"source_placement":{"type":"integer","minimum":0,"maximum":31},
+                "result_body":{"type":"integer","minimum":0,"maximum":31},"face":{"type":"integer","minimum":0,"maximum":9999},
+                "region":{"$ref":"#/$defs/cap_region"},
+                "provenance":{"type":"object","required":["kind","operands","face_origins","change","planar_read_tolerance_mm","curve_contract","topology_identity"],
+                  "properties":{"kind":{"const":"half_space_boolean_history"},"operands":{"const":["original_source_body","half_space_tool"]},
+                    "face_origins":{"type":"array","minItems":1},"change":{"type":"string"},"planar_read_tolerance_mm":{"type":"number","exclusiveMinimum":0},
+                    "curve_contract":{"const":"upstream_exact_native_planar_read_with_reported_recognition_tolerance_not_symbolic_certificate"},
+                    "topology_identity":{"const":"section_result_local_only"}}}
+              }
+            }}
+          }
+        }
+      }
+    },
     "vector": {"type": "array", "minItems": 3, "maxItems": 3, "items": {"type": "number", "minimum": -1000000, "maximum": 1000000}, "description": "Finite vector, normalized by HLR. Direction must be nonzero and not parallel to up."}
   },
   "x-result-contract": {
@@ -132,6 +210,7 @@
     "native_admission": "Only known native designs and authoritative exact embedded STEP/record blobs are admitted; blob digests are checked by the upstream bounded container Reader. Non-import resource blobs, native mesh features, newer/unknown document geometry, custom font resources, failed parameter/features, conflicting joint solves and unsettled assembly feedback are refused without changing the prior snapshot. All embedded STEP expressions, native JSON structure and native assembly paths have depth/work limits. Native joint/link counts are separately bounded before the upstream dense loop solver. No external model links are refreshed; their saved embedded snapshot, if present, is evaluated. No plugins/GUI or solidcraft-io/engine heavy exporter/importer closure is linked.",
     "measure": "Per body status=ok contains upstream BodyMeasure, numerical integration on exact surfaces, not symbolic arithmetic or a certified relative-error bound; volume_valid=false for open bodies. status=error preserves failure without inventing a value. Legacy measured_by=smlib means the pinned pure-Rust SolidCore wrapper; mesh-only imports are refused.",
     "v1.view": "source, normalized millimetre units, orthonormal basis x/y/direction, scale=1, quality and prepare_reports, raw upstream HLR Drawing. Drawing lines retain placement/source, source parameter interval t, visibility visible/hidden/uncertain, covered, accuracy analytic/bounded/sampled and raw Seg2 geometry. Seg2 type=conic {a,apex,b,w} is a rational quadratic with endpoint weights 1 and must NOT be chorded or relabelled exact by consumers. Unsupported face flags are preserved. HLR indices are result-local record indices; STEP/IGES face_origin, when present, maps faces to payload-scoped entities. Native document/feature/body identifiers are not a guarantee of topology matching across edits/rebuilds. phase_ms is nondeterministic timing, not geometry identity.",
+    "v1.section": "Result is $defs.section_result: ordinary raw HLR contract applied ONLY to exact half-space boolean results, plus exact cut-cap Region2 outer/holes in the same world-origin screen-mm basis. Plane and kept side are explicit; view must look perpendicular into the kept side. Uses public half_space and planar_edges; reports the upstream planar recognition tolerance, not a symbolic/global-error certificate. No fitting/polygonization of multi-span splines: unsupported/unreadable curves, vertex/degenerate/nonclosed/inconsistently oriented cap loops, missing/invalid boolean history and open/refused selected bodies atomically reject the query. A candidate cap must face out of the kept side and its history must reference valid original faces or half-space plane faces. Exact planar subtraction removes original outward coplanar regions, including their contribution to merged faces, instead of dropping the whole merged face or hatching the pre-existing region; provenance reports the excluded originals and boundary operation. Bodies merely touching the plane get no cap. section.bodies has ONE entry per ORIGINAL loaded body in loaded order, including excluded and removed entries with result_body=null; retained means nonempty without new caps, cut means at least one traced cap. Drawing placement/body and cap face/edge indices are compact SECTION-RESULT-LOCAL, never v1.references indices; resolve through section.bodies to source placement, not persistent topology. Source geometry, native evaluation/naming state and later ordinary view/reference calls remain unchanged. Entire removal/exclusion returns explicit empty status and empty HLR/caps, never cached original geometry. Per selected source bounds and plane origin components <=1e6 mm, aggregate result topology <=10000, total cap segments <=10000, existing response/work/supervised limits apply. No hatch angle or paper spacing baked in.",
     "v1.source_status": "loaded and current content fingerprint; changed compares digest and byte count. Rereads exactly the loaded requested path under the same root/file bounds. Deleted, unreadable or newly denied paths return typed file/path errors, not unchanged. Does not reload or nearest-match topology.",
     "v1.preview": "Display-only upstream tessellation, never drawing/measurement authority. World-coordinate positions, triangle indices and payload-scoped tri_face per placement; no placement reapplication. Detail 1..8 controls requested chord: max(body size * 0.01/detail, 0.001 mm), with upstream floor at body size*1e-6 and normal display-angle policy. Missing faces and evaluator refusals are retained explicitly; global chord-error bounds are not certified. Output has at most 100000 triangles and 200000 vertices in total, also bounded by the existing response-size/deadline policy; not an OS memory sandbox. Preview never changes exact source or HLR geometry.",
     "v1.references": "Result is $defs.references_result. Enumerates exact source edges/faces per placement, not HLR fragments or preview triangles. Retains actual upstream Document and evaluated Model/NameCells. Validates each body/placement naming binding through Document.edge_reference/face_reference, then enumerates the actual cached naming tables without quadratic repeated picking; resolution checks Document.finds_one. verified_upstream_history requires upstream face_name_exact and unique names; edges additionally require an unnumbered persistent name. Geometry-derived names remain unverified_upstream_name even when their current exact edge is measurable. Discovery refuses oversized names/tokens/aggregate responses atomically, never silently truncates.",
@@ -149,10 +228,12 @@
     "hlr_tracks": 4096, "hlr_rays": 500000, "hlr_trim_samples": 256, "hlr_threads": 1,
     "preview_triangles": 100000, "preview_vertices": 200000,
     "reference_token_bytes": 8192, "reference_name_bytes": 1024, "discovery_token_bytes_total": 4194304,
+    "section_source_and_plane_coordinate_abs_mm": 1000000, "section_topology_items_total": 10000,
+    "section_cap_segments_total": 10000, "section_excluded_body_indices": 32,
     "cooperative_seconds": 30, "supervised_hard_seconds": 40,
     "notes": "Safe supervisor kills the separate kernel child at the hard per-request deadline. Cooperative kernel/HLR checks return earlier. Input-derived imported body/topology counts are checked after upstream import/evaluation, native placed-body count is also checked before world placement. This is not a hard memory sandbox. Native upstream container budget refusals are import_failed errors; explicit worker budget refusals are resource_limit errors. Direct Rust library use is cooperative only; use the binary for hard deadlines. Oversized frames close rather than draining arbitrary input. serde_json default depth limit remains enabled, with a stricter worker native structure depth bound."
   },
-  "x-known-gaps": ["prototype, not production bridge", "native resource blobs other than exact STEP/records are refused", "custom font resources refused", "native constraints or placement feedback that do not settle are refused", "no section/perspective API", "no general persistent topology matching; native rebuild continuity only in the documented verified literal-parameter scheme", "original STEP/IGES source unit declaration not exposed; geometry is normalized to mm", "no certified general freeform silhouettes", "no hard OS memory/filesystem sandbox"],
+  "x-known-gaps": ["prototype, not production bridge", "native resource blobs other than exact STEP/records are refused", "custom font resources refused", "native constraints or placement feedback that do not settle are refused", "no perspective API", "stepped/aligned/local and nonnormal section views are not this one-plane primitive", "multi-span spline cap boundaries are explicitly refused, never fitted or omitted", "no general persistent topology matching; native rebuild continuity only in the documented verified literal-parameter scheme", "original STEP/IGES source unit declaration not exposed; geometry is normalized to mm", "no certified general freeform silhouettes", "no hard OS memory/filesystem sandbox"],
   "x-commands-from-repository-root": [
     "cargo build --locked --manifest-path tools/solidcraft-bridge/Cargo.toml",
     "cargo test --locked --manifest-path tools/solidcraft-bridge/Cargo.toml --all-targets",
@@ -167,5 +248,5 @@
     {"jsonrpc":"2.0","id":3,"method":"v1.source_status","params":{}}
   ],
   "x-view-example": "Send v1.view with params {source_sha256:<digest from v1.load>,direction:[1,1,1],up:[0,0,1],require_analytic:false}. Inspect drawing.lines[].pieces[].geometry[] for type=conic and preserve all quality/visibility fields. Strict true is a separate acceptance policy, not a curve fitting tolerance.",
-  "x-verification-status": "2026-11-21 prior worker regression evidence: 13 passed (6 geometry, 4 native, 2 transport, 1 unit); prior all-targets Clippy -D warnings passed. Reference slice adds genuine native sketch/extrusion save/rebuild/new-session geometry, loss/suppression/path, unverified naming and neutral STEP/IGES fraction/change tests plus supervised transport coverage. These additions have not been run by the slice worker; main integration owns final checks. No universal topology or whole-product acceptance claim."
+  "x-verification-status": "2026-11-21 prior worker regression evidence: 13 passed (6 geometry, 4 native, 2 transport, 1 unit); prior all-targets Clippy -D warnings passed. Reference and section slices add genuine geometry/native and supervised transport regressions. Section coverage includes annular hole/curve/history retention, oblique exact conic or explicit refusal, tangent original faces, complete removal, original body mapping/exclusion, suppression and failed-call/source immutability. New slice checks are not run by slice workers; main integration owns final checks. No universal topology or whole-product acceptance claim."
 }

@@ -1346,6 +1346,10 @@
 	Refresh Linked Model Source	Обновить источник связанной модели
 	Remove Linked Model	Удалить связь с моделью
 	Create Exact Model View	Создать точный вид модели
+	Exact Model References	Точные ссылки на геометрию модели
+	Resolve Exact Model Point	Вычислить точную точку модели
+	Exact Model Dimension	Размер точной модели
+	Inspect Exact Model Dimension	Сведения о размере точной модели
 	3D models (SolidCraft, STEP, IGES)	3D-модели (SolidCraft, STEP, IGES)
 	Importing 3D model…	Импорт 3D-модели…
 	Refreshing model source…	Обновление источника модели…
@@ -1383,3 +1387,13 @@
 	Display mesh only; never use it for dimensions or projections.	Сетка только для просмотра. Не использовать для размеров и чертёжных проекций.
 	Drag to orbit; right-drag to pan; wheel to zoom.	Вращение — перетаскивание; панорамирование — правая кнопка; масштаб — колесо.
 	Updating model preview…	Обновление 3D-просмотра…
+	Loading exact model edges…	Загрузка точных рёбер модели…
+	Resolving exact model dimension…	Вычисление точного размера модели…
+	Load exact model edges	Загрузить точные рёбра модели
+	Anchors use trimmed-edge arc-length fractions in source millimetres, not the display mesh.	Привязки задаются долей длины точного ребра в миллиметрах модели, а не сеткой просмотра.
+	First exact anchor	Первая точная привязка
+	Second exact anchor	Вторая точная привязка
+	Arc-length fraction: 	Доля длины ребра: 
+	Aligned: true 3D distance	Параллельный: истинное расстояние в 3D
+	Paper offset, mm	Отступ на листе, мм
+	Create exact dimension	Создать точный размер

@@ -109,6 +109,7 @@ fn sample() -> Drawing {
             pattern: "ANSI31".into(),
             solid: false,
             loops: vec![HatchLoop {
+                edges: Vec::new(),
                 vertices: vec![PolyVertex::new(Vec2::ZERO), PolyVertex::new(Vec2::new(2.0, 0.0)), PolyVertex::new(Vec2::new(2.0, 2.0))],
                 outer: true,
                 sources: Vec::new(),
@@ -2389,7 +2390,7 @@ fn gradient_sample() -> (Drawing, Vec<Option<Gradient>>) {
         let h = Hatch {
             pattern: "SOLID".into(),
             solid: true,
-            loops: vec![HatchLoop { vertices: square.clone(), outer: true, sources: Vec::new() }],
+            loops: vec![HatchLoop { edges: Vec::new(), vertices: square.clone(), outer: true, sources: Vec::new() }],
             scale: 1.0,
             angle: 0.0,
             associative: false,
@@ -2817,28 +2818,24 @@ fn hatch_edges_keep_full_circles_splines_and_clockwise_ellipses() {
     near(hatch_edge_extents(&ellipse(1)), [-5.0, 0.0, 5.0, 2.5]);
 }
 
-/// Issue #923: a HATCH spline edge caps its degree at 10 like the SPLINE reader does, both when the
-/// knots are valid for the stated degree and when the reader falls back to the control polygon.
+/// A high-degree authoritative edge must not be silently replaced by a lower-degree curve.
 #[test]
-fn hatch_spline_edge_caps_degree_like_spline() {
+fn hatch_spline_edge_preserves_valid_degree_and_refuses_missing_knots() {
     let control: Vec<Vec2> = (0..13).map(|i| Vec2::new(f64::from(i), f64::from(i % 2) * 10.0)).collect();
     let points: String = control.iter().map(|c| format!("10\n{}\n20\n{}\n", c.x, c.y)).collect();
     let close = "72\n1\n10\n12\n20\n0\n11\n0\n21\n0\n";
-    // The degree-10 curve over the same controls, which is what the capped edge must produce.
-    let want = cadcraft_geom::Spline::from_control(control, 10).tessellate(1e-3);
-    let (mut lo, mut hi) = (Vec2::new(f64::MAX, f64::MAX), Vec2::new(f64::MIN, f64::MIN));
-    for p in &want {
-        (lo, hi) = (Vec2::new(lo.x.min(p.x), lo.y.min(p.y)), Vec2::new(hi.x.max(p.x), hi.y.max(p.y)));
-    }
-    // Degree 12 with 13 controls: a valid knot vector has 26 knots; the second edge gives none.
     let knots = format!("{}{}", "40\n0\n".repeat(13), "40\n1\n".repeat(13));
-    for (nk, knots) in [(26, knots.as_str()), (0, "")] {
-        let edge = format!("72\n4\n94\n12\n73\n0\n74\n0\n95\n{nk}\n96\n13\n{knots}{points}97\n0\n{close}");
-        let b = hatch_edge_extents(&edge);
-        for (got, want) in [(b.min.x, lo.x), (b.min.y, lo.y), (b.max.x, hi.x), (b.max.y, hi.y)] {
-            assert!((got - want).abs() < 1e-6, "extents {b:?}, want {lo:?} {hi:?} (knots {nk})");
-        }
+    let edges = format!("72\n4\n94\n12\n73\n0\n74\n0\n95\n26\n96\n13\n{knots}{points}97\n0\n{close}");
+    let text = format!("0\nSECTION\n2\nENTITIES\n0\nHATCH\n2\nSOLID\n70\n1\n91\n1\n92\n1\n93\n2\n{edges}97\n0\n75\n0\n0\nENDSEC\n0\nEOF\n");
+    let drawing = read(text.as_bytes(), "h.dxf").unwrap();
+    let expected = cadcraft_geom::Spline::from_control(control, 12);
+    let hatch = first(&drawing, |kind| if let EntityKind::Hatch(hatch) = kind { Some(hatch.clone()) } else { None });
+    let cadcraft_doc::HatchEdge::Spline(actual) = &hatch.loops[0].edges[0] else { panic!("expected exact spline boundary") };
+    for t in [0.1, 0.25, 0.6, 0.9] {
+        assert!(actual.eval(t).near(expected.eval(t), 1e-10), "degree conversion distorted the authoritative edge at {t}");
     }
+    let invalid = format!("72\n4\n94\n12\n73\n0\n74\n0\n95\n0\n96\n13\n{points}97\n0\n{close}");
+    assert!(hatch_edge_extents(&invalid).is_empty(), "missing knots must not invent a fitted boundary");
 }
 
 #[test]

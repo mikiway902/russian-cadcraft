@@ -130,12 +130,12 @@ pub(crate) fn detach(h: &mut Hatch) {
 /// island, keeps the rest unchanged).
 fn reshaped(prev: &Hatch, h: &Hatch) -> bool {
     if prev.loops.len() == h.loops.len() {
-        return prev.loops.iter().zip(&h.loops).any(|(a, b)| a.vertices != b.vertices);
+        return prev.loops.iter().zip(&h.loops).any(|(a, b)| a.vertices != b.vertices || a.edges != b.edges);
     }
     if prev.loops.len().saturating_mul(h.loops.len()) > 4_000_000 {
         return true;
     }
-    h.loops.iter().any(|l| !prev.loops.iter().any(|q| q.vertices == l.vertices))
+    h.loops.iter().any(|l| !prev.loops.iter().any(|q| q.vertices == l.vertices && q.edges == l.edges))
 }
 
 /// HATCHEDIT may add or remove whole loops without moving the ones it kept. New associative
@@ -145,8 +145,8 @@ fn valid_loop_edit(prev: &Hatch, h: &Hatch, after: &Drawing) -> bool {
         return false;
     }
     h.loops.iter().all(|l| {
-        prev.loops.iter().any(|old| old.vertices == l.vertices)
-            || (!l.sources.is_empty() && matches!(refill(after, after, l), Refill::Loop(vs) if same_shape(&vs, &l.vertices)))
+        prev.loops.iter().any(|old| old.vertices == l.vertices && old.edges == l.edges)
+            || (l.edges.is_empty() && !l.sources.is_empty() && matches!(refill(after, after, l), Refill::Loop(vs) if same_shape(&vs, &l.vertices)))
     })
 }
 
@@ -158,6 +158,16 @@ fn follow(before: &Drawing, after: &Drawing, handle: Handle, h: &Hatch, checked:
     };
     let touched = h.loops.iter().flat_map(|l| &l.sources).any(|s| changed(before, after, *s));
     let mut nh = h.clone();
+    if touched && h.loops.iter().any(|ring| !ring.edges.is_empty()) {
+        detach(&mut nh);
+        return Some((
+            nh,
+            Some(format!(
+                "Hatch {}: exact edge-path source changed; boundary retained without approximation and detached for manual update.",
+                handle.hex()
+            )),
+        ));
+    }
     if !touched {
         if let (Some(x), Some(y)) = (before.entity(handle), after.entity(handle))
             && Arc::ptr_eq(x, y)
@@ -176,9 +186,10 @@ fn follow(before: &Drawing, after: &Drawing, handle: Handle, h: &Hatch, checked:
                 // loops are where its objects are.
                 *checked += 1;
                 let fits = *checked <= MAX_NEW_CHECKED
-                    && h.loops
-                        .iter()
-                        .all(|l| l.sources.is_empty() || matches!(refill(after, after, l), Refill::Loop(vs) if same_shape(&vs, &l.vertices)));
+                    && h.loops.iter().all(|l| {
+                        l.sources.is_empty()
+                            || (l.edges.is_empty() && matches!(refill(after, after, l), Refill::Loop(vs) if same_shape(&vs, &l.vertices)))
+                    });
                 if fits {
                     return None;
                 }
@@ -197,7 +208,7 @@ fn follow(before: &Drawing, after: &Drawing, handle: Handle, h: &Hatch, checked:
         match refill(from, after, l) {
             Refill::Loop(vertices) => {
                 let sources = l.sources.iter().copied().filter(|s| exists(after, *s)).take(MAX_SOURCES).collect();
-                loops.push(HatchLoop { vertices, outer: l.outer, sources });
+                loops.push(HatchLoop { edges: Vec::new(), vertices, outer: l.outer, sources });
             }
             // An erased island: the hatch fills its area.
             Refill::Erased if !l.outer => {}

@@ -14,7 +14,9 @@ pub(super) const HOOKS: ClipboardHooks = ClipboardHooks { prepare_blocks: None, 
 pub(super) const COPY_HOOKS: CopyHooks = CopyHooks { tracks, apply: copied };
 
 fn managed(e: &Entity) -> Result<bool> {
-    Ok(data::load::<ViewLink>(&e.common, VIEW)?.is_some() || data::load::<Value>(&e.common, PIECE)?.is_some())
+    Ok(data::load::<ViewLink>(&e.common, VIEW)?.is_some()
+        || data::load::<Value>(&e.common, PIECE)?.is_some()
+        || data::load::<super::dimensions::Link>(&e.common, super::dimensions::DIM)?.is_some())
 }
 
 fn references(e: &Entity) -> Option<&str> {
@@ -84,6 +86,15 @@ impl Needed {
             }
             self.models.insert(id.clone());
             self.pieces.insert((id, sha));
+            linked = true;
+        }
+        if let Some(link) = data::load::<super::dimensions::Link>(&e.common, super::dimensions::DIM)? {
+            super::dimensions::validate(&link)?;
+            if !matches!(e.kind, EntityKind::Dimension(_)) {
+                return Err(err("exact dimension association is not on a native dimension"));
+            }
+            self.models.insert(link.model_id);
+            self.views.insert(link.view);
             linked = true;
         }
         if linked && let Some(block) = block {
@@ -297,6 +308,19 @@ fn install(d: &mut Drawing, defs: &Drawing, pairs: &[CopyPair], renames: &BTreeM
             data::save(&mut common, VIEW, &link)?;
             return Ok(Some(common));
         }
+        if let Some(mut link) = data::load::<super::dimensions::Link>(&e.common, super::dimensions::DIM)? {
+            super::dimensions::validate(&link)?;
+            let saved = source.views.iter().find(|v| v.handle == link.view).ok_or_else(|| err("clipboard exact dimension saved view missing"))?;
+            if saved.model_id != link.model_id || saved.source.sha256 != link.source_sha256 {
+                return Err(err("clipboard exact dimension source snapshot mismatch"));
+            }
+            link.model_id = ids.get(&link.model_id).ok_or_else(|| err("clipboard dimension model mapping missing"))?.clone();
+            // Missing views get reserved fresh handles, never destination-local or original IDs.
+            link.view = view_handles.get(&link.view).ok_or_else(|| err("clipboard dimension view mapping missing"))?.clone();
+            let mut common = e.common.clone();
+            data::save(&mut common, super::dimensions::DIM, &link)?;
+            return Ok(Some(common));
+        }
         if let Some(mut piece) = data::load::<Value>(&e.common, PIECE)? {
             let id = text(&piece, "model_id")?;
             let new = ids.get(id).ok_or_else(|| err("clipboard curve model mapping missing"))?;
@@ -336,6 +360,21 @@ fn install(d: &mut Drawing, defs: &Drawing, pairs: &[CopyPair], renames: &BTreeM
     for block in d.blocks.values_mut() {
         if block.entities.iter().any(|e| updates.contains_key(&e.handle)) {
             apply_updates(&mut Arc::make_mut(block).entities, &mut updates);
+        }
+        let mut nested = Vec::new();
+        for e in block.entities.iter().filter(|e| reverse.contains_key(&e.handle)) {
+            if let Some((common, dimension)) = super::dimensions::nested_copy(e)? {
+                nested.push((e.handle, common, dimension));
+            }
+        }
+        if !nested.is_empty() {
+            let block = Arc::make_mut(block);
+            for (h, common, dimension) in nested {
+                block.entities.modify(h, |e| {
+                    e.common = common;
+                    e.kind = EntityKind::Dimension(dimension);
+                });
+            }
         }
     }
     if !updates.is_empty() {

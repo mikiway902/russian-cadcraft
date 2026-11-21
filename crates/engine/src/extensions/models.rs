@@ -18,6 +18,7 @@ use std::{
 };
 
 mod clipboard;
+pub mod dimensions;
 
 const RECORD: &str = "CADCRAFT_GOST_LINKED_MODELS";
 const VIEW: &str = "linked-model-view";
@@ -33,7 +34,7 @@ pub(super) const EXTENSION: super::Extension = super::Extension {
     version: 1,
     commands: specs,
     drawing_preset: None,
-    document_changed: |_, _| Ok(()),
+    document_changed: |s, e| dimensions::after_command(s, e.before, e.uid),
     command_override: None,
     copy: Some(clipboard::COPY_HOOKS),
     clipboard: Some(clipboard::HOOKS),
@@ -317,7 +318,7 @@ fn describe(d: &Drawing, store: &Store, m: &Model) -> Result<Value> {
     Ok(json!({"id":m.id,"revision":m.revision,"path":m.path,"source":m.source,"metadata":m.metadata,"views":views}))
 }
 fn specs() -> Vec<CommandSpec> {
-    vec![
+    let mut commands = vec![
         CommandSpec::new("gost.model.import", "Import Linked Model", import).params("{path}; explicit native/STEP/IGES source; no preview geometry"),
         CommandSpec::new("gost.model.list", "Linked 3D Models", list).menu(&["Format", "GOST", "Linked 3D Models"]).params("{}; linked source metadata and frozen-view staleness").noundo(),
         CommandSpec::new("gost.model.inspect", "Inspect Linked Model", inspect).params("{id}; full source metadata, quality and provenance").noundo(),
@@ -325,7 +326,12 @@ fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("gost.model.refresh", "Refresh Linked Model Source", refresh).params("{id,path?}; explicitly replace linked revision, never regenerate saved views"),
         CommandSpec::new("gost.model.remove", "Remove Linked Model", remove).params("{id}; refuses any dependent native view"),
         CommandSpec::new("gost.model.view", "Create Exact Model View", view).params("{id,layout?,at?:[x,y],direction?:front|rear|top|bottom|left|right|isometric|[x,y,z],up?:[x,y,z],scale?:model mm per paper mm,hidden?:bool,accept_incomplete?:false}; frozen editable native curves, no mesh fallback"),
-    ]
+    ];
+    commands.extend(dimensions::specs());
+    commands
+}
+pub(super) fn dimension_factor(d: &Drawing, e: &Entity) -> Option<f64> {
+    dimensions::dimension_factor(d, e)
 }
 fn import(s: &mut Session, p: &Value) -> Result<Value> {
     keys(p, &["path"])?;

@@ -1,16 +1,44 @@
 use super::common::Handle;
-use super::{Color, Deserialize, PolyVertex, Serialize, Vec2, one};
+use super::{Color, Deserialize, HatchEdge, PolyVertex, Serialize, Vec2, one};
 
-/// A hatch boundary loop: closed polyline with bulges.
+/// A closed hatch boundary: either polyline/bulges or exact directed edges, never both.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(try_from = "HatchLoopInput")]
 pub struct HatchLoop {
+    #[serde(default)]
     pub vertices: Vec<PolyVertex>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub edges: Vec<HatchEdge>,
     #[serde(default)]
     pub outer: bool,
     /// The objects the loop was made from (DXF group 97 count, 330 handles): an associative
     /// hatch re-fills the loop from them when they change.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub sources: Vec<Handle>,
+}
+
+#[derive(Deserialize)]
+struct HatchLoopInput {
+    #[serde(default)]
+    vertices: Vec<PolyVertex>,
+    #[serde(default)]
+    edges: Vec<HatchEdge>,
+    #[serde(default)]
+    outer: bool,
+    #[serde(default)]
+    sources: Vec<Handle>,
+}
+impl TryFrom<HatchLoopInput> for HatchLoop {
+    type Error = &'static str;
+    fn try_from(input: HatchLoopInput) -> Result<Self, Self::Error> {
+        if !input.vertices.is_empty() && !input.edges.is_empty() {
+            return Err("hatch boundary cannot contain both polyline vertices and exact edges");
+        }
+        if input.edges.iter().any(|edge| !edge.is_valid()) {
+            return Err("hatch boundary has an invalid exact edge");
+        }
+        Ok(Self { vertices: input.vertices, edges: input.edges, outer: input.outer, sources: input.sources })
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

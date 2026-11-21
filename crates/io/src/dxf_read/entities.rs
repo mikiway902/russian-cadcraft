@@ -238,6 +238,31 @@ pub(super) fn entity_with_table_budget(kind: &str, tags: &[Tag], table_cells_lef
         "HATCH" => {
             let mut k = hatch(tags, &t)?;
             if let EntityKind::Hatch(h) = &mut k
+                && h.loops.iter().any(|ring| !ring.edges.is_empty())
+                && c.extrusion != Vec3::Z
+            {
+                // Project the OCS analytically, not by replacing boundary curves with chords.
+                let ocs = cadcraft_geom::Mat4::ocs(c.extrusion);
+                let origin = ocs.apply(Vec3::new(0.0, 0.0, h.elevation));
+                let x = ocs.apply(Vec3::new(1.0, 0.0, 0.0));
+                let y = ocs.apply(Vec3::new(0.0, 1.0, 0.0));
+                let matrix = cadcraft_geom::Mat3 { a: x.x, b: x.y, c: y.x, d: y.y, e: origin.x, f: origin.y };
+                if matrix.det().abs() < 1e-12 {
+                    return None; // An edge-on filled plane has no nondegenerate 2D hatch.
+                }
+                for ring in &mut h.loops {
+                    ring.transform(&matrix);
+                }
+                let angle = |a: f64| matrix.apply_vec(Vec2::from_angle(a)).angle();
+                h.angle = angle(h.angle);
+                if let Some(gradient) = &mut h.gradient {
+                    gradient.angle = angle(gradient.angle);
+                }
+                h.origin = matrix.apply(h.origin);
+                h.elevation = origin.z;
+                c.extrusion = Vec3::Z;
+            }
+            if let EntityKind::Hatch(h) = &mut k
                 && tilted(c.extrusion, h.loops.iter().flat_map(|l| run_points(&l.vertices, h.elevation, true)))
             {
                 // In a tilted plane (a terrain face, a slope): the boundary as seen from above,
@@ -269,9 +294,9 @@ pub(super) fn entity_with_table_budget(kind: &str, tags: &[Tag], table_cells_lef
                 && let EntityKind::Hatch(h) = &mut k
             {
                 // Boundary in the mirrored OCS, like LWPOLYLINE; the pattern direction mirrors too.
-                for v in h.loops.iter_mut().flat_map(|l| l.vertices.iter_mut()) {
-                    v.p.x = -v.p.x;
-                    v.bulge = -v.bulge;
+                let matrix = cadcraft_geom::Mat3::scale(-1.0, 1.0);
+                for ring in &mut h.loops {
+                    ring.transform(&matrix);
                 }
                 h.angle = cadcraft_geom::norm_angle(std::f64::consts::PI - h.angle);
             }

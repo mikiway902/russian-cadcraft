@@ -617,15 +617,23 @@ fn write_hatch_entity(w: &mut W, d: &Drawing, e: &Entity, owner: &str, paper: bo
         w.i(71, i64::from(h.associative));
         w.i(91, h.loops.len() as i64);
         for l in &h.loops {
-            w.i(92, 2 | if l.outer { 1 } else { 0 });
-            let has_bulge = l.vertices.iter().any(|v| v.bulge != 0.0);
-            w.i(72, i64::from(has_bulge));
-            w.i(73, 1);
-            w.i(93, l.vertices.len() as i64);
-            for v in &l.vertices {
-                w.p2(10, v.p);
-                if has_bulge {
-                    w.f(42, v.bulge);
+            if l.edges.is_empty() {
+                w.i(92, 2 | if l.outer { 1 } else { 0 });
+                let has_bulge = l.vertices.iter().any(|v| v.bulge != 0.0);
+                w.i(72, i64::from(has_bulge));
+                w.i(73, 1);
+                w.i(93, l.vertices.len() as i64);
+                for v in &l.vertices {
+                    w.p2(10, v.p);
+                    if has_bulge {
+                        w.f(42, v.bulge);
+                    }
+                }
+            } else {
+                w.i(92, i64::from(l.outer));
+                w.i(93, l.edges.len() as i64);
+                for edge in &l.edges {
+                    super::hatch_edges::write(w, edge);
                 }
             }
             // Source boundary objects of an associative hatch (the ones still beside it, in

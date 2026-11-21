@@ -115,10 +115,18 @@ impl Spline {
     }
 
     pub fn tessellate(&self, tol: f64) -> Vec<Vec2> {
-        if !self.is_valid() {
-            return self.control.clone();
+        let mut out = Vec::new();
+        self.tessellate_into(tol, &mut out);
+        out
+    }
+
+    /// Append a display tessellation without allocating an intermediate point buffer.
+    pub fn tessellate_into(&self, tol: f64, out: &mut Vec<Vec2>) {
+        if self.is_valid() {
+            out.extend(self.samples(self.sample_count(tol)));
+        } else {
+            out.extend_from_slice(&self.control);
         }
-        self.samples(self.sample_count(tol)).collect()
     }
 
     /// How many segments a tessellation at `tol` takes: the control-polygon length guides it,

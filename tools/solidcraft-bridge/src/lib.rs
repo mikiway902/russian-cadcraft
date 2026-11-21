@@ -26,6 +26,7 @@ use std::{
 mod native;
 mod preview;
 mod references;
+mod sections;
 
 pub const UPSTREAM_REV: &str = "c5f47e501169c7f0f9e8191b2541e689e2f018e8";
 pub const MAX_MESSAGE_BYTES: usize = 16 * 1024;
@@ -211,7 +212,7 @@ impl Worker {
                 Ok(json!({
                     "protocol": "cadcraft-model-worker/1", "stage": "prototype",
                     "upstream": {"revision": UPSTREAM_REV, "version": "0.45.0-rc.4"},
-                    "methods": ["v1.capabilities", "v1.load", "v1.view", "v1.preview", "v1.source_status", "v1.references", "v1.resolve_point"],
+                    "methods": ["v1.capabilities", "v1.load", "v1.view", "v1.section", "v1.preview", "v1.source_status", "v1.references", "v1.resolve_point"],
                     "formats": ["sc", "step", "stp", "iges", "igs"],
                     "projection": "orthographic_raw_hlr", "curves": ["line", "arc", "cubic", "conic", "bezier"],
                     "units": units(), "placements": "all_imported_bodies_already_placed_including_hidden",
@@ -231,6 +232,13 @@ impl Worker {
                         "native_continuity": "same_canonical_path_and_full_document_except_literal_independent_sizes_or_simple_extrude_distance/1",
                         "unverified_names": "snapshot_only_never_promoted_or_nearest_matched",
                         "step_iges": "payload_scoped_only"},
+                    "section": {"protocol": "cadcraft-section/1", "operation": "exact_half_space_boolean_then_raw_hlr",
+                        "kept_side": ["positive", "negative"], "view": "normal_to_plane_looking_into_kept_side",
+                        "caps": "exact_planar_segments_outer_ccw_holes_cw_no_polygonization",
+                        "topology_identity": "section_result_local_only",
+                        "excluded_body_indices": "original_v1_load_body_indices",
+                        "unsupported_caps": "atomic_geometry_error_never_omitted",
+                        "coordinate_limit_mm": sections::MAX_COORD, "cap_segments": sections::MAX_CAP_SEGMENTS},
                     "limits": {"request_bytes": MAX_MESSAGE_BYTES, "response_bytes": MAX_RESPONSE_BYTES,
                         "requests": MAX_REQUESTS, "batch_items": 1, "file_bytes": MAX_FILE_BYTES,
                         "bodies": MAX_BODIES, "topology_items": MAX_TOPOLOGY, "nesting": MAX_DEPTH,
@@ -240,12 +248,13 @@ impl Worker {
                         "preview_triangles": preview::MAX_TRIANGLES, "preview_vertices": preview::MAX_VERTICES,
                         "cooperative_work_seconds": WORK_SECONDS, "supervised_hard_work_seconds": 40, "hlr_threads": 1},
                     "gaps": ["general_persistent_topology_remapping",
-                        "perspective", "sections", "certified_freeform_silhouettes",
+                        "perspective", "stepped_aligned_local_sections", "certified_freeform_silhouettes",
                         "hard_memory_sandbox", "original_step_iges_unit_declaration", "path_race_against_concurrent_local_directory_mutation"]
                 }))
             }
             "v1.load" => self.load(params(parameters)?),
             "v1.view" => self.view(params(parameters)?),
+            "v1.section" => self.section(parameters),
             "v1.preview" => self.preview(params(parameters)?),
             "v1.references" => self.references(parameters),
             "v1.resolve_point" => self.resolve_point(parameters),
@@ -372,67 +381,70 @@ impl Worker {
 
     fn view(&self, request: ViewQuery) -> Result<Value, Error> {
         let model = self.model.as_ref().ok_or(Error::NoModel)?;
-        if request.source_sha256 != model.fingerprint.sha256 {
-            return Err(Error::StaleModel);
-        }
-        let vector = |[x, y, z]: [f64; 3]| -> Result<Vec3, Error> {
-            if [x, y, z].iter().any(|v| !v.is_finite() || v.abs() > 1e6) {
-                return Err(Error::Parameters("view vectors must be finite, components at most 1e6".into()));
-            }
-            Ok(Vec3::new(x, y, z))
-        };
-        let view = hlr::View::new(vector(request.direction)?, vector(request.up)?).map_err(|e| Error::Parameters(e.to_string()))?;
-        let options =
-            hlr::Options { tangent_edges: true, freeform: false, trim_samples: 256, max_tracks: MAX_TRACKS, max_rays: MAX_RAYS, threads: 1 };
-        let budget = Budget::new();
-        let mut prepared = Vec::new();
-        let mut placements = Vec::new();
-        for (index, imported) in model.bodies.iter().enumerate() {
-            budget.check()?;
-            prepared.push(
-                hlr::prepare_cancellable(imported.body.record(), &options, &|| budget.cancelled())
-                    .map_err(|e| Error::Geometry(format!("body {index}: {e}")))?,
-            );
-            placements.push(hlr::Placement { body: index, rotation: [Vec3::X, Vec3::Y, Vec3::Z], translation: Vec3::ZERO });
-        }
-        let drawing =
-            hlr::hidden_lines(&prepared, &placements, &view, &options, &|| budget.cancelled()).map_err(|e| Error::Geometry(e.to_string()))?;
-        budget.check()?;
-        let mut quality = Quality {
-            unsupported_faces: drawing.unsupported.len(),
-            unsupported_trims: prepared.iter().map(|p| p.report.unsupported_trims.len()).sum(),
-            import_issues: model.import_issues,
-            open_bodies: model.bodies.iter().filter(|b| !b.closed || b.refused).count(),
-            ..Default::default()
-        };
-        for piece in drawing.lines.iter().flat_map(|line| &line.pieces) {
-            if piece.visibility == hlr::Visibility::Uncertain {
-                quality.uncertain_pieces += 1;
-            }
-            match piece.accuracy {
-                CurveAccuracy::Analytic => {}
-                CurveAccuracy::Bounded { .. } => quality.bounded_pieces += 1,
-                CurveAccuracy::Sampled { .. } => quality.sampled_pieces += 1,
-            }
-        }
-        quality.analytic_complete = quality.unsupported_faces == 0
-            && quality.uncertain_pieces == 0
-            && quality.bounded_pieces == 0
-            && quality.sampled_pieces == 0
-            && quality.unsupported_trims == 0
-            && quality.import_issues == 0
-            && quality.open_bodies == 0;
-        if request.require_analytic && !quality.analytic_complete {
-            return Err(Error::Geometry(format!("strict analytic view incomplete: {}", serde_json::to_string(&quality)?)));
-        }
-        let reports: Vec<_> = prepared.iter().map(|p| &p.report).collect();
-        let result = json!({"source": model.fingerprint, "units": units(), "basis": {"x": view.x, "y": view.y, "direction": view.d},
-            "scale": 1, "quality": quality, "prepare_reports": reports, "drawing": drawing,
-            "source_mapping": "placement indexes v1.load bodies; edge/face are result-local record indices; face_origin when present maps faces to payload entities, not cross-rebuild topology",
-            "visibility_contract": "raw_uncertain_and_covered_preserved_no_mesh_fallback"});
-        ensure_response_size(&result)?;
-        Ok(result)
+        projection(model, &model.bodies, request, &Budget::new())
     }
+}
+
+/// Shared raw HLR contract for ordinary views and immutable section-result bodies.
+fn projection(model: &Model, bodies: &[LoadedBody], request: ViewQuery, budget: &Budget) -> Result<Value, Error> {
+    if request.source_sha256 != model.fingerprint.sha256 {
+        return Err(Error::StaleModel);
+    }
+    let view = hlr::View::new(vector(request.direction)?, vector(request.up)?).map_err(|e| Error::Parameters(e.to_string()))?;
+    let options = hlr::Options { tangent_edges: true, freeform: false, trim_samples: 256, max_tracks: MAX_TRACKS, max_rays: MAX_RAYS, threads: 1 };
+    let mut prepared = Vec::with_capacity(bodies.len());
+    let mut placements = Vec::with_capacity(bodies.len());
+    for (index, imported) in bodies.iter().enumerate() {
+        budget.check()?;
+        prepared.push(
+            hlr::prepare_cancellable(imported.body.record(), &options, &|| budget.cancelled())
+                .map_err(|e| Error::Geometry(format!("body {index}: {e}")))?,
+        );
+        placements.push(hlr::Placement { body: index, rotation: [Vec3::X, Vec3::Y, Vec3::Z], translation: Vec3::ZERO });
+    }
+    let drawing = hlr::hidden_lines(&prepared, &placements, &view, &options, &|| budget.cancelled()).map_err(|e| Error::Geometry(e.to_string()))?;
+    budget.check()?;
+    let mut quality = Quality {
+        unsupported_faces: drawing.unsupported.len(),
+        unsupported_trims: prepared.iter().map(|p| p.report.unsupported_trims.len()).sum(),
+        import_issues: model.import_issues,
+        open_bodies: bodies.iter().filter(|b| !b.closed || b.refused).count(),
+        ..Default::default()
+    };
+    for piece in drawing.lines.iter().flat_map(|line| &line.pieces) {
+        if piece.visibility == hlr::Visibility::Uncertain {
+            quality.uncertain_pieces += 1;
+        }
+        match piece.accuracy {
+            CurveAccuracy::Analytic => {}
+            CurveAccuracy::Bounded { .. } => quality.bounded_pieces += 1,
+            CurveAccuracy::Sampled { .. } => quality.sampled_pieces += 1,
+        }
+    }
+    quality.analytic_complete = quality.unsupported_faces == 0
+        && quality.uncertain_pieces == 0
+        && quality.bounded_pieces == 0
+        && quality.sampled_pieces == 0
+        && quality.unsupported_trims == 0
+        && quality.import_issues == 0
+        && quality.open_bodies == 0;
+    if request.require_analytic && !quality.analytic_complete {
+        return Err(Error::Geometry(format!("strict analytic view incomplete: {}", serde_json::to_string(&quality)?)));
+    }
+    let reports: Vec<_> = prepared.iter().map(|p| &p.report).collect();
+    let result = json!({"source": model.fingerprint, "units": units(), "basis": {"x": view.x, "y": view.y, "direction": view.d},
+        "scale": 1, "quality": quality, "prepare_reports": reports, "drawing": drawing,
+        "source_mapping": "placement indexes v1.load bodies; edge/face are result-local record indices; face_origin when present maps faces to payload entities, not cross-rebuild topology",
+        "visibility_contract": "raw_uncertain_and_covered_preserved_no_mesh_fallback"});
+    ensure_response_size(&result)?;
+    Ok(result)
+}
+
+fn vector([x, y, z]: [f64; 3]) -> Result<Vec3, Error> {
+    if [x, y, z].iter().any(|v| !v.is_finite() || v.abs() > 1e6) {
+        return Err(Error::Parameters("vectors must be finite, components at most 1e6".into()));
+    }
+    Ok(Vec3::new(x, y, z))
 }
 
 fn empty_params(value: Value) -> Result<(), Error> {

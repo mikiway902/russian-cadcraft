@@ -79,9 +79,19 @@ quadratic SPLINE, cubic/Bezier — clamped SPLINE, круг/дуга/отрез�
 Сохраняются source indices, интервал, направление дуги, качество и видимость;
 тесселяция или подмена неопределённых линий точными не выполняется.
 
-Host подключён к desktop и CLI через четыре `ModelHooks`: загрузка, точный вид,
-preview и проверка fingerprint. Saved records хранят полный provenance, ревизии
-и замороженные редактируемые native curves; preview никогда не попадает в документ,
+Native HATCH хранит взаимоисключающие polyline/bulge vertices либо directed
+line/arc/ellipse/rational-SPLINE edges. DXF codec сохраняет точные границы;
+clockwise complementary angles и geometric ellipse angles преобразуются явно.
+Rendering имеет общий point budget и не меняет хранимую геометрию. AREA сохраняет
+аналитические line/arc/ellipse terms, SPLINE использует существующую numerical
+span policy. Старый polyline refill не подменяет curved paths: source edit явно
+снимает неподдерживаемую ассоциативность с сообщением. REGION остаётся
+polyline/bulge-only и отвергает curve-path payload при десериализации.
+
+Host подключён к desktop и CLI через шесть `ModelHooks`: загрузка, точный вид,
+preview, проверка fingerprint, discovery references и resolve point.
+Saved records хранят полный provenance, ревизии и замороженные редактируемые
+native curves; preview никогда не попадает в документ,
 размеры или измерения. Refresh меняет ревизию источника, но не подменяет старые виды:
 они явно становятся stale. Проверка SHA до/после точного вида запрещает новую
 геометрию из изменённого файла даже при наличии старой модели в кэше.
@@ -95,8 +105,16 @@ Raw quality и covered/uncertain provenance не переписываются. �
 orbit и Front view, Undo/Redo и изменение источника проверены на Linux.
 Полная ассоциативная перестройка, межревизионная топология и ресурсная изоляция
 требуют отдельной приёмки; payload-local indices не являются постоянными именами.
-Worker-only reference RPC использует реальные upstream NameCells и явные статусы
-потери/неоднозначности; перенос в host-размеры пока не принят.
+Reference RPC использует реальные upstream NameCells и явные статусы
+потери/неоднозначности. Host валидирует bounded discovery/point audit и SHA до/после
+вычислений; engine не читает файлы. `models::dimensions` создаёт native DIMENSION
+по двум точным world anchors. Document event перепроецирует только кэшированные
+точки при изменении размещения вида, не вызывает worker. Связь и audit сохраняются
+в XDATA; stale/missing/nested view видимо помечает размер `?`. COPY/clipboard
+переносит пару «вид + размер» через настоящую карту handles, без nearest matching.
+GUI discovery/resolve выполняются в фоне, completion проверяет UID/revision/space
+и ревизию linked source перед guarded transaction. Полная автоматическая
+межревизионная перестройка видов и размеров этим не подменяется.
 
 ## Инварианты перехода
 

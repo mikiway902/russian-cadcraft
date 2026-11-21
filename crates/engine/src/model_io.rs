@@ -9,6 +9,8 @@ pub struct ModelHooks {
     pub view: fn(&str, &str, [f64; 3], [f64; 3]) -> std::result::Result<Projection, String>,
     pub preview: fn(&str, &str, u8) -> std::result::Result<Preview, String>,
     pub source_status: fn(&str, &str, u64) -> std::result::Result<Value, String>,
+    pub references: fn(&str, &str) -> std::result::Result<Value, String>,
+    pub resolve_point: fn(&str, &str, &str, f64) -> std::result::Result<Value, String>,
 }
 
 static HOOKS: OnceLock<ModelHooks> = OnceLock::new();

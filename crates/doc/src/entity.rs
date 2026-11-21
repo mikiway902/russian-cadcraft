@@ -42,6 +42,8 @@ mod common;
 mod curves;
 mod dim;
 mod fill;
+mod hatch_edge;
+pub use hatch_edge::HatchEdge;
 mod layout;
 mod text;
 mod wipeout;
@@ -234,9 +236,7 @@ impl EntityKind {
                 m.faces3d().iter().flat_map(Face3d::visible_edges).map(|(a, b)| Prim::Seg(Segment::Line(GLine::new(a.xy(), b.xy())))).collect()
             }
             EntityKind::Region(r) => r.segments().into_iter().map(Prim::Seg).collect(),
-            EntityKind::Hatch(h) => {
-                h.loops.iter().flat_map(|l| Polyline { vertices: l.vertices.clone(), closed: true }.segments()).map(Prim::Seg).collect()
-            }
+            EntityKind::Hatch(h) => h.loops.iter().flat_map(HatchLoop::primitives).collect(),
             EntityKind::Wipeout(w) => {
                 w.closed_boundary().windows(2).filter_map(|w| Some(Prim::Seg(Segment::Line(GLine::new(*w.first()?, *w.get(1)?))))).collect()
             }
@@ -425,12 +425,7 @@ impl EntityKind {
             }
             EntityKind::Hatch(h) => {
                 for l in &mut h.loops {
-                    for v in &mut l.vertices {
-                        v.p = m.apply(v.p);
-                        if mirror {
-                            v.bulge = -v.bulge;
-                        }
-                    }
+                    l.transform(m);
                 }
                 h.scale *= s;
                 h.angle = cadcraft_geom::norm_angle(h.angle + rot);
@@ -623,7 +618,7 @@ impl EntityKind {
             EntityKind::Leader(l) => l.vertices.iter().map(|v| v.xy()).collect(),
             EntityKind::MLeader(m) => m.leaders.iter().flat_map(|l| l.iter().map(|v| v.xy())).chain(std::iter::once(m.landing.xy())).collect(),
             EntityKind::Hatch(h) => {
-                let b = Bounds2::from_points(h.loops.iter().flat_map(|l| l.vertices.iter().map(|v| v.p)));
+                let b = h.loops.iter().fold(Bounds2::EMPTY, |bounds, ring| bounds.union(&ring.bounds()));
                 vec![b.center()]
             }
             EntityKind::Solid(s) | EntityKind::Trace(s) => s.corners.iter().map(|c| c.xy()).collect(),

@@ -568,7 +568,8 @@ fn run_check(s: &mut Session, _p: &Value) -> Result<Value> {
                 json!(NAME),
             );
         }
-        let projection_factor = crate::extensions::drawing::dimension_factor(d, entity);
+        let projection_factor =
+            crate::extensions::drawing::dimension_factor(d, entity).or_else(|| crate::extensions::models::dimension_factor(d, entity));
         if let Some(base) = d.dim_style(&dim.style) {
             let effective;
             let style = if dim.overrides.is_empty() {

@@ -1551,3 +1551,17 @@ menu	View	视图
 	Refresh Linked Model Source	刷新关联模型源文件
 	Remove Linked Model	移除关联模型
 	Create Exact Model View	创建精确模型视图
+	Exact Model References	精确模型几何引用
+	Resolve Exact Model Point	求解精确模型点
+	Exact Model Dimension	精确模型尺寸
+	Inspect Exact Model Dimension	查看精确模型尺寸
+	Loading exact model edges…	正在加载精确模型边…
+	Resolving exact model dimension…	正在求解精确模型尺寸…
+	Load exact model edges	加载精确模型边
+	Anchors use trimmed-edge arc-length fractions in source millimetres, not the display mesh.	锚点使用精确裁剪边的弧长比例，以源模型毫米计量，不使用显示网格。
+	First exact anchor	第一个精确锚点
+	Second exact anchor	第二个精确锚点
+	Arc-length fraction: 	弧长比例：
+	Aligned: true 3D distance	对齐：真实三维距离
+	Paper offset, mm	图纸偏移，毫米
+	Create exact dimension	创建精确尺寸

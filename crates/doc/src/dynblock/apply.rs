@@ -690,6 +690,12 @@ fn refill_hatches(b: &mut Block) {
     for h in hatches {
         b.entities.modify(h, |e| {
             if let EntityKind::Hatch(hh) = &mut e.kind {
+                if hh.loops.iter().any(|ring| !ring.edges.is_empty()) {
+                    // Do not replace authoritative curves with a polyline refill.
+                    hh.associative = false;
+                    hh.loops.iter_mut().for_each(|ring| ring.sources.clear());
+                    return;
+                }
                 for l in &mut hh.loops {
                     if let [s] = l.sources.as_slice()
                         && let Some(vs) = outlines.get(s)

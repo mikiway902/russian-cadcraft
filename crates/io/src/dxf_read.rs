@@ -19,6 +19,7 @@ mod dimassoc;
 mod document;
 mod entities;
 mod hatch;
+mod hatch_edges;
 mod objects;
 mod tables;
 mod text;

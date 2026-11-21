@@ -1,0 +1,66 @@
+{
+  "date": "2026-11-22",
+  "platform": "linux-x86_64",
+  "scope": "linked native model and exact linear dimension workflow; not full roadmap acceptance",
+  "source": {
+    "path_under_target": "model-worker-smoke/cylinder.sc",
+    "sha256": "ed9d9e33ddf2b97c5528b61c5a02d77e2f318b698cc9d7fd651080e8dc798dab",
+    "height_mm": 20,
+    "radius_mm": 5
+  },
+  "checks_observed": {
+    "model_engine_regressions_passed": 25,
+    "host_validation_unit_tests_passed": 8,
+    "engine_io_ui_all_targets_clippy_passed": true,
+    "i18n_russian_english_fallbacks": 346,
+    "desktop_and_cli_debug_build_passed": true
+  },
+  "gui": {
+    "actual_load_edges_button": true,
+    "actual_create_dimension_button": true,
+    "view_handle": "184",
+    "dimension_handle": "18D",
+    "view_scale_model_per_paper": 2,
+    "source_measurement_mm": 20.0,
+    "paper_measurement_mm": 10.0,
+    "anchors_world_mm": [
+      [
+        4.089340965789886,
+        2.8770280613008685,
+        0.0
+      ],
+      [
+        4.089340965789886,
+        2.8770280613008685,
+        20.0
+      ]
+    ],
+    "verification": "verified_upstream_history",
+    "move_view_reprojects_dimension": true,
+    "undo_restores_native_geometry": true,
+    "norm_control_does_not_flag_true_measurement_factor": true,
+    "refresh_marks_frozen_view_dimension_unresolved": true,
+    "unresolved_text": "?",
+    "undo_refresh_restores_resolved_dimension": true,
+    "exit": 0,
+    "screenshots_under_target": [
+      "coexistence/proof/exact-dimension-edges.png",
+      "coexistence/proof/exact-dimension-paper.png"
+    ]
+  },
+  "dxf": {
+    "saved_bytes": 85934,
+    "reopened_by_real_cli": true,
+    "cli_exit": 0,
+    "source_measurement_mm": 20,
+    "paper_measurement_mm": 10,
+    "reference_audit_retained": true
+  },
+  "limits": [
+    "No automatic B-Rep view or dimension rebuild after source revision change",
+    "Native cross-rebuild verification is deliberately restricted; no nearest-geometry matching",
+    "No exact radial/angular dimension feature in this slice",
+    "Worker cap sections are separately tested; host section integration is still in progress",
+    "HATCH edge-path work began after this verified host binary build"
+  ]
+}

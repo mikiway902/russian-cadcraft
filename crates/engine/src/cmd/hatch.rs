@@ -188,7 +188,7 @@ impl OriginMode {
     }
     /// The origin for loops: `current` when the mode keeps it.
     pub(crate) fn origin(self, loops: &[HatchLoop], current: Vec2) -> Vec2 {
-        let b = Bounds2::from_points(loops.iter().flat_map(|l| l.vertices.iter().map(|v| v.p)).filter(|p| p.is_finite()));
+        let b = loops.iter().fold(Bounds2::EMPTY, |bounds, ring| bounds.union(&ring.bounds()));
         if b.is_empty() {
             return current;
         }
@@ -227,7 +227,7 @@ pub(crate) fn loops_at(s: &Session, p: Vec2) -> Result<Vec<HatchLoop>> {
     let outer = found.outer;
     let ob = Bounds2::from_points(outer.iter().copied());
     let sources = handles_of(&owners, &found.outer_sources);
-    let mut loops = vec![HatchLoop { vertices: outer.iter().map(|q| PolyVertex::new(*q)).collect(), outer: true, sources }];
+    let mut loops = vec![HatchLoop { edges: Vec::new(), vertices: outer.iter().map(|q| PolyVertex::new(*q)).collect(), outer: true, sources }];
     // Islands: closed objects entirely inside the outer loop that don't contain the pick point.
     if let Some(store) = d.space(&space) {
         for e in store.iter() {
@@ -243,7 +243,7 @@ pub(crate) fn loops_at(s: &Session, p: Vec2) -> Result<Vec<HatchLoop>> {
                 let inside = pts.iter().all(|q| point_in_polygon(&outer, *q) || outer.iter().any(|o| o.near(*q, tol * 10.0)));
                 let same_as_outer = (cadcraft_geom::shoelace(&pts).abs() - cadcraft_geom::shoelace(&outer).abs()).abs() < tol.max(1e-6) * 1000.0;
                 if inside && !same_as_outer && !point_in_polygon(&pts, p) {
-                    loops.push(HatchLoop { vertices: vs, outer: false, sources: vec![e.handle] });
+                    loops.push(HatchLoop { edges: Vec::new(), vertices: vs, outer: false, sources: vec![e.handle] });
                 }
             }
         }
@@ -255,7 +255,7 @@ pub(crate) fn loops_at(s: &Session, p: Vec2) -> Result<Vec<HatchLoop>> {
             && island.sources.iter().all(|&i| owners.get(i).and_then(|h| d.entity(*h)).is_some_and(|e| island_curve(d, e)));
         if open_curves {
             let sources = handles_of(&owners, &island.sources);
-            loops.push(HatchLoop { vertices: island.outline.into_iter().map(PolyVertex::new).collect(), outer: false, sources });
+            loops.push(HatchLoop { edges: Vec::new(), vertices: island.outline.into_iter().map(PolyVertex::new).collect(), outer: false, sources });
         }
     }
     Ok(loops)
@@ -266,7 +266,7 @@ pub(crate) fn loops_from_handles(s: &Session, hs: &[Handle]) -> Result<Vec<Hatch
     let mut loops = Vec::new();
     for h in hs {
         if let Some(vs) = d.entity(*h).and_then(|e| closed_loop(d, e)) {
-            loops.push(HatchLoop { vertices: vs, outer: loops.is_empty(), sources: vec![*h] });
+            loops.push(HatchLoop { edges: Vec::new(), vertices: vs, outer: loops.is_empty(), sources: vec![*h] });
         }
     }
     if loops.is_empty() {
@@ -401,6 +401,9 @@ fn make(s: &mut Session, p: &Value, gradient: bool) -> Result<Value> {
 
 /// True when two loops have the same vertex sequence (ignoring cyclic shift and winding order).
 fn same_loop(a: &HatchLoop, b: &HatchLoop) -> bool {
+    if !a.edges.is_empty() || !b.edges.is_empty() {
+        return a.vertices == b.vertices && a.edges == b.edges;
+    }
     if a.vertices.len() != b.vertices.len() {
         return false;
     }
@@ -1042,5 +1045,54 @@ mod tests {
         s.execute("gradient", &json!({ "points": [[2, 2], [8, 8]], "color1": "1", "color2": "3" })).unwrap();
         let (_, hg) = only_hatch(&s);
         assert_eq!(hg.loops.len(), 1, "gradient with repeated picks in same region must deduplicate loops");
+    }
+
+    #[test]
+    fn exact_hatch_recreate_keeps_native_curves_undo_and_refuses_plane_loss() {
+        let mut s = Session::new();
+        s.execute("rectang", &json!({"p1":[0,0],"p2":[10,10]})).unwrap();
+        s.execute("hatch", &json!({"points":[[5,5]],"pattern":"SOLID"})).unwrap();
+        let (handle, mut h) = only_hatch(&s);
+        let handle = Handle::parse_hex(&handle).unwrap();
+        let w = std::f64::consts::FRAC_1_SQRT_2;
+        let curve = cadcraft_geom::Spline {
+            degree: 2,
+            knots: vec![0., 0., 0., 1., 1., 1.],
+            control: vec![Vec2::ZERO, Vec2::new(5., 10.), Vec2::new(10., 0.)],
+            weights: vec![1., w, 1.],
+            ..Default::default()
+        };
+        h.associative = false;
+        h.loops = vec![HatchLoop {
+            vertices: Vec::new(),
+            edges: vec![
+                cadcraft_doc::HatchEdge::Spline(curve),
+                cadcraft_doc::HatchEdge::Segment(cadcraft_geom::Segment::Line(cadcraft_geom::Line::new(Vec2::new(10., 0.), Vec2::ZERO))),
+            ],
+            outer: true,
+            sources: Vec::new(),
+        }];
+        s.doc_mut().unwrap().modify_entity(handle, |e| e.kind = EntityKind::Hatch(h.clone())).unwrap();
+        let before: Vec<_> = s.doc().unwrap().model.iter().cloned().collect();
+        let recreated = s.execute("hatchedit", &json!({"handles":[handle.hex()],"recreate":true})).unwrap();
+        let kinds: Vec<_> = recreated["handles"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|value| {
+                let id = Handle::parse_hex(value.as_str().unwrap()).unwrap();
+                &s.doc().unwrap().entity(id).unwrap().kind
+            })
+            .collect();
+        let EntityKind::Spline(spline) = kinds[0] else { panic!("recreated boundary must stay a native rational spline") };
+        assert!(spline.eval(0.5).near(Vec2::new(5., 10. * w / (1. + w)), 1e-12));
+        assert!(matches!(kinds[1], EntityKind::Line(_)));
+        s.execute("undo", &json!({})).unwrap();
+        assert_eq!(s.doc().unwrap().model.iter().cloned().collect::<Vec<_>>(), before);
+        h.elevation = 5.;
+        s.doc_mut().unwrap().modify_entity(handle, |e| e.kind = EntityKind::Hatch(h)).unwrap();
+        let elevated: Vec<_> = s.doc().unwrap().model.iter().cloned().collect();
+        assert!(s.execute("hatchedit", &json!({"handles":[handle.hex()],"recreate":true})).is_err());
+        assert_eq!(s.doc().unwrap().model.iter().cloned().collect::<Vec<_>>(), elevated, "failed recreate must not leave a mixed-plane boundary");
     }
 }

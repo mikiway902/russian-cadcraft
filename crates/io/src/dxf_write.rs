@@ -21,6 +21,7 @@ mod blocks;
 mod common;
 mod ctx;
 mod entity;
+mod hatch_edges;
 mod header;
 mod layout;
 mod objects;

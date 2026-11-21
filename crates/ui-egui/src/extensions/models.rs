@@ -19,6 +19,7 @@ use crate::{
     managers::Action,
 };
 
+mod dimensions;
 mod preview;
 
 pub(super) const DESCRIPTOR: ExtensionDescriptor = ExtensionDescriptor {
@@ -95,6 +96,8 @@ enum Kind {
     View,
     Preview,
     Status,
+    References,
+    Dimension,
 }
 impl Kind {
     fn label(self) -> &'static str {
@@ -104,6 +107,8 @@ impl Kind {
             Self::View => crate::tl!("Projecting exact model…"),
             Self::Preview => crate::tl!("Loading 3D preview…"),
             Self::Status => crate::tl!("Checking model source…"),
+            Self::References => crate::tl!("Loading exact model edges…"),
+            Self::Dimension => crate::tl!("Resolving exact model dimension…"),
         }
     }
 }
@@ -112,6 +117,8 @@ enum Outcome {
     View { projection: Box<Projection>, params: Value },
     Preview(Box<preview::Scene>),
     Status(Value),
+    References(Value),
+    Dimension { params: Value, resolutions: [Value; 2] },
 }
 struct Job {
     uid: u64,
@@ -131,6 +138,8 @@ enum Act {
     View,
     Remove,
     ReloadList,
+    References,
+    Dimension,
 }
 
 pub(crate) struct State {
@@ -149,6 +158,7 @@ pub(crate) struct State {
     at: [f64; 2],
     hidden: bool,
     accept_incomplete: bool,
+    dimensions: dimensions::State,
 }
 impl Default for State {
     fn default() -> Self {
@@ -168,6 +178,7 @@ impl Default for State {
             at: [50.0, 100.0],
             hidden: false,
             accept_incomplete: false,
+            dimensions: dimensions::State::default(),
         }
     }
 }
@@ -179,6 +190,7 @@ impl State {
         self.scene = None;
         self.scene_guard = None;
         self.status = None;
+        self.dimensions = dimensions::State::default();
     }
     fn update(&mut self, app: &mut CadApp) -> Result<(), String> {
         let key = app.session.state().map(|s| (s.uid, s.revision)).map_err(|e| e.to_string())?;
@@ -201,6 +213,7 @@ impl State {
         if self.status.as_ref().is_some_and(|(g, _)| !self.current(g)) {
             self.status = None;
         }
+        self.dimensions.invalidate(&self.rows);
         Ok(())
     }
     fn current(&self, guard: &Guard) -> bool {
@@ -221,8 +234,8 @@ impl State {
         }
         let state = app.session.state().map_err(|e| e.to_string())?;
         let uid = state.uid;
-        let document_revision = matches!(kind, Kind::View).then_some(state.revision);
-        let space = matches!(kind, Kind::View).then(|| (state.space.clone(), state.mspace));
+        let document_revision = matches!(kind, Kind::View | Kind::Dimension).then_some(state.revision);
+        let space = matches!(kind, Kind::View | Kind::Dimension).then(|| (state.space.clone(), state.mspace));
         #[cfg(not(target_arch = "wasm32"))]
         {
             let (tx, rx) = channel();
@@ -282,6 +295,25 @@ impl State {
                 self.start(app, Kind::View, Some(guard), move || {
                     (hooks.view)(&captured.path, &captured.sha256, direction, up)
                         .map(|projection| Outcome::View { projection: Box::new(projection), params })
+                })
+            }
+            Act::References => {
+                let guard = self.selected_guard()?;
+                let captured = guard.clone();
+                self.start(app, Kind::References, Some(guard), move || (hooks.references)(&captured.path, &captured.sha256).map(Outcome::References))
+            }
+            Act::Dimension => {
+                let guard = self.selected_guard()?;
+                let params = self.dimensions.params(&guard)?;
+                let captured = guard.clone();
+                self.start(app, Kind::Dimension, Some(guard), move || {
+                    let resolve = |anchor: &Value| {
+                        let token = anchor["reference"].as_str().ok_or_else(|| "Missing exact edge reference".to_string())?;
+                        let fraction = anchor["fraction"].as_f64().ok_or_else(|| "Missing exact edge fraction".to_string())?;
+                        (hooks.resolve_point)(&captured.path, &captured.sha256, token, fraction)
+                    };
+                    let resolutions = [resolve(&params["a"])?, resolve(&params["b"])?];
+                    Ok(Outcome::Dimension { params, resolutions })
                 })
             }
             Act::Remove => {
@@ -354,6 +386,17 @@ pub(crate) fn tick(app: &mut CadApp, ctx: &egui::Context) {
                 Outcome::Status(value) => {
                     let guard = job.guard.ok_or_else(|| "Source status has no guard".to_string())?;
                     state.status = Some((guard, value));
+                }
+                Outcome::References(report) => {
+                    let guard = job.guard.ok_or_else(|| "Exact edges have no source guard".to_string())?;
+                    if state.selected != guard.id {
+                        return Err("Model selection changed while loading exact edges; request them again".into());
+                    }
+                    state.dimensions.install(guard, report)?;
+                }
+                Outcome::Dimension { params, resolutions } => {
+                    models::dimensions::apply_dimension(&mut app.session, &params, resolutions).map_err(|e| e.to_string())?;
+                    state.cache = None;
                 }
             }
             Ok(())
@@ -430,9 +473,12 @@ fn dialog(app: &mut CadApp, ctx: &egui::Context, _: &str, open: &mut bool) -> Ac
     let bg = crate::theme::Tokens::get().canvas;
     let device = app.canvas.gpu_device.clone();
     let gpu_enabled = app.canvas.gpu.is_some();
-    egui::Window::new(crate::tl!("Linked 3D Models")).id(egui::Id::unique("gostmodels")).open(open).default_size(egui::vec2(1080.0, 780.0)).show(
-        ctx,
-        |ui| {
+    egui::Window::new(crate::tl!("Linked 3D Models"))
+        .id(egui::Id::unique("gostmodels"))
+        .open(open)
+        .default_size(egui::vec2(1080.0, 780.0))
+        .vscroll(true)
+        .show(ctx, |ui| {
             if !available {
                 ui.colored_label(egui::Color32::YELLOW, crate::tl!("Native model worker is unavailable."));
             }
@@ -520,6 +566,11 @@ fn dialog(app: &mut CadApp, ctx: &egui::Context, _: &str, open: &mut bool) -> Ac
                     if ui.button(crate::tl!("Create exact view")).clicked() {
                         action = Some(Act::View);
                     }
+                    if let Some(model) = state.rows.iter().find(|m| m.id == state.selected)
+                        && let Some(dimension_action) = state.dimensions.show(ui, model)
+                    {
+                        action = Some(dimension_action);
+                    }
                 });
                 if let Some((guard, status)) = &state.status
                     && guard.id == state.selected
@@ -563,8 +614,7 @@ fn dialog(app: &mut CadApp, ctx: &egui::Context, _: &str, open: &mut bool) -> Ac
             if ui.button(crate::tl!("Reload model list")).clicked() {
                 action = Some(Act::ReloadList);
             }
-        },
-    );
+        });
     app.models = state;
     if let Some(Act::Browse) = action {
         let picked = app.pick_then(Pick::Model, |app, path| {

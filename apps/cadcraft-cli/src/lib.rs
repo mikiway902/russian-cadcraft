@@ -61,6 +61,8 @@ fn install_io() {
         view: cadcraft_io::native_models::view,
         preview: cadcraft_io::native_models::preview,
         source_status: cadcraft_io::native_models::source_status,
+        references: cadcraft_io::native_models::references,
+        resolve_point: cadcraft_io::native_models::resolve_point,
     });
 }
 

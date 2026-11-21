@@ -274,4 +274,62 @@
   добавлен escaped bounded failure context в публичные annotations, без подавления
   exit status. Настоящий workflow shell block проверен с exit 0/37 и `%`/CR/LF.
 
+## Точные привязки и разрезы — продолжение 22.11.2026
+
+- Принят отдельный пункт «Связать чертёж с исходной 3D-моделью»: сохранены
+  canonical source path, SHA/bytes, локальная ревизия, metadata, view parameters
+  и provenance. Реальные native/STEP/IGES сценарии сохранения/открытия уже проверены;
+  теперь native dimension также прошёл GUI → DXF → CLI reopen с точным audit.
+  Это **57/172** принятых пунктов, **115** остаются открытыми.
+- Реальная GUI-кнопка загрузила upstream edge tokens и создала native DIMENSION:
+  source length **20 мм**, paper length **10 мм**, масштаб **1:2**.
+  MOVE вида перепроецировал размер; Undo восстановил геометрию.
+  Refresh пометил frozen размер `?` и убрал актуальное measurement;
+  Undo refresh восстановил resolved. DXF 85934 bytes повторно открылся CLI,
+  сохранив точные anchors и audit. `gost.check` не сообщил ложное
+  `dimension.preset.linear_factor`.
+  [Доказательства и пределы проверки](tests/benchmarks/native-model-dimensions-20261122.json).
+- До начала exact-HATCH cutover прошли 25 model engine regressions,
+  8 host validation tests, all-target Clippy engine/IO/UI и сборка desktop/CLI.
+  Новые controls русифицированы; остаются 346 прежних English fallbacks.
+  Автоматическая B-Rep-перестройка и radial/angular native anchors ещё не приняты.
+- Worker `v1.section` использует настоящий half-space boolean и возвращает exact
+  cap loops/holes с result-local topology и явной картой source/result bodies.
+  Первый запуск обнаружил потерю крышки при слиянии с исходной копланарной гранью.
+  Исправление вычитает исходные копланарные области публичным exact planar boolean;
+  не удаляет весь merged face по одному history tag. После исправления прошли
+  **8 section regressions**, **3 supervised transport tests**, all-target Clippy.
+  Ordinary worker geometry/native tests до этого прошли без изменения поведения.
+- Host HATCH cutover прошёл отдельную проверку: **23 IO HATCH**, **18 render HATCH**,
+  **64 engine HATCH**, **25 model**, **37 spline** cases — всего 167 узких проверок.
+  All-target workspace Clippy прошёл; после последних изменений повторно проверены
+  затронутые doc/IO/engine targets. Feature-off: 2 regressions и CLI/desktop/web
+  checks; WASM прошёл с четырьмя прежними dead-code warnings. Desktop/CLI собраны.
+- HATCH хранит native line/arc/ellipse/rational SPLINE edge paths, а не sampled
+  vertices. Checked clockwise ellipse angles, NURBS weights/knots, holes,
+  nonuniform transforms и legacy bulge → ellipse. Старый тест подмены degree 12
+  на degree 10 заменён проверкой сохранения исходной кривой и отказа при missing knots.
+  Recreate boundary сохраняет native SPLINE/LINE; Undo и отказ на потере elevated
+  spline plane проверены без оставшейся частичной геометрии.
+- Настоящий CLI прочитал синтетический ellipse/bore/rational-island HATCH,
+  измерил **147.65485463748368 мм²** (эталон `47*pi`, spline area numerical),
+  сохранил DXF **18723 bytes**. GUI повторно открыл его: три edge loops `[1,1,4]`,
+  без polygon vertices; отверстие осталось незаполненным, островок — видимым.
+  [Runtime proof и пределы AREA](tests/benchmarks/native-hatch-boundaries-20261122.json).
+- Section host/UI integration остаётся открытой. Stepped-shaft Front uncertainty,
+  полная ассоциативная перестройка и полный ГОСТ не объявлены подтверждёнными
+  этими частными сценариями.
+- CI `44948553629` на `0a36ff2a93` дал конкретную причину macOS failure:
+  `usage::non_unicode_output_names` требовал успеха для raw non-UTF-8 имени,
+  хотя файловая система вернула `Illegal byte sequence (os error 92)`.
+  Контракт теперь проверяет способность самой файловой системы: сохранение raw
+  имени при поддержке либо exit 1 при отказе, без создания lossy Unicode-замены.
+  Linux: existing regression прошёл для DXF/SVG/DWG; fmt, CLI all-target Clippy
+  и JSON schema parse прошли. Новый macOS run ещё не подтверждён.
+- Полный локальный `cargo xtask ci` завершён: **все 9 gates прошли**
+  (fmt, workspace Clippy, tests, i18n, assets, layers, WASM, extensions, models).
+  В models gate прошли все **27 worker cases**, включая 8 exact-section и
+  3 supervised-transport cases. Изменённый CLI filename contract отдельно прошёл
+  узкую проверку после правки; успешный локальный gate не заменяет macOS runtime.
+
 Ни один из этих результатов не закрывает полный новый roadmap. Точные B-Rep-проекции, сборки, нормативные профили, полная русификация, кроссплатформенные установки и выпуск остаются в активном плане.

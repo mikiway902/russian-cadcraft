@@ -598,7 +598,7 @@ fn text_work(text: &str) -> usize {
 
 /// The vertices of filled loops.
 fn loop_vertices(loops: &[HatchLoop]) -> usize {
-    total(loops.iter().map(|l| l.vertices.len()))
+    total(loops.iter().map(HatchLoop::point_count))
 }
 
 /// What the block `name` costs, drawn `times` times: what it costs once, multiplied.
@@ -1562,7 +1562,7 @@ mod tests {
         let d = Drawing::new_metric();
         assert!(too_much(&d, EntityKind::Wipeout(Wipeout { boundary: points.clone() })));
         assert!(too_much(&d, EntityKind::MLine(MLine::new(&MLineStyle::default(), &points, false, MLineJust::default(), 1.0))));
-        let region = Region { loops: vec![HatchLoop { vertices: vertices.clone(), outer: true, sources: Vec::new() }] };
+        let region = Region { loops: vec![HatchLoop { edges: Vec::new(), vertices: vertices.clone(), outer: true, sources: Vec::new() }] };
         assert!(too_much(&d, EntityKind::Region(region)));
         // An object with nothing in it still takes a visit, for each cell of an array.
         let mut empty = Block::new("EMPTY");

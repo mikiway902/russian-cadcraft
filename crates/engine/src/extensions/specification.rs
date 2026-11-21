@@ -889,6 +889,7 @@ fn render_position(d: &mut Drawing, h: Handle, p: &Position, rows: &[Row]) -> Re
             pattern: "SOLID".into(),
             solid: true,
             loops: vec![cadcraft_doc::HatchLoop {
+                edges: Vec::new(),
                 vertices: vec![
                     cadcraft_geom::PolyVertex::with_bulge(local - Vec2::new(0.5, 0.0), 1.0),
                     cadcraft_geom::PolyVertex::with_bulge(local + Vec2::new(0.5, 0.0), 1.0),

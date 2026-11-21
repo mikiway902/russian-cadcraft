@@ -19,6 +19,7 @@ use std::{
     sync::{Mutex, OnceLock},
 };
 
+mod reference_results;
 const PROTOCOL: &str = "cadcraft-model-worker/1";
 const MAX_FILE_BYTES: u64 = 8 * 1024 * 1024;
 const MAX_SESSIONS: usize = 4;
@@ -119,6 +120,29 @@ pub fn view(path: &str, expected_sha: &str, direction: [f64; 3], up: [f64; 3]) -
         }
         current_source(entry)?;
         Ok(projection)
+    })
+}
+
+/// Enumerate exact snapshot-scoped references, never drawing/preview indices.
+pub fn references(path: &str, expected_sha: &str) -> Result<Value, String> {
+    with_session(path, expected_sha, |entry| {
+        current_source(entry)?;
+        let value = entry.call("v1.references", &json!({"source_sha256":expected_sha}))?;
+        reference_results::discovery(&value, entry)?;
+        current_source(entry)?;
+        Ok(value)
+    })
+}
+
+/// Evaluate a trimmed exact edge at its arc-length fraction in source-world millimetres.
+pub fn resolve_point(path: &str, expected_sha: &str, reference: &str, fraction: f64) -> Result<Value, String> {
+    reference_results::request(reference, fraction)?;
+    with_session(path, expected_sha, |entry| {
+        current_source(entry)?;
+        let value = entry.call("v1.resolve_point", &json!({"source_sha256":expected_sha,"reference":reference,"fraction":fraction}))?;
+        reference_results::resolution(&value, entry, fraction)?;
+        current_source(entry)?;
+        Ok(value)
     })
 }
 
@@ -345,7 +369,7 @@ fn validate_capabilities(value: &Value) -> Result<(), String> {
     }
     normalized_units(value)?;
     for (key, required) in [
-        ("methods", &["v1.capabilities", "v1.load", "v1.view", "v1.preview", "v1.source_status"][..]),
+        ("methods", &["v1.capabilities", "v1.load", "v1.view", "v1.preview", "v1.source_status", "v1.references", "v1.resolve_point"][..]),
         ("formats", &["sc", "step", "stp", "iges", "igs"][..]),
         ("curves", &["line", "arc", "cubic", "conic", "bezier"][..]),
     ] {
@@ -353,6 +377,23 @@ fn validate_capabilities(value: &Value) -> Result<(), String> {
         if required.iter().any(|item| !advertised.iter().any(|entry| entry.as_str() == Some(*item))) {
             return Err(format!("model worker lacks required {key}"));
         }
+    }
+    for (key, expected) in [
+        ("protocol", "cadcraft-references/1"),
+        ("discovery", "per_placement_exact_edges_and_faces_with_explicit_verification"),
+        ("fraction", "trimmed_edge_arc_length_start_to_end"),
+        ("native_continuity", "same_canonical_path_and_full_document_except_literal_independent_sizes_or_simple_extrude_distance/1"),
+        ("unverified_names", "snapshot_only_never_promoted_or_nearest_matched"),
+        ("step_iges", "payload_scoped_only"),
+    ] {
+        if value["references"][key].as_str() != Some(expected) {
+            return Err(format!("unsupported model worker reference contract: {key}"));
+        }
+    }
+    if value["references"]["token_bytes"].as_u64() != Some(8192)
+        || value["references"]["discovery_token_bytes_total"].as_u64() != Some(4 * 1024 * 1024)
+    {
+        return Err("unsupported model worker reference limits".into());
     }
     if value.get("projection").and_then(Value::as_str) != Some("orthographic_raw_hlr")
         || value.get("placements").and_then(Value::as_str) != Some("all_imported_bodies_already_placed_including_hidden")
@@ -448,12 +489,16 @@ mod tests {
     #[test]
     fn handshake_requires_protocol_methods_units_and_matching_limits() {
         let valid = json!({"protocol":PROTOCOL,"units":load_result()["units"],
-            "methods":["v1.capabilities","v1.load","v1.view","v1.preview","v1.source_status"],
+            "methods":["v1.capabilities","v1.load","v1.view","v1.preview","v1.source_status","v1.references","v1.resolve_point"],
             "formats":["sc","step","stp","iges","igs"],
             "curves":["line","arc","cubic","conic","bezier"],
             "projection":"orthographic_raw_hlr",
             "placements":"all_imported_bodies_already_placed_including_hidden",
             "models_per_session":1,
+            "references":{"protocol":"cadcraft-references/1","token_bytes":8192,"discovery_token_bytes_total":4*1024*1024,
+                "discovery":"per_placement_exact_edges_and_faces_with_explicit_verification","fraction":"trimmed_edge_arc_length_start_to_end",
+                "native_continuity":"same_canonical_path_and_full_document_except_literal_independent_sizes_or_simple_extrude_distance/1",
+                "unverified_names":"snapshot_only_never_promoted_or_nearest_matched","step_iges":"payload_scoped_only"},
             "limits":{"requests":256,"file_bytes":MAX_FILE_BYTES,"bodies":32,"topology_items":10_000}});
         assert!(validate_capabilities(&valid).is_ok());
         for (pointer, replacement) in [
@@ -462,6 +507,9 @@ mod tests {
             ("/units/length", json!("inch")),
             ("/limits/requests", json!(128)),
             ("/models_per_session", json!(2)),
+            ("/references/protocol", json!("other")),
+            ("/references/fraction", json!("curve_parameter")),
+            ("/references/token_bytes", json!(16384)),
         ] {
             let mut invalid = valid.clone();
             if let Some(field) = invalid.pointer_mut(pointer) {

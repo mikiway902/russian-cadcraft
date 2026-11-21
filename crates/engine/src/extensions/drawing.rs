@@ -356,6 +356,7 @@ fn prepared(d: &Drawing, r: &View) -> Result<Vec<(Common, EntityKind)>> {
         let loops = paths
             .iter()
             .map(|path| HatchLoop {
+                edges: Vec::new(),
                 vertices: path.iter().map(|p| PolyVertex::new(*p * (1.0 / r.scale))).collect(),
                 outer: true,
                 sources: Vec::new(),
@@ -880,7 +881,7 @@ fn stale_banner(d: &mut Drawing, h: Handle) -> Result<()> {
                     return Err(err("cached section exceeds loop limit"));
                 }
                 for l in &h.loops {
-                    vertices = vertices.saturating_add(l.vertices.len());
+                    vertices = vertices.saturating_add(l.point_count());
                 }
                 if vertices > 4096 {
                     return Err(err("cached section exceeds 4096 vertices"));
