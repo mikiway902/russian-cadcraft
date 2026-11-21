@@ -28,4 +28,18 @@ jobs:
         pkg-config libxkbcommon-dev libwayland-dev libx11-dev libxcb1-dev libxcursor-dev
         libxrandr-dev libxi-dev libfontconfig1-dev libfreetype-dev mesa-vulkan-drivers
         libgl1-mesa-dev
-      command: cargo xtask ci
+      command: |
+        # Failed-job logs need authentication even in a public fork. Preserve the real
+        # gate status and publish bounded failure context in the public check annotations.
+        set +e
+        cargo xtask ci 2>&1 | tee "$RUNNER_TEMP/cadcraftgost-gate.log"
+        status=${PIPESTATUS[0]}
+        set -e
+        if [ "$status" -ne 0 ]; then
+          context=$(tail -n 64 "$RUNNER_TEMP/cadcraftgost-gate.log")
+          context=${context//%/%25}
+          context=${context//$'\r'/%0D}
+          context=${context//$'\n'/%0A}
+          printf '::error title=CADCraftGOST quality gate::%s\n' "$context"
+        fi
+        exit "$status"

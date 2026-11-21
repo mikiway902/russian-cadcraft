@@ -267,5 +267,11 @@
   запрет установки в оригинальный каталог не ослаблен. PowerShell 7.7.0 выполнил
   настоящий AST проверки: 10 positive/negative target/source/alias cases прошли.
   Повторная проверка Windows COM/MSI выполняется только соответствующим Actions job.
+- После push `597d4ccd` [Packaging lint 44934551690](https://github.com/mikiway902/russian-cadcraft/actions/runs/44934551690)
+  прошёл, включая настоящий Windows MSI policy job. В [CI 44934551666](https://github.com/mikiway902/russian-cadcraft/actions/runs/44934551666)
+  Windows и Ubuntu gate прошли; macOS gate отказал, точная причина пока недоступна:
+  публичный Jobs API показывает лишь exit 1, logs требуют token. В command wrapper
+  добавлен escaped bounded failure context в публичные annotations, без подавления
+  exit status. Настоящий workflow shell block проверен с exit 0/37 и `%`/CR/LF.
 
 Ни один из этих результатов не закрывает полный новый roadmap. Точные B-Rep-проекции, сборки, нормативные профили, полная русификация, кроссплатформенные установки и выпуск остаются в активном плане.
