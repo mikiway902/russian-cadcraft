@@ -31,20 +31,27 @@ if ! git -C "$root" merge-tree --write-tree --messages "$head" "$upstream" >"$re
   exit 1
 fi
 
-scratch=$(mktemp -d "${TMPDIR:-/tmp}/cadcraftgost-upstream.XXXXXXXX")
-candidate="$scratch/candidate"
+# A stable source path keeps compile-time CARGO_MANIFEST_DIR valid on later runs.
+# A separate target prevents candidate binaries/build scripts from poisoning the caller's cache.
+lock="$report/run.lock"
+if ! mkdir "$lock"; then
+  echo "Another upstream check owns $lock; do not remove its worktree." >&2
+  exit 1
+fi
+candidate="$root/target/upstream-candidate"
+owned=false
 cleanup() {
   local status=$?
   trap - EXIT
-  if [[ -e "$candidate/.git" ]]; then
+  if [[ "$owned" = true && -e "$candidate/.git" ]]; then
     # Only our disposable candidate may contain generated files or an uncommitted test merge.
     if ! git -C "$root" worktree remove --force "$candidate"; then
       echo "Could not remove disposable worktree: $candidate" >&2
       status=1
     fi
   fi
-  if ! rmdir "$scratch"; then
-    echo "Could not remove disposable directory: $scratch" >&2
+  if ! rmdir "$lock"; then
+    echo "Could not remove owned run lock: $lock" >&2
     status=1
   fi
   exit "$status"
@@ -53,15 +60,20 @@ trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
+if [[ -e "$candidate" ]]; then
+  echo "Candidate path already exists: $candidate; inspect it manually, nothing was removed." >&2
+  exit 1
+fi
 git -C "$root" worktree add --detach "$candidate" "$head"
+owned=true
 git -C "$candidate" -c core.hooksPath=/dev/null \
   -c user.name='CADCraftGOST upstream check' \
   -c user.email='upstream-check@users.noreply.github.com' \
   merge --no-commit --no-ff "$upstream"
 (
   cd "$candidate"
-  # Share compiled dependencies, not the caller's source/index or persisted drawing data.
-  export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-$root/target}"
+  # Never inherit the caller's CARGO_TARGET_DIR: root and candidate compile-time paths differ.
+  export CARGO_TARGET_DIR="$root/target/upstream-build"
   cargo xtask ci
 ) 2>&1 | tee "$report/gate.log"
 echo 'Candidate passed the complete gate. No branch was advanced or pushed; adoption requires review.'
