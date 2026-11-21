@@ -20,10 +20,10 @@ use cadcraft_doc::foreign::{Foreign, ForeignExtra, ForeignKey, ForeignObject, cl
 use cadcraft_doc::{Drawing, Entity, EntityKind, Handle, RawTag, Unknown};
 use craft_dxf::{Section, Tag};
 
-/// Named object dictionary entries CADCraft writes itself from its model (plus every key that
-/// starts with `CADCRAFT`): they are read into the model, not kept raw. A change that starts
-/// modelling another entry adds it here. (An entry the writer writes is also never written
-/// twice: the kept one is left out.)
+/// Named object dictionary entries CADCraft reads and writes from its model.
+/// Other applications and extensions may use the same namespace: an unknown key
+/// must survive even when it starts with `CADCRAFT`. Entries already written by
+/// the native writer are also excluded from the raw output below.
 const MODELLED_KEYS: &[&str] = &[
     "ACAD_GROUP",
     "ACAD_LAYOUT",
@@ -34,6 +34,12 @@ const MODELLED_KEYS: &[&str] = &[
     "ACAD_TABLESTYLE",
     "ACAD_IMAGE_DICT",
     "ACAD_IMAGE_VARS",
+    crate::dxf_ext::CONSTRAINTS_KEY,
+    crate::dxf_ext::LAYER_STATES_KEY,
+    crate::dxf_ext::PLOT_STYLES_KEY,
+    crate::dxf_ext::ANNOTATION_KEY,
+    crate::dxf_ext::HANDSEED_KEY,
+    crate::dxf_ext::MLEADER_STYLE_KEY,
 ];
 
 /// Extension dictionary entries not kept raw: dimension associativity (CADCraft reads and
@@ -174,8 +180,7 @@ fn is_dictionary(kind: &str) -> bool {
 }
 
 fn modelled_key(key: &str) -> bool {
-    let k = up(key);
-    k.starts_with("CADCRAFT") || MODELLED_KEYS.contains(&k.as_str())
+    MODELLED_KEYS.iter().any(|known| known.eq_ignore_ascii_case(key))
 }
 
 /// The roles of a file's handles (see [`ForeignKey`]): table records and tables by type and

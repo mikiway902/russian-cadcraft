@@ -1,0 +1,29 @@
+{
+  "date": "2026-11-21",
+  "platform": "linux-x86_64",
+  "scope": "isolated worker and cadcraft-io transport/native curve conversion; not user-document/GUI integration",
+  "worker": {
+    "solidcraft_revision": "c5f47e501169c7f0f9e8191b2541e689e2f018e8",
+    "tests": {"passed": 12, "failed": 0, "command": "RUST_TEST_THREADS=1 cargo test --locked --manifest-path tools/solidcraft-bridge/Cargo.toml --all-targets"},
+    "clippy_all_targets_deny_warnings": "passed"
+  },
+  "native_cylinder": {
+    "fixture": "Original upstream Document with Cylinder radius=5 mm, height=20 mm; native JSON, part_number=HOST-PIN-001",
+    "volume_mm3": 1570.7963267948958,
+    "direction": [1, 1, 1],
+    "up": [0, 0, 1],
+    "source_bytes": 787,
+    "source_sha256": "ed9d9e33ddf2b97c5528b61c5a02d77e2f318b698cc9d7fd651080e8dc798dab",
+    "analytic_complete": true,
+    "rational_quadratic_splines": 10,
+    "maximum_sampled_dxf_reopen_error_mm": 0.0,
+    "maximum_cylinder_ellipse_equation_residual": 1.9984014443252818e-15,
+    "sample_parameters_per_curve": [0.0, 0.125, 0.5, 0.875, 1.0],
+    "check": "Each reopened conic point satisfies one of the two known projected cylinder end-circle equations; rational degree/weights/knots retained. Native line endpoint geometry retained.",
+    "remote_unknown_method_preserves_session": true,
+    "appending_source_newline_detected_changed": true,
+    "render": "Real reopened DXF rendered through existing cadcraft_io::png, 800x600; working artifacts are under target/model-worker-smoke, not release fixtures."
+  },
+  "adapter_edge_tests": {"passed": 3, "failed": 0, "cases": ["rational conic weights/midpoint/provenance and uncertain/sampled flags", "signed arcs and near-full real gaps", "malformed poles/nonfinite coordinates/invalid basis/oversized input"]},
+  "limits": ["No production user-model linking command yet", "No 3D preview", "No section API", "Payload-local edge/face indices are not cross-rebuild persistent IDs", "No hard OS memory/filesystem sandbox", "Fixture script removed after proof"]
+}

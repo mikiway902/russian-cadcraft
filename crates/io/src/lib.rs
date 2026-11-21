@@ -14,6 +14,11 @@ mod dxf_read;
 mod dxf_table;
 mod dxf_write;
 mod dxf_xref;
+/// Exact native curve mapping for the versioned model worker's projection result.
+pub mod model_projection;
+/// Bounded transport to a separately packaged exact SolidCraft model worker.
+#[cfg(not(target_arch = "wasm32"))]
+pub mod model_worker;
 pub mod pdf;
 pub mod plotter;
 /// Raster image files (PNG, JPEG, BMP, TIFF) decoded to pixels.

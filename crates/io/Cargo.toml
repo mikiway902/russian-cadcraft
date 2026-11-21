@@ -23,6 +23,9 @@ serde_json = { workspace = true }
 serde = { workspace = true }
 craft-pdf = { workspace = true, features = ["write"] }
 
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+craft-jsonrpc = { workspace = true }
+
 [dev-dependencies]
 miniz_oxide = "0.9"
 tiff = "0.11"
