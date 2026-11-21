@@ -8,6 +8,12 @@
 param([Parameter(Mandatory = $true)] [string] $MsiPath)
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
+trap {
+  # This is a separate PowerShell process; its caller cannot recover this error from an exit code.
+  $message = ($_ | Out-String).Trim().Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
+  Write-Output "::error title=Compiled Windows installer policy::$message"
+  exit 1
+}
 $policy = Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot 'install-policy.json') | ConvertFrom-Json
 function Read-Rows($Database, [string] $Sql, [int] $Columns) {
   $view = $Database.OpenView($Sql)

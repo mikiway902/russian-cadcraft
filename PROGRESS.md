@@ -253,5 +253,12 @@
   Сохранённый DXF — 92737 bytes; GUI завершился с exit 0.
   [SHA-256 артефактов и финальный runtime proof](tests/benchmarks/native-model-release-20261121.json).
   Это не системная установка/удаление RPM/DEB и не публикация Alpha.
+- `96b356a5` отправлен в `main` по запросу владельца. Новый Packaging lint
+  [44932592674](https://github.com/mikiway902/russian-cadcraft/actions/runs/44932592674)
+  прошёл Linux lint, но diagnostic trap показал: MSI build завершился,
+  отказал отдельный `check-install-policy.ps1` для x64. Его собственная причина
+  не наследуется через exit code нового PowerShell process; добавлена такая же
+  escaped error annotation в дочерний checker. Его AST и настоящий trap
+  проверены PowerShell 7.7.0; Windows COM/MSI здесь не запускался.
 
 Ни один из этих результатов не закрывает полный новый roadmap. Точные B-Rep-проекции, сборки, нормативные профили, полная русификация, кроссплатформенные установки и выпуск остаются в активном плане.
