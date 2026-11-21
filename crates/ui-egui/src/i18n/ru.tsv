@@ -1339,3 +1339,47 @@
 	No versioned profile is selected. Choose one explicitly before normative review.	Версионный профиль не выбран. Выберите его явно перед нормативной проверкой.
 	GOST Normative Profile	Нормативный профиль ГОСТ
 	GOST Standards Catalog	Каталог стандартов ГОСТ
+	Import Linked Model	Импорт связанной 3D-модели
+	Linked 3D Models	Связанные 3D-модели
+	Inspect Linked Model	Сведения о связанной модели
+	Linked Model Source Status	Состояние источника модели
+	Refresh Linked Model Source	Обновить источник связанной модели
+	Remove Linked Model	Удалить связь с моделью
+	Create Exact Model View	Создать точный вид модели
+	3D models (SolidCraft, STEP, IGES)	3D-модели (SolidCraft, STEP, IGES)
+	Importing 3D model…	Импорт 3D-модели…
+	Refreshing model source…	Обновление источника модели…
+	Projecting exact model…	Построение точной проекции…
+	Loading 3D preview…	Загрузка 3D-модели для просмотра…
+	Checking model source…	Проверка источника модели…
+	Display limit reached; expand fewer branches.	Достигнут предел отображения. Сверните часть ветвей.
+	Metadata nesting limit reached.	Достигнут предел вложенности метаданных.
+	Text display truncated.	Отображаемый текст сокращён.
+	Copy value	Копировать значение
+	Native model worker is unavailable.	Модуль обработки 3D-моделей недоступен.
+	Source file	Файл-источник
+	Browse…	Обзор…
+	Import 3D model	Импортировать 3D-модель
+	Linked models	Связанные модели
+	3D preview	Просмотр 3D
+	Check source	Проверить источник
+	Refresh source	Обновить источник
+	Remove link	Удалить связь
+	Exact drawing view	Точный чертёжный вид
+	Scale 1:	Масштаб 1:
+	Target space	Пространство размещения
+	Accept incomplete geometry for manual review	Разрешить неполную геометрию для ручной проверки
+	Create exact view	Создать точный вид
+	Source changed; saved views were not rebuilt.	Источник изменён. Сохранённые виды не перестраивались.
+	Source fingerprint is unchanged.	Контрольная сумма источника не изменилась.
+	Invalid source status response.	Некорректный ответ о состоянии источника.
+	Linked revision	Редакция связанной модели
+	Saved views	Сохранённые виды
+	Preview quality	Качество предварительного просмотра
+	Source metadata and assembly structure	Метаданные источника и структура сборки
+	Saved view quality and provenance	Качество и происхождение сохранённых видов
+	Reload model list	Перечитать список моделей
+	Fit	Вписать
+	Display mesh only; never use it for dimensions or projections.	Сетка только для просмотра. Не использовать для размеров и чертёжных проекций.
+	Drag to orbit; right-drag to pan; wheel to zoom.	Вращение — перетаскивание; панорамирование — правая кнопка; масштаб — колесо.
+	Updating model preview…	Обновление 3D-просмотра…

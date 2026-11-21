@@ -21,7 +21,7 @@ pub(super) const EXTENSION: Extension = Extension {
     document_changed: |session, event| after_command(session, event.before, event.uid),
     command_override: Some(override_command),
     copy: None,
-    clipboard: Some(prepare_clipboard_blocks),
+    clipboard: Some(super::ClipboardHooks { prepare_blocks: Some(prepare_clipboard_blocks), capture: None, pasted: None }),
 };
 
 pub(super) fn specs() -> Vec<CommandSpec> {

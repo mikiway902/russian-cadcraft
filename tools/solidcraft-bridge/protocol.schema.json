@@ -8,7 +8,7 @@
   "properties": {
     "jsonrpc": {"const": "2.0"},
     "id": {"type": ["integer", "string", "null"], "description": "JSON-RPC string or null IDs are accepted. Numeric IDs must be integer JSON tokens in serde_json's i64/u64 range; fractional/exponent tokens are refused by integer_ids_only=true. That shared-library option does not prohibit strings."},
-    "method": {"enum": ["v1.capabilities", "v1.load", "v1.view", "v1.source_status"]},
+    "method": {"enum": ["v1.capabilities", "v1.load", "v1.view", "v1.preview", "v1.source_status", "v1.references", "v1.resolve_point"]},
     "params": {"type": "object"}
   },
   "allOf": [
@@ -39,11 +39,91 @@
       }
     },
     {
+      "if": {"properties": {"method": {"const": "v1.preview"}}},
+      "then": {
+        "required": ["params"],
+        "properties": {"params": {
+          "type": "object", "additionalProperties": false, "required": ["source_sha256"],
+          "properties": {
+            "source_sha256": {"type":"string","description":"Loaded snapshot digest, as in v1.view."},
+            "detail": {"type":"integer","minimum":1,"maximum":8,"default":4}
+          }
+        }}
+      }
+    },
+    {
+      "if": {"properties": {"method": {"const": "v1.references"}}},
+      "then": {"required": ["params"], "properties": {"params": {
+        "type": "object", "additionalProperties": false, "required": ["source_sha256"],
+        "properties": {"source_sha256": {"$ref": "#/$defs/digest"}}
+      }}}
+    },
+    {
+      "if": {"properties": {"method": {"const": "v1.resolve_point"}}},
+      "then": {"required": ["params"], "properties": {"params": {
+        "type": "object", "additionalProperties": false, "required": ["source_sha256", "reference", "fraction"],
+        "properties": {
+          "source_sha256": {"$ref": "#/$defs/digest"},
+          "reference": {"type": "string", "minLength": 1, "maxLength": 8192, "description": "Opaque edge token returned by v1.references; the implementation bounds UTF-8 bytes, not Unicode scalar count. Retain verbatim, including its baseline SHA and canonical-project scope. Face tokens are discoverable but resolve_point refuses them as unmeasurable."},
+          "fraction": {"type": "number", "minimum": 0, "maximum": 1, "description": "Finite arc-length fraction on the actual trimmed exact source edge, from its kernel start to end; not HLR t, polyline length or preview triangles."}
+        }
+      }}}
+    },
+    {
       "if": {"properties": {"method": {"enum": ["v1.capabilities", "v1.source_status"]}}},
       "then": {"properties": {"params": {"type": "object", "maxProperties": 0}}}
     }
   ],
   "$defs": {
+    "digest": {"type": "string", "pattern": "^[0-9a-f]{64}$", "description": "The current successfully loaded snapshot SHA-256, including when resolving a token whose audit baseline is older. A mismatch is stale_model, not lost topology."},
+    "reference_item": {
+      "type": "object", "required": ["index", "reference", "name", "verification", "cross_rebuild"],
+      "properties": {
+        "index": {"type": "integer", "minimum": 0},
+        "reference": {"type": "string", "maxLength": 8192},
+        "name": {"type": ["string", "null"]},
+        "verification": {"enum": ["verified_upstream_history", "unverified_upstream_name", "payload_scoped"]},
+        "cross_rebuild": {"type": "boolean"}
+      }
+    },
+    "references_result": {
+      "type": "object", "required": ["protocol", "source", "canonical_path", "format", "units", "placements", "fraction_convention", "native_continuity_scheme"],
+      "properties": {
+        "protocol": {"const": "cadcraft-references/1"},
+        "canonical_path": {"type": "string"},
+        "format": {"enum": ["sc", "step", "iges"]},
+        "fraction_convention": {"const": "trimmed_edge_arc_length_start_to_end"},
+        "placements": {"type": "array", "maxItems": 32, "items": {
+          "type": "object", "required": ["placement", "native_identity", "identity_scope", "edges", "faces"],
+          "properties": {
+            "placement": {"type": "integer", "minimum": 0, "maximum": 31},
+            "native_identity": {"type": ["object", "null"], "description": "SC: actual component, occurrence_path, feature and definition_body from the retained evaluated model. Numeric IDs are project-local, never UUIDs. Neutral sources: null."},
+            "identity_scope": {"enum": ["canonical_project_path_and_payload_baseline", "payload_sha256_and_canonical_path"]},
+            "edges": {"type": "array", "items": {"$ref": "#/$defs/reference_item"}},
+            "faces": {"type": "array", "items": {"$ref": "#/$defs/reference_item"}}
+          }
+        }}
+      }
+    },
+    "resolve_point_result": {
+      "type": "object", "required": ["protocol", "source", "baseline_source_sha256", "canonical_path", "native_identity", "identity_scope", "verification", "units", "fraction", "fraction_convention", "status"],
+      "properties": {
+        "protocol": {"const": "cadcraft-references/1"},
+        "status": {"enum": ["resolved", "lost", "ambiguous", "suppressed", "failed", "unmeasurable"]},
+        "baseline_source_sha256": {"$ref": "#/$defs/digest"},
+        "verification": {"enum": ["verified_upstream_history", "unverified_upstream_name", "payload_scoped", "not_verified"]},
+        "point": {"type": "array", "minItems": 3, "maxItems": 3, "items": {"type": "number"}, "description": "World millimetres, source placement already applied exactly once. Present only on resolved."},
+        "placement": {"type": "integer", "minimum": 0},
+        "edge": {"type": "integer", "minimum": 0},
+        "cross_rebuild": {"type": "boolean"},
+        "reason": {"type": "string"}
+      },
+      "allOf": [{
+        "if": {"properties": {"status": {"const": "resolved"}}},
+        "then": {"required": ["point", "placement", "edge", "cross_rebuild", "evaluation"]},
+        "else": {"not": {"required": ["point"]}, "required": ["reason"]}
+      }]
+    },
     "vector": {"type": "array", "minItems": 3, "maxItems": 3, "items": {"type": "number", "minimum": -1000000, "maximum": 1000000}, "description": "Finite vector, normalized by HLR. Direction must be nonzero and not parallel to up."}
   },
   "x-result-contract": {
@@ -53,6 +133,10 @@
     "measure": "Per body status=ok contains upstream BodyMeasure, numerical integration on exact surfaces, not symbolic arithmetic or a certified relative-error bound; volume_valid=false for open bodies. status=error preserves failure without inventing a value. Legacy measured_by=smlib means the pinned pure-Rust SolidCore wrapper; mesh-only imports are refused.",
     "v1.view": "source, normalized millimetre units, orthonormal basis x/y/direction, scale=1, quality and prepare_reports, raw upstream HLR Drawing. Drawing lines retain placement/source, source parameter interval t, visibility visible/hidden/uncertain, covered, accuracy analytic/bounded/sampled and raw Seg2 geometry. Seg2 type=conic {a,apex,b,w} is a rational quadratic with endpoint weights 1 and must NOT be chorded or relabelled exact by consumers. Unsupported face flags are preserved. HLR indices are result-local record indices; STEP/IGES face_origin, when present, maps faces to payload-scoped entities. Native document/feature/body identifiers are not a guarantee of topology matching across edits/rebuilds. phase_ms is nondeterministic timing, not geometry identity.",
     "v1.source_status": "loaded and current content fingerprint; changed compares digest and byte count. Rereads exactly the loaded requested path under the same root/file bounds. Deleted, unreadable or newly denied paths return typed file/path errors, not unchanged. Does not reload or nearest-match topology.",
+    "v1.preview": "Display-only upstream tessellation, never drawing/measurement authority. World-coordinate positions, triangle indices and payload-scoped tri_face per placement; no placement reapplication. Detail 1..8 controls requested chord: max(body size * 0.01/detail, 0.001 mm), with upstream floor at body size*1e-6 and normal display-angle policy. Missing faces and evaluator refusals are retained explicitly; global chord-error bounds are not certified. Output has at most 100000 triangles and 200000 vertices in total, also bounded by the existing response-size/deadline policy; not an OS memory sandbox. Preview never changes exact source or HLR geometry.",
+    "v1.references": "Result is $defs.references_result. Enumerates exact source edges/faces per placement, not HLR fragments or preview triangles. Retains actual upstream Document and evaluated Model/NameCells. Validates each body/placement naming binding through Document.edge_reference/face_reference, then enumerates the actual cached naming tables without quadratic repeated picking; resolution checks Document.finds_one. verified_upstream_history requires upstream face_name_exact and unique names; edges additionally require an unnumbered persistent name. Geometry-derived names remain unverified_upstream_name even when their current exact edge is measurable. Discovery refuses oversized names/tokens/aggregate responses atomically, never silently truncates.",
+    "v1.resolve_point": "Result is $defs.resolve_point_result. source_sha256 must identify the loaded snapshot, while reference retains its original baseline SHA. Uses upstream edge_path on the actual trimmed record edge and along_path's arc-length evaluator, then native body_frame_at exactly once; neutral bodies are already world-placed. Lines/arcs have closed-form lengths; spline spans use upstream numerical arc-length integration, not symbolic or certified error bounds. Unsupported intersection curves/degenerate paths are unmeasurable; no fitting, zero point or mesh fallback. Exact name equality/persistent_name.same_edge only: no nearest recovery, merging or split-piece reattachment. A failed replacement load retains the previous snapshot, so resolving it cannot diagnose the rejected document's feature failures.",
+    "native_reference_continuity": "SC has no document UUID. IDs are local to the explicitly linked canonical path, not globally unique. Cross-SHA continuity scheme same_path_full_document_except_literal_independent_sizes_or_simple_extrude_distance/1 requires the same canonical path, native feature/body/component/occurrence identity, and a SHA of the entire evaluated document after normalizing only that producer's permitted literal sizes: independent NewBody Cylinder radius/height without references, Box length/width/height, or independent NewBody simple untapered sketch Extrude distance (no targets, thin, second side, start offset, through-all or to/from object). Literal inputs must be positive finite numbers, not parameter expressions. Every other document field, including names, sketch curve identities, other features, occurrence frames and metadata, must agree. Both old and new topology must have genuine verified upstream names. This is a conservative semantic guard within a path-linked project, not proof against replacing that path with a semantically identical unrelated file. Unverified or unsupported lineage, other paths, deleted/renamed topology and changed STEP/IGES payloads are lost. Suppressed/rolled-back producers report suppressed. Duplicate matching identities/names report ambiguous rather than selecting a neighbor.",
     "quality": "analytic_complete is conservative and false for unsupported faces/trims, uncertain pieces (even covered), any bounded or sampled pieces, any import warning/issue, or open/refused bodies. No field claims bounded chords are analytic. import_issues counts diagnostic entries including warning strings, not distinct deduplicated causes.",
     "errors": "JSON-RPC standard -32700 parse, -32600 envelope/batch, -32601 unknown method, -32602 params, -32603 internal; application -32001 path, -32002 file, -32003 resource, -32004 import, -32005 geometry, -32006 no model, -32007 stale digest, -32008 hard deadline. data.kind identifies typed application failures. Geometry panic discards the model; supervised child termination/hard timeout discards the model and closes the session. No automatic retry or fake fallback."
   },
@@ -63,10 +147,12 @@
     "native_container_entries": 10000, "native_total_expanded_bytes": 8388608,
     "native_json_depth": 32, "native_joint_count": 32, "native_link_count": 32,
     "hlr_tracks": 4096, "hlr_rays": 500000, "hlr_trim_samples": 256, "hlr_threads": 1,
+    "preview_triangles": 100000, "preview_vertices": 200000,
+    "reference_token_bytes": 8192, "reference_name_bytes": 1024, "discovery_token_bytes_total": 4194304,
     "cooperative_seconds": 30, "supervised_hard_seconds": 40,
     "notes": "Safe supervisor kills the separate kernel child at the hard per-request deadline. Cooperative kernel/HLR checks return earlier. Input-derived imported body/topology counts are checked after upstream import/evaluation, native placed-body count is also checked before world placement. This is not a hard memory sandbox. Native upstream container budget refusals are import_failed errors; explicit worker budget refusals are resource_limit errors. Direct Rust library use is cooperative only; use the binary for hard deadlines. Oversized frames close rather than draining arbitrary input. serde_json default depth limit remains enabled, with a stricter worker native structure depth bound."
   },
-  "x-known-gaps": ["prototype, not production bridge", "native resource blobs other than exact STEP/records are refused", "custom font resources refused", "native constraints or placement feedback that do not settle are refused", "no preview mesh", "no section/perspective API", "no persistent topology matching across payload edits or native rebuilds", "original STEP/IGES source unit declaration not exposed; geometry is normalized to mm", "no certified general freeform silhouettes", "no hard OS memory/filesystem sandbox"],
+  "x-known-gaps": ["prototype, not production bridge", "native resource blobs other than exact STEP/records are refused", "custom font resources refused", "native constraints or placement feedback that do not settle are refused", "no section/perspective API", "no general persistent topology matching; native rebuild continuity only in the documented verified literal-parameter scheme", "original STEP/IGES source unit declaration not exposed; geometry is normalized to mm", "no certified general freeform silhouettes", "no hard OS memory/filesystem sandbox"],
   "x-commands-from-repository-root": [
     "cargo build --locked --manifest-path tools/solidcraft-bridge/Cargo.toml",
     "cargo test --locked --manifest-path tools/solidcraft-bridge/Cargo.toml --all-targets",
@@ -81,5 +167,5 @@
     {"jsonrpc":"2.0","id":3,"method":"v1.source_status","params":{}}
   ],
   "x-view-example": "Send v1.view with params {source_sha256:<digest from v1.load>,direction:[1,1,1],up:[0,0,1],require_analytic:false}. Inspect drawing.lines[].pieces[].geometry[] for type=conic and preserve all quality/visibility fields. Strict true is a separate acceptance policy, not a curve fitting tolerance.",
-  "x-verification-status": "2026-11-21 Linux: --locked --all-targets worker tests: 12 passed; all-targets Clippy -D warnings passed. Actual cadcraft-io Client loaded a native cylinder, retained analytic oblique conics and exact-surface volume, preserved the loaded session after a remote method error and detected source change. User-document/GUI integration, preview and cross-rebuild topology acceptance remain open."
+  "x-verification-status": "2026-11-21 prior worker regression evidence: 13 passed (6 geometry, 4 native, 2 transport, 1 unit); prior all-targets Clippy -D warnings passed. Reference slice adds genuine native sketch/extrusion save/rebuild/new-session geometry, loss/suppression/path, unverified naming and neutral STEP/IGES fraction/change tests plus supervised transport coverage. These additions have not been run by the slice worker; main integration owns final checks. No universal topology or whole-product acceptance claim."
 }

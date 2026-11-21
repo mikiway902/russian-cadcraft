@@ -26,6 +26,7 @@ mod guard;
 pub mod identity;
 pub mod keyboard;
 pub mod lisp;
+pub mod model_io;
 pub mod mtext_edit;
 pub mod pointmod;
 pub mod prompt;

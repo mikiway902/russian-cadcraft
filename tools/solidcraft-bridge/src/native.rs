@@ -18,6 +18,7 @@ pub(super) struct Loaded {
     pub bodies: Vec<LoadedBody>,
     pub import_issues: usize,
     pub result: Value,
+    pub evaluated: super::references::Native,
 }
 
 pub(super) const CONTAINER_LIMITS: Limits = Limits {
@@ -362,7 +363,7 @@ pub(super) fn load(bytes: &[u8], source: &Fingerprint) -> Result<Loaded, Error> 
         "hidden_contract": "body_and_occurrence_flags_reported_full_saved_visibility_retained_all_bodies_participate_in_views",
         "warnings": warnings, "report": reports, "checks_settled": true,
         "native_model_cache": "ignored_timeline_evaluated"});
-    Ok(Loaded { bodies, import_issues, result })
+    Ok(Loaded { bodies, import_issues, result, evaluated: super::references::Native { document: doc, model } })
 }
 
 /// Reject oversized structure before serde can allocate input-sized arrays or object maps.

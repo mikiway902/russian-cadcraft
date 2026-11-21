@@ -2,7 +2,14 @@
   "generated_by": "cargo metadata --locked --format-version 1 (no compilation)",
   "upstream_revision": "c5f47e501169c7f0f9e8191b2541e689e2f018e8",
   "scope": "selected standalone dependency graph, includes target-conditional dependencies",
-  "policy_review": "Existing main-lock foldhash Zlib, unicode-ident Unicode-3.0 and memchr Unlicense alternatives require owner policy review; no new identifier outside allowlist added by this closure. SPDX metadata is not full source/notice audit.",
+  "policy_review": "Owner approved the precise pinned permissive exceptions on 2026-11-21: foldhash0.2.0/zlib-rs0.6.8 Zlib; unicode-ident1.0.27 Unicode-3.0 with MIT/Apache-2.0; select MIT/Apache-2.0 branches of locked OR expressions, including r-efi6.0.0. No GPL/LGPL/AGPL branch is selected. New versions or dependency changes require renewed review; full redistributable notices are staged from packaging/model-worker-licences.",
+  "policy_approval_baseline": {
+    "date": "2026-11-21",
+    "source": "Owner explicitly submitted approve_pinned_permissive_exceptions",
+    "root_lock_sha256": "ea3e2c4012aeb1f9b008dd65935731060a00f669e6959c76f852b459571c7f68",
+    "worker_lock_sha256": "b01c9934f314fdbe0e73d461ca9e0cc1457527a03502d1f7760738e4c04afc32",
+    "scope": "Recorded package/version and selected licence obligations, not approval of arbitrary future lockfile changes"
+  },
   "native_loading_review": {
     "dependency_resolution": "cargo metadata only, no build/test/lint/formatter; native graph resolved with the original worker lock retained",
     "native_api_sources": [

@@ -59,7 +59,14 @@ if [[ "$SKIP_BUILD" = 0 ]]; then
   args=()
   for t in "${TARGETS[@]}"; do args+=(--target "$t"); done
   (cd "$ROOT" && cargo build --release --locked -p cadcraft -p cadcraft-cli "${args[@]}")
+  for t in "${TARGETS[@]}"; do build_model_worker "$t"; done
 fi
+# Validate every worker slice before replacing staging, including --skip-build universal runs.
+WORKER_INPUTS=()
+for t in "${TARGETS[@]}"; do
+  worker_input="$(model_worker_binary "$t")"
+  WORKER_INPUTS+=("$worker_input")
+done
 
 rm -rf "$WORK"
 mkdir -p "$WORK/bin"
@@ -69,6 +76,8 @@ for bin in cadcraft cadcraft-cli; do
   lipo -create -output "$WORK/bin/$bin" "${inputs[@]}"
   lipo -info "$WORK/bin/$bin"
 done
+lipo -create -output "$WORK/bin/cadcraftgost-model-worker" "${WORKER_INPUTS[@]}"
+lipo -info "$WORK/bin/cadcraftgost-model-worker"
 
 # ---- signing helpers ---------------------------------------------------------------------------
 sign() {
@@ -117,11 +126,13 @@ echo "==> assembling $APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 # Executable and icon carry the display name (CFBundleExecutable / CFBundleIconFile).
 cp "$WORK/bin/cadcraft" "$APP/Contents/MacOS/CADCraftGOST"
+cp "$WORK/bin/cadcraftgost-model-worker" "$APP/Contents/MacOS/cadcraftgost-model-worker"
 cp "$ROOT/assets/app-icon/cadcraft.icns" "$APP/Contents/Resources/CADCraftGOST.icns"
 # Bundled dependency font notices are installed before the app is signed.
 cp "$ROOT/NOTICE" "$ROOT/ATTRIBUTION.md" "$APP/Contents/Resources/"
 # Licences of the embedded craft-fonts fonts (only when built with CRAFT_FONTS_DIR).
 copy_font_licences "$APP/Contents/Resources"
+copy_model_worker_licences "$APP/Contents/Resources"
 sed -e "s/@VERSION@/$VERSION/g" -e "s/@SHORT_VERSION@/$SHORT_VERSION/g" \
   -e "s/@BUILD_SHA@/${CADCRAFT_BUILD_SHA:-unknown}/g" \
   "$HERE/Info.plist.in" >"$APP/Contents/Info.plist"
@@ -129,8 +140,9 @@ plutil -lint "$APP/Contents/Info.plist"
 printf 'APPL????' >"$APP/Contents/PkgInfo"
 
 # Sign inside-out: nested code first, then the bundle itself (no --deep on the final signature).
-# Today the only nested code is the main executable; frameworks/helpers would be signed here too.
+# Both the main executable and the exact-model helper are signed before their enclosing bundle.
 sign --options runtime --entitlements "$HERE/entitlements.plist" "$APP/Contents/MacOS/CADCraftGOST"
+sign --options runtime --entitlements "$HERE/entitlements.plist" "$APP/Contents/MacOS/cadcraftgost-model-worker"
 sign --options runtime --entitlements "$HERE/entitlements.plist" "$APP"
 codesign --verify --strict --deep --verbose=2 "$APP"
 
@@ -170,9 +182,13 @@ echo "==> building $CLI_ZIP"
 CLI_DIR="$WORK/cadcraftgost-cli-$VERSION-macos-$ARCH"
 mkdir -p "$CLI_DIR"
 cp "$WORK/bin/cadcraft-cli" "$CLI_DIR/cadcraftgost-cli"
+cp "$WORK/bin/cadcraftgost-model-worker" "$CLI_DIR/cadcraftgost-model-worker"
 copy_docs "$CLI_DIR"
+copy_model_worker_licences "$CLI_DIR"
 sign --options runtime "$CLI_DIR/cadcraftgost-cli"
 codesign --verify --strict --verbose=2 "$CLI_DIR/cadcraftgost-cli"
+sign --options runtime "$CLI_DIR/cadcraftgost-model-worker"
+codesign --verify --strict --verbose=2 "$CLI_DIR/cadcraftgost-model-worker"
 rm -f "$CLI_ZIP"
 ditto -c -k --keepParent "$CLI_DIR" "$CLI_ZIP"
 # A bare Mach-O can't carry a stapled ticket; Gatekeeper looks the notarization up online.

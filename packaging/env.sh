@@ -8,6 +8,7 @@
 #   CADCRAFT_BUILD_SHA    git commit baked into the binaries (see crates/engine/src/build_info.rs)
 #   CADCRAFT_BUILD_DATE   UTC build date, YYYY-MM-DD
 #   CARGO_TARGET_DIR        cargo's target dir (default: $ROOT/target)
+#   MODEL_WORKER_TARGET_DIR  isolated exact-model worker build directory ($CARGO_TARGET_DIR/model-worker)
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export ROOT
@@ -39,6 +40,40 @@ fi
 export CADCRAFT_BUILD_SHA
 export CADCRAFT_BUILD_DATE="${CADCRAFT_BUILD_DATE:-$(date -u +%Y-%m-%d)}"
 export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-$ROOT/target}"
+# Cargo resolves relative target directories from the workspace being built. Use one absolute
+# base for both independent workspaces, including callers that package from another directory.
+case "$CARGO_TARGET_DIR" in /*) ;; *) CARGO_TARGET_DIR="$ROOT/$CARGO_TARGET_DIR" ;; esac
+export CARGO_TARGET_DIR
+export MODEL_WORKER_TARGET_DIR="$CARGO_TARGET_DIR/model-worker"
+
+# The worker remains outside the host Cargo workspace and uses its own committed lockfile.
+# An explicit target follows each platform's existing host/cross/universal build contract.
+build_model_worker() {
+  local target="${1:-}"
+  local args=()
+  [[ -z "$target" ]] || args+=(--target "$target")
+  (cd "$ROOT" && cargo build --release --locked \
+    --manifest-path "$ROOT/tools/solidcraft-bridge/Cargo.toml" --bin cadcraft-model-worker \
+    --target-dir "$MODEL_WORKER_TARGET_DIR" ${args[@]+"${args[@]}"})
+}
+
+model_worker_binary() {
+  local target="${1:-}"
+  local binary="$MODEL_WORKER_TARGET_DIR/${target:+$target/}release/cadcraft-model-worker"
+  if [[ ! -f "$binary" || ! -x "$binary" ]]; then
+    echo "error: required exact-model worker missing or not executable: $binary; build without --skip-build" >&2
+    return 1
+  fi
+  printf '%s\n' "$binary"
+}
+
+# These are full copyright/licence texts, not the dependency SPDX inventory. Keep them with
+# every native worker, including --skip-build packages and the standalone macOS CLI archive.
+copy_model_worker_licences() {
+  local dest="$1"
+  mkdir -p "$dest/model-worker-licences"
+  cp "$ROOT/packaging/model-worker-licences/"*.txt "$dest/model-worker-licences/"
+}
 
 # Emit a GitHub Actions warning (plain stderr outside Actions).
 warn() {

@@ -20,6 +20,12 @@ use cadcraft_doc::foreign::{Foreign, ForeignExtra, ForeignKey, ForeignObject, cl
 use cadcraft_doc::{Drawing, Entity, EntityKind, Handle, RawTag, Unknown};
 use craft_dxf::{Section, Tag};
 
+#[cfg(test)]
+thread_local! {
+    // Count real parser work on this test's thread; wall-clock ratios race other tests and CI.
+    static RAW_TAG_VISITS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
 /// Named object dictionary entries CADCraft reads and writes from its model.
 /// Other applications and extensions may use the same namespace: an unknown key
 /// must survive even when it starts with `CADCRAFT`. Entries already written by
@@ -134,6 +140,8 @@ fn head(tags: &[Tag]) -> Head {
     let mut h = Head::default();
     let mut group: Option<String> = None;
     for t in tags.iter().take_while(|t| t.code < 1000) {
+        #[cfg(test)]
+        RAW_TAG_VISITS.with(|count| count.set(count.get().saturating_add(1)));
         match (t.code, group.as_deref()) {
             (102, _) => {
                 let v = t.str();
@@ -162,6 +170,8 @@ fn entries(tags: &[Tag]) -> Vec<(String, String)> {
     let mut out = Vec::new();
     let mut key: Option<String> = None;
     for t in tags.iter().take_while(|t| t.code < 1000) {
+        #[cfg(test)]
+        RAW_TAG_VISITS.with(|count| count.set(count.get().saturating_add(1)));
         match t.code {
             3 => key = Some(t.str()),
             350 | 360 => {
@@ -1454,3 +1464,7 @@ mod hard_owner_tests {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "dxf_raw_work_tests.rs"]
+mod work_tests;

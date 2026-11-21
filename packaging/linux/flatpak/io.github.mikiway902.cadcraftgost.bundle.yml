@@ -41,6 +41,7 @@ modules:
     build-commands:
       - install -Dm755 bin/cadcraftgost /app/bin/cadcraftgost
       - install -Dm755 bin/cadcraftgost-cli /app/bin/cadcraftgost-cli
+      - install -Dm755 bin/cadcraftgost-model-worker /app/bin/cadcraftgost-model-worker
       - install -Dm644 share/applications/io.github.mikiway902.cadcraftgost.desktop /app/share/applications/io.github.mikiway902.cadcraftgost.desktop
       # .dxf and .dwg.
       - install -Dm644 share/mime/packages/io.github.mikiway902.cadcraftgost.xml /app/share/mime/packages/io.github.mikiway902.cadcraftgost.xml

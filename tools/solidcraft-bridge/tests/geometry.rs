@@ -1,7 +1,7 @@
 use cadcraft_model_worker::{Error, Worker};
 use serde_json::{Value, json};
 use solidcore_record::{Seg2, Vec3};
-use solidcraft_geom::hlr;
+use solidcraft_geom::{Vec3Geom, hlr};
 use solidcraft_kernel::{ExportBody, StepHeader};
 use std::{
     fs,
@@ -212,4 +212,94 @@ fn symlinks_cannot_escape_explicit_allowed_directory() {
     let alias = fixture.0.join("alias.step");
     std::os::unix::fs::symlink(source, &alias).unwrap();
     assert!(matches!(fixture.worker().call("v1.load", json!({"path": alias})), Err(Error::Path(_))));
+}
+
+#[test]
+fn display_preview_preserves_cylinder_shape_and_cannot_change_exact_projection() {
+    kernel_test(|| {
+        let fixture = Fixture::new();
+        let path = fixture.write("preview-cylinder.step", &cylinder_step());
+        let mut worker = fixture.worker();
+        let loaded = worker.call("v1.load", json!({"path":path})).unwrap();
+        let query = json!({"source_sha256":loaded["source"]["sha256"],"direction":[1,1,1],"up":[0,0,1],"require_analytic":true});
+        let before = worker.call("v1.view", query.clone()).unwrap();
+        let preview = worker.call("v1.preview", json!({"source_sha256":loaded["source"]["sha256"],"detail":4})).unwrap();
+        assert_eq!(preview["purpose"], "display_only_not_measurement_or_projection");
+        assert_eq!(preview["quality"]["bounds_certified"], false);
+        assert_eq!(preview["quality"]["missing_faces"], 0);
+        let body = &preview["bodies"][0];
+        let positions: Vec<Vec3> = serde_json::from_value(body["positions"].clone()).unwrap();
+        let triangles: Vec<[usize; 3]> = serde_json::from_value(body["triangles"].clone()).unwrap();
+        let mut bounds = [[f64::INFINITY; 3], [f64::NEG_INFINITY; 3]];
+        for p in &positions {
+            let radial = p.x.hypot(p.y);
+            assert!(radial <= 5.0 + 1e-8 && p.z >= -1e-8 && p.z <= 20.0 + 1e-8);
+            assert!(p.z.abs() < 1e-8 || (p.z - 20.0).abs() < 1e-8 || (radial - 5.0).abs() < 1e-8, "vertex not on a cylinder face: {p:?}");
+            for (i, coordinate) in [p.x, p.y, p.z].into_iter().enumerate() {
+                bounds[0][i] = bounds[0][i].min(coordinate);
+                bounds[1][i] = bounds[1][i].max(coordinate);
+            }
+        }
+        for (actual, expected) in bounds.into_iter().flatten().zip([-5.0, -5.0, 0.0, 5.0, 5.0, 20.0]) {
+            assert!((actual - expected).abs() < 0.1, "preview lost cylinder extent: {actual} != {expected}");
+        }
+        for [a, b, c] in triangles {
+            let (a, b, c) = (positions[a], positions[b], positions[c]);
+            assert!((b - a).cross(c - a).len() > 1e-12, "degenerate triangle");
+            let center = (a + b + c) / 3.0;
+            let on_cap = center.z.abs() < 1e-8 || (center.z - 20.0).abs() < 1e-8;
+            assert!(on_cap || (center.x.hypot(center.y) - 5.0).abs() < 0.1, "triangle not near a cylinder face");
+        }
+        for detail in [0, 9] {
+            assert!(matches!(
+                worker.call("v1.preview", json!({"source_sha256":loaded["source"]["sha256"],"detail":detail})),
+                Err(Error::Parameters(_))
+            ));
+        }
+        assert!(matches!(worker.call("v1.preview", json!({"source_sha256":"stale","detail":4})), Err(Error::StaleModel)));
+        let after = worker.call("v1.view", query).unwrap();
+        assert_eq!(after["drawing"]["lines"], before["drawing"]["lines"]);
+        assert_eq!(after["quality"], before["quality"]);
+    });
+}
+
+#[test]
+fn neutral_reference_fraction_uses_real_exact_trim_and_changed_step_iges_payload_is_lost() {
+    kernel_test(|| {
+        let fixture = Fixture::new();
+        for extension in ["step", "igs"] {
+            let mut worker = fixture.worker();
+            let make = |width| {
+                let body = solidcraft_kernel::box_solid(Vec3::ZERO, Vec3::new(width, 20., 30.)).unwrap();
+                let bodies = [ExportBody { name: "Reference box".into(), body: &body, color: None }];
+                if extension == "step" {
+                    solidcraft_kernel::step_export_bodies(&bodies, &StepHeader::default()).unwrap()
+                } else {
+                    solidcraft_kernel::iges_export_bodies(&bodies, &StepHeader::default()).unwrap()
+                }
+            };
+            let path = fixture.write(&format!("reference.{extension}"), &make(10.));
+            let loaded = worker.call("v1.load", json!({"path": path})).unwrap();
+            let refs = worker.call("v1.references", json!({"source_sha256": loaded["source"]["sha256"]})).unwrap();
+            let edge = &refs["placements"][0]["edges"][0];
+            assert_eq!(edge["verification"], "payload_scoped");
+            assert_eq!(edge["cross_rebuild"], false);
+            let resolve = |worker: &mut Worker, loaded: &Value, t| {
+                worker
+                    .call("v1.resolve_point", json!({"source_sha256": loaded["source"]["sha256"], "reference": edge["reference"], "fraction": t}))
+                    .unwrap()
+            };
+            let a: Vec3 = serde_json::from_value(resolve(&mut worker, &loaded, 0.)["point"].clone()).unwrap();
+            let b: Vec3 = serde_json::from_value(resolve(&mut worker, &loaded, 1.)["point"].clone()).unwrap();
+            let middle = resolve(&mut worker, &loaded, 0.25);
+            assert_eq!(middle["status"], "resolved");
+            let p: Vec3 = serde_json::from_value(middle["point"].clone()).unwrap();
+            assert!((p - (a * 0.75 + b * 0.25)).len() < 1e-7);
+            fs::write(&path, make(12.)).unwrap();
+            let rebuilt = worker.call("v1.load", json!({"path": path})).unwrap();
+            let lost = resolve(&mut worker, &rebuilt, 0.25);
+            assert_eq!(lost["status"], "lost");
+            assert!(lost.get("point").is_none());
+        }
+    });
 }

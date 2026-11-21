@@ -14,6 +14,8 @@ mod format;
 mod gdt;
 mod header;
 pub mod library;
+pub mod model_preview;
+pub mod model_projection;
 mod plotstyle;
 mod plotter;
 mod raster;

@@ -62,6 +62,9 @@ contents:
   - src: ${STAGE}/usr/bin/cadcraftgost-cli
     dst: /usr/bin/cadcraftgost-cli
     file_info: { mode: 0755 }
+  - src: ${STAGE}/usr/bin/cadcraftgost-model-worker
+    dst: /usr/bin/cadcraftgost-model-worker
+    file_info: { mode: 0755 }
   - src: ${STAGE}/usr/share/
     dst: /usr/share/
     type: tree

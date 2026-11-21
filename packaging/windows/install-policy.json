@@ -12,6 +12,7 @@
   ],
   "payloads": [
     "cadcraftgost-cli.exe",
+    "cadcraftgost-model-worker.exe",
     "cadcraftgost.exe"
   ],
   "registry": [

@@ -8,6 +8,8 @@ use crate::CadApp;
 
 #[cfg(feature = "gost")]
 mod gost;
+#[cfg(feature = "gost")]
+pub(crate) mod models;
 
 /// The dialog bindings provided by one compiled extension.
 pub struct ExtensionDescriptor {
@@ -27,6 +29,8 @@ pub fn compiled() -> &'static [ExtensionDescriptor] {
     &[
         #[cfg(feature = "gost")]
         gost::DESCRIPTOR,
+        #[cfg(feature = "gost")]
+        models::DESCRIPTOR,
     ]
 }
 

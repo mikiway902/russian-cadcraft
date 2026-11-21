@@ -24,6 +24,8 @@ use std::{
 };
 
 mod native;
+mod preview;
+mod references;
 
 pub const UPSTREAM_REV: &str = "c5f47e501169c7f0f9e8191b2541e689e2f018e8";
 pub const MAX_MESSAGE_BYTES: usize = 16 * 1024;
@@ -126,6 +128,9 @@ struct LoadedBody {
 
 struct Model {
     requested_path: PathBuf,
+    canonical_path: PathBuf,
+    format: &'static str,
+    native: Option<references::Native>,
     fingerprint: Fingerprint,
     bodies: Vec<LoadedBody>,
     import_issues: usize,
@@ -206,7 +211,7 @@ impl Worker {
                 Ok(json!({
                     "protocol": "cadcraft-model-worker/1", "stage": "prototype",
                     "upstream": {"revision": UPSTREAM_REV, "version": "0.45.0-rc.4"},
-                    "methods": ["v1.capabilities", "v1.load", "v1.view", "v1.source_status"],
+                    "methods": ["v1.capabilities", "v1.load", "v1.view", "v1.preview", "v1.source_status", "v1.references", "v1.resolve_point"],
                     "formats": ["sc", "step", "stp", "iges", "igs"],
                     "projection": "orthographic_raw_hlr", "curves": ["line", "arc", "cubic", "conic", "bezier"],
                     "units": units(), "placements": "all_imported_bodies_already_placed_including_hidden",
@@ -216,23 +221,34 @@ impl Worker {
                         "model_cache": "never_trusted_or_required",
                         "assembly": "rigid_nested_occurrences_expressed_moves_and_settled_upstream_joint_placements",
                         "metadata": "saved_design_component_properties_and_explicit_body_material_assignments",
-                        "identity": "payload_scoped_component_occurrence_feature_and_body_names_not_cross_rebuild_topology",
+                        "identity": "project_local_ids_never_globally_unique; bounded_verified_same_path_semantic_continuity",
                         "unsupported": ["unsettled_or_conflicting_joint_assemblies", "external_fonts", "mesh_features",
                             "newer_unknown_geometry", "non_import_resource_blobs"]},
+                    "references": {"protocol": "cadcraft-references/1", "token_bytes": references::MAX_TOKEN_BYTES,
+                        "discovery_token_bytes_total": references::MAX_DISCOVERY_TOKEN_BYTES,
+                        "discovery": "per_placement_exact_edges_and_faces_with_explicit_verification",
+                        "fraction": "trimmed_edge_arc_length_start_to_end",
+                        "native_continuity": "same_canonical_path_and_full_document_except_literal_independent_sizes_or_simple_extrude_distance/1",
+                        "unverified_names": "snapshot_only_never_promoted_or_nearest_matched",
+                        "step_iges": "payload_scoped_only"},
                     "limits": {"request_bytes": MAX_MESSAGE_BYTES, "response_bytes": MAX_RESPONSE_BYTES,
                         "requests": MAX_REQUESTS, "batch_items": 1, "file_bytes": MAX_FILE_BYTES,
                         "bodies": MAX_BODIES, "topology_items": MAX_TOPOLOGY, "nesting": MAX_DEPTH,
                         "native_container_entries": 10_000, "native_expanded_bytes": MAX_FILE_BYTES,
                         "native_joints": native::MAX_JOINTS, "native_links": native::MAX_JOINTS,
                         "references": MAX_REFERENCES, "tracks": MAX_TRACKS, "rays": MAX_RAYS,
+                        "preview_triangles": preview::MAX_TRIANGLES, "preview_vertices": preview::MAX_VERTICES,
                         "cooperative_work_seconds": WORK_SECONDS, "supervised_hard_work_seconds": 40, "hlr_threads": 1},
-                    "gaps": ["persistent_topology_remapping",
-                        "preview_mesh", "perspective", "sections", "certified_freeform_silhouettes",
+                    "gaps": ["general_persistent_topology_remapping",
+                        "perspective", "sections", "certified_freeform_silhouettes",
                         "hard_memory_sandbox", "original_step_iges_unit_declaration", "path_race_against_concurrent_local_directory_mutation"]
                 }))
             }
             "v1.load" => self.load(params(parameters)?),
             "v1.view" => self.view(params(parameters)?),
+            "v1.preview" => self.preview(params(parameters)?),
+            "v1.references" => self.references(parameters),
+            "v1.resolve_point" => self.resolve_point(parameters),
             "v1.source_status" => {
                 empty_params(parameters)?;
                 self.source_status()
@@ -279,11 +295,22 @@ impl Worker {
         };
         let bytes = self.read_source(&request.path)?;
         let source = fingerprint(&bytes);
+        let canonical_path = request.path.canonicalize()?;
+        if canonical_path.as_os_str().len() > 4096 {
+            return Err(Error::Path("canonical project path exceeds 4096 bytes".into()));
+        }
         if extension == "sc" {
             let loaded = native::load(&bytes, &source)?;
             ensure_response_size(&loaded.result)?;
-            self.model =
-                Some(Model { requested_path: request.path, fingerprint: source, bodies: loaded.bodies, import_issues: loaded.import_issues });
+            self.model = Some(Model {
+                requested_path: request.path,
+                canonical_path,
+                format: "sc",
+                native: Some(loaded.evaluated),
+                fingerprint: source,
+                bodies: loaded.bodies,
+                import_issues: loaded.import_issues,
+            });
             return Ok(loaded.result);
         }
         let text = std::str::from_utf8(&bytes).map_err(|e| Error::Import(format!("UTF-8/ASCII text required: {e}")))?;
@@ -324,7 +351,15 @@ impl Worker {
         ensure_response_size(&result)?;
         let import_issues = import.report.issues.len() + import.warnings.len();
         let bodies = import.bodies.into_iter().map(|b| LoadedBody { body: b.body, closed: b.closed, refused: b.refused.is_some() }).collect();
-        self.model = Some(Model { requested_path: request.path, fingerprint: source, bodies, import_issues });
+        self.model = Some(Model {
+            requested_path: request.path,
+            canonical_path,
+            format: if is_step { "step" } else { "iges" },
+            native: None,
+            fingerprint: source,
+            bodies,
+            import_issues,
+        });
         Ok(result)
     }
 

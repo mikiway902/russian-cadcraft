@@ -1,0 +1,77 @@
+{
+  "date": "2026-11-21",
+  "platform": "linux-x86_64",
+  "published": false,
+  "quality_gate": {
+    "all_nine_steps_passed": true,
+    "workspace_and_doctests_passed": 4029,
+    "feature_off_passed": 2,
+    "worker_passed": 19,
+    "failed": 0,
+    "ignored": 26,
+    "russian_english_fallbacks": 346,
+    "existing_wasm_warnings": 4
+  },
+  "build": {
+    "desktop_release": true,
+    "cli_release": true,
+    "worker_release": true,
+    "man_and_completions": true
+  },
+  "artifacts": {
+    "cadcraftgost-0.21.0-linux-x86_64.AppImage": {
+      "bytes": 73308664,
+      "sha256": "7de85a436272b3ace28ad0fa0bbaa6ae464b6e2a806b6c68e2bf214af10dbb44"
+    },
+    "cadcraftgost-0.21.0-linux-x86_64.AppImage.zsync": {
+      "bytes": 250825,
+      "sha256": "5e1c9f4d380cb2814a82694f26d97a769bd12303f61de351702ec1b7c414f72b"
+    },
+    "cadcraftgost-0.21.0-linux-x86_64.deb": {
+      "bytes": 81684648,
+      "sha256": "52b68e9e24d5ef5c35776217e79516ea2292ee259145cc0e7be636c34e185ca6"
+    },
+    "cadcraftgost-0.21.0-linux-x86_64.rpm": {
+      "bytes": 81057378,
+      "sha256": "f9f42c44001e2d3426476f3dfff0b0fa2e2f86a09c7e93db78847c7e96aa912d"
+    },
+    "cadcraftgost-0.21.0-linux-x86_64.tar.gz": {
+      "bytes": 79972160,
+      "sha256": "d73687473694ce2ad0c9e56cdef20cb7f1feabe25c8fa141e6c7ee01fd9594ce"
+    }
+  },
+  "runtime": {
+    "worker_override_unset": true,
+    "packaged_cli_import_and_front": true,
+    "packaged_cli_front_entities": 8,
+    "first_saved_dxf_bytes": 79853,
+    "packaged_cli_dxf_reopen": true,
+    "reopen_retains_raw_quality": {
+      "analytic_complete": false,
+      "bounded_pieces": 0,
+      "import_issues": 0,
+      "open_bodies": 0,
+      "sampled_pieces": 0,
+      "uncertain_pieces": 2,
+      "unsupported_faces": 0,
+      "unsupported_trims": 0
+    },
+    "packaged_gui_default_at_mm": [
+      50,
+      100
+    ],
+    "packaged_gui_actual_create_button": true,
+    "packaged_gui_accept_incomplete": false,
+    "packaged_gui_saved_dxf_bytes": 92737,
+    "default_front_off_title_block_in_checked_fixture": true,
+    "screenshot_under_target": "coexistence/proof/model-final-paper-default.png",
+    "gui_exit": 0
+  },
+  "limits": [
+    "No system RPM/DEB install/uninstall was performed",
+    "No Windows/macOS/FreeBSD runtime installer acceptance",
+    "No Alpha release publication",
+    "Not full GOST conformity or automatic view composition",
+    "Stepped-shaft Front uncertainty remains an open engineering benchmark"
+  ]
+}

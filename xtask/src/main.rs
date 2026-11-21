@@ -22,9 +22,10 @@ commands:
   layers          enforce the crate dependency layering (plan/architecture.md §3)
   wasm            cargo check --target wasm32-unknown-unknown for the wasm-safe crates
   test            cargo nextest run (cargo test without nextest) plus the doctests
+  models          check the standalone exact-model worker (fmt, clippy, tests)
   extensions      test native drafting without GOST and check feature-off CLI/desktop/web hosts
   i18n            print the strings each interface language shows in English (never fails)
-  ci              fmt --check, clippy -D warnings, test, i18n, assets, layers, wasm, extensions (stops at first failure)
+  ci              fmt, clippy, test, i18n, assets, layers, wasm, extensions, models (stops at first failure)
   corpus [DIR] [--out DIR] [--keep-saved] [--same-format]
                   open -> save -> reopen every DXF/DWG of a real-file corpus (DIR, default
                   $CADCRAFT_CORPUS_DIR or ../cadcraft-corpus) and write report.md + report.json
@@ -45,6 +46,7 @@ fn main() -> ExitCode {
         Some("wasm") => cmd_wasm(),
         Some("test") => cmd_test(),
         Some("extensions") => cmd_extensions(),
+        Some("models") => cmd_models(),
         Some("i18n") => cmd_i18n(),
         Some("ci") => cmd_ci(),
         Some("corpus") => cmd_corpus(&rest),
@@ -203,6 +205,24 @@ fn cmd_extensions() -> Result<(), String> {
     Ok(())
 }
 
+/// The worker is deliberately not a workspace member, but remains a shipped product component.
+fn cmd_models() -> Result<(), String> {
+    let worker = root().join("tools/solidcraft-bridge");
+    // Never inherit the root workspace's target directory verbatim into the standalone build.
+    let target = match std::env::var_os("CARGO_TARGET_DIR") {
+        Some(dir) => root().join(dir).join("model-worker"),
+        None => worker.join("target"),
+    };
+    let checks: &[&[&str]] =
+        &[&["fmt", "--all", "--", "--check"], &["clippy", "--locked", "--all-targets", "--", "-D", "warnings"], &["test", "--locked"]];
+    for args in checks {
+        let mut command = cargo();
+        command.current_dir(&worker).env("CARGO_TARGET_DIR", &target).args(*args);
+        run(command, &format!("model worker: cargo {}", args.join(" ")))?;
+    }
+    Ok(())
+}
+
 fn cmd_ci() -> Result<(), String> {
     type Step = (&'static str, Box<dyn Fn() -> Result<(), String>>);
     let steps: Vec<Step> = vec![
@@ -228,6 +248,7 @@ fn cmd_ci() -> Result<(), String> {
         ("layers", Box::new(cmd_layers)),
         ("wasm", Box::new(cmd_wasm)),
         ("extensions", Box::new(cmd_extensions)),
+        ("models", Box::new(cmd_models)),
     ];
     let mut done = Vec::new();
     for (name, f) in &steps {

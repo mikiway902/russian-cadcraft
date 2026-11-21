@@ -55,8 +55,10 @@ if [[ "$SKIP_BUILD" = 0 ]]; then
     (cd "$ROOT" && cargo build --release --locked -p cadcraft -p cadcraft-cli)
     (cd "$ROOT" && cargo build --release --locked -p cadcraft-cli --example man-and-completions)
   fi
+  build_model_worker "${CROSS_TARGET:-}"
 fi
 BIN="$CARGO_TARGET_DIR/${CROSS_TARGET:+$CROSS_TARGET/}release"
+WORKER_BIN="$(model_worker_binary "${CROSS_TARGET:-}")"
 WORK="$CARGO_TARGET_DIR/linux-package"
 STAGE="$WORK/root"
 rm -rf "$WORK"
@@ -64,7 +66,9 @@ rm -rf "$WORK"
 # ---- stage an FHS tree (shared by every format) -------------------------------------------------
 install -Dm755 "$BIN/cadcraft" "$STAGE/usr/bin/cadcraftgost"
 install -Dm755 "$BIN/cadcraft-cli" "$STAGE/usr/bin/cadcraftgost-cli"
-"${CROSS_COMPILE:-}strip" "$STAGE/usr/bin/cadcraftgost" "$STAGE/usr/bin/cadcraftgost-cli" 2>/dev/null || true
+install -Dm755 "$WORKER_BIN" "$STAGE/usr/bin/cadcraftgost-model-worker"
+"${CROSS_COMPILE:-}strip" "$STAGE/usr/bin/cadcraftgost" "$STAGE/usr/bin/cadcraftgost-cli" \
+  "$STAGE/usr/bin/cadcraftgost-model-worker" 2>/dev/null || true
 install -Dm644 "$HERE/$APP_ID.desktop" "$STAGE/usr/share/applications/$APP_ID.desktop"
 install -Dm644 "$HERE/$APP_ID.mime.xml" "$STAGE/usr/share/mime/packages/$APP_ID.xml"
 mkdir -p "$STAGE/usr/share/metainfo"
@@ -74,6 +78,7 @@ mkdir -p "$STAGE/usr/share/icons"
 cp -R "$ROOT/assets/app-icon/hicolor" "$STAGE/usr/share/icons/"
 mkdir -p "$STAGE/usr/share/doc/cadcraftgost"
 copy_docs "$STAGE/usr/share/doc/cadcraftgost"
+copy_model_worker_licences "$STAGE/usr/share/doc/cadcraftgost"
 # cadcraft-cli's man pages and shell completions, from its clap definition, written by the
 # example built above. A cross build runs it through $EMULATOR, like the --version check at the
 # end, and leaves them out without one, as a --skip-build run whose prebuilt binaries came without
@@ -125,6 +130,7 @@ if has deb || has rpm; then
   # from the actual ELF files instead of advertising an incompatible minimum.
   GLIBC_MIN="$("${CROSS_COMPILE:-}readelf" --version-info \
     "$STAGE/usr/bin/cadcraftgost" "$STAGE/usr/bin/cadcraftgost-cli" \
+    "$STAGE/usr/bin/cadcraftgost-model-worker" \
     | grep -oE 'GLIBC_[0-9]+(\.[0-9]+)+' | sort -Vu | tail -n1 | cut -d_ -f2)"
   [[ -n "$GLIBC_MIN" ]] || { echo "error: cannot determine the ELF glibc requirement" >&2; exit 1; }
   export GLIBC_MIN

@@ -172,11 +172,18 @@ pub fn install_io() {
     });
     // ... and non-graphic objects (tables, dictionaries, layouts) as DXF records.
     cadcraft_engine::cmd::file::set_object_records(cadcraft_io::object_records);
+    cadcraft_engine::model_io::set_hooks(cadcraft_engine::model_io::ModelHooks {
+        load: cadcraft_io::native_models::load,
+        view: cadcraft_io::native_models::view,
+        preview: cadcraft_io::native_models::preview,
+        source_status: cadcraft_io::native_models::source_status,
+    });
 }
 
 fn services() -> Services {
     Services {
         pick_open: Some(Box::new(|| file_dialog(&Pick::Open).pick_file().map(|p| p.to_string_lossy().to_string()))),
+        pick_model: Some(Box::new(|| file_dialog(&Pick::Model).pick_file().and_then(|p| p.to_str().map(str::to_owned)))),
         pick_save: Some(Box::new(|name: &str| file_dialog(&Pick::Save(name.into())).save_file().map(|p| p.to_string_lossy().to_string()))),
         // macOS shows the dialogs as sheets (`sheet::start_pick`), set once the window exists.
         start_pick: None,
@@ -198,6 +205,9 @@ fn filters(pick: &Pick) -> Vec<(&'static str, Vec<&'static str>)> {
             (i18n::t("SVG drawings (SVG, SVGZ)"), vec!["svg", "svgz"]),
             (i18n::t("All files"), vec!["*"]),
         ],
+        Pick::Model => {
+            vec![(i18n::t("3D models (SolidCraft, STEP, IGES)"), vec!["sc", "step", "stp", "iges", "igs"]), (i18n::t("All files"), vec!["*"])]
+        }
         Pick::Save(name) => filters_for_save(name).iter().map(|(label, ext)| (i18n::t(label), vec![*ext])).collect(),
         Pick::Lisp(_) => vec![(i18n::t("AutoLISP (LSP)"), vec!["lsp"]), (i18n::t("All files"), vec!["*"])],
         Pick::Pgp(_) => vec![(i18n::t("Alias files (PGP)"), vec!["pgp"])],

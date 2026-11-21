@@ -51,6 +51,7 @@ Generated-in-code assets are original and have no file to list:
 | `packaging/macos/dmg/background.tiff` | @XusBadia | Rendered from `packaging/macos/dmg/background.svg` by `packaging/macos/dmg/generate.py` | MIT OR Apache-2.0 (same as the code: `LICENSE-MIT`, `LICENSE-APACHE`) | 1x + 2x HiDPI TIFF for the macOS DMG window; includes the app icon (see its row) and LittleCMS's built-in sRGB profile ("No copyright, use freely") |
 | `examples/apartment.dxf` | CADCraft contributors | sample drawing made with cadcraft-cli commands | MIT OR Apache-2.0 | Original |
 | `examples/gost-a4.scr` | CADCraft contributors | Original command script invoking the native ESKD sheet generator; normative references in `docs/gost.md` | MIT OR Apache-2.0 | Empty A4 form-1 template; no third-party drawing or asset copied |
+| `tests/fixtures/models/stepped-shaft.sc` | CADCraftGOST contributors | Original synthetic SolidCraft document: joined stepped cylinders and an axial bore; analytic dimensions in `tests/benchmarks/stepped-shaft-20261121.json` | MIT OR Apache-2.0 | Reproducible engineering fixture, not a manufacturing release; front HLR uncertainty and engineering acceptance remain open |
 | `docs/images/ui-apartment.png` | CADCraft contributors | screenshot of CADCraft itself (examples/apartment.dxf) | MIT OR Apache-2.0 | Original; no Autodesk UI |
 | `docs/images/ui-layout.png` | CADCraft contributors | screenshot of CADCraft itself (a layout of examples/apartment.dxf) | MIT OR Apache-2.0 | Original; no Autodesk UI |
 | `docs/images/ui-bracket.png` | CADCraft contributors | screenshot of CADCraft itself (sample drawing generated in code) | MIT OR Apache-2.0 | Original; no Autodesk UI |
@@ -82,3 +83,15 @@ Generated-in-code assets are original and have no file to list:
 | `crates/ui-egui/src/i18n/el.tsv` | @Camthalion77 with ChatGPT (AI-assisted); 46 later rows: @V1dalTheAbidal with Claude Code (AI-assisted) | Original Greek translations of CADCraft English strings | MIT OR Apache-2.0 (`LICENSE-MIT`, `LICENSE-APACHE`) | No proprietary localization resources copied; the 46 later rows were read by their contributor, a native Greek speaker; independent native proofreading of the whole file pending |
 | `crates/ui-egui/src/i18n/vi.tsv` | @2ez4gcx with Claude Code (AI-assisted) | Original Vietnamese translations of CADCraft English strings | MIT OR Apache-2.0 (`LICENSE-MIT`, `LICENSE-APACHE`) | No proprietary localization resources copied; terminology chosen with a native speaker, full proofreading pending |
 | `crates/ui-egui/src/i18n/ka.tsv` | Davit Matchakhelidze (@devius), native speaker, with Claude Code | Original Georgian translations of CADCraft English strings | MIT OR Apache-2.0 (`LICENSE-MIT`, `LICENSE-APACHE`) | No proprietary localization resources copied; written from the English strings, no other catalog used as a source; terminology and doubtful strings decided by a native Georgian speaker; no font assets added (the Georgian face comes from craft-fonts) |
+
+## Bundled exact-model worker
+
+`cadcraftgost-model-worker` reuses the pinned public SolidCraft/SolidCore and
+craft-libs sources recorded in `tools/solidcraft-bridge/dependency-licenses.json`.
+Distributed packages carry complete licence/copyright/NOTICE texts in
+`packaging/model-worker-licences/THIRD-PARTY-LICENSES.txt` and the upstream
+Liberation Sans OFL text in `packaging/model-worker-licences/OFL-LiberationSans.txt`.
+The embedded Liberation Sans originates from public `storytold/solidcraft`, not
+from KOMPAS or another proprietary application. The narrowly approved locked
+Zlib/Unicode obligations and MIT/Apache choices are recorded in `AGENTS.md`;
+they do not grant permission for future dependency changes.

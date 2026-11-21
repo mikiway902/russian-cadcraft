@@ -359,6 +359,8 @@ pub const LAYER_HIGHLIGHT: usize = 2;
 pub const LAYER_VIEWPORT: usize = 3;
 /// The outline of the active viewport when it is clipped (stencil only, see [`Stencil`]).
 pub const LAYER_MASK: usize = 4;
+/// Isolated model-preview buffers: never overwrite the main drawing's callback layer.
+pub(crate) const LAYER_MODEL_PREVIEW: usize = 5;
 
 /// Opacity of filled areas in the selection and hover highlight: see-through, so the lines and
 /// text on (and under) a highlighted hatch stay visible, as the reference app's dot pattern does.
@@ -600,7 +602,7 @@ impl Resources {
                 quad: pipeline("cad_clip_quads", "vs_quad", TriangleList, instance_layout(), Stencil::Inside),
             }),
             linear_out: target.format.is_srgb(),
-            layers: (0..=LAYER_MASK).map(|_| layer()).collect(),
+            layers: (0..=if cfg!(feature = "gost") { LAYER_MODEL_PREVIEW } else { LAYER_MASK }).map(|_| layer()).collect(),
         }
     }
 }

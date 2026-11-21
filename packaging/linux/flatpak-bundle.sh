@@ -52,6 +52,13 @@ rm -rf "$WORK"
 mkdir -p "$WORK/stage"
 tar -xzf "$TARBALL" -C "$WORK/stage" --strip-components=1
 [[ -x "$WORK/stage/bin/cadcraftgost" ]] || { echo "error: $TARBALL has no bin/cadcraftgost" >&2; exit 1; }
+[[ -x "$WORK/stage/bin/cadcraftgost-model-worker" ]] || { echo "error: $TARBALL has no required bin/cadcraftgost-model-worker; rebuild the native tarball" >&2; exit 1; }
+for notice in THIRD-PARTY-LICENSES.txt OFL-LiberationSans.txt; do
+  [[ -s "$WORK/stage/share/doc/cadcraftgost/model-worker-licences/$notice" ]] || {
+    echo "error: $TARBALL is missing required model-worker-licences/$notice" >&2
+    exit 1
+  }
+done
 cp "$HERE/flatpak/$APP_ID.bundle.yml" "$WORK/$APP_ID.yml"
 
 flatpak remote-add --user --if-not-exists flathub "$FLATHUB"

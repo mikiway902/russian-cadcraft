@@ -5,7 +5,7 @@
 
 use std::sync::Arc;
 
-use cadcraft_doc::{Drawing, Handle, Space};
+use cadcraft_doc::{Drawing, Entity, Handle, Space};
 use serde_json::Value;
 
 use crate::{CommandSpec, Result, Session};
@@ -16,6 +16,8 @@ mod data;
 mod drawing;
 #[cfg(feature = "gost")]
 mod gost;
+#[cfg(feature = "gost")]
+pub mod models;
 #[cfg(feature = "gost")]
 mod norms;
 #[cfg(feature = "gost")]
@@ -47,6 +49,15 @@ pub struct CopyHooks {
     pub apply: fn(&mut Drawing, &[CopyPair]) -> Result<()>,
 }
 
+pub struct ClipboardHooks {
+    /// Normalize private definitions, without touching the source drawing.
+    pub prepare_blocks: Option<fn(&mut Drawing)>,
+    /// Capture bounded extension metadata for the selected objects and their definitions.
+    pub capture: Option<fn(&Drawing, &[Entity], &mut Drawing) -> Result<()>>,
+    /// Remap metadata after adopting every top-level and nested entity, inside the command guard.
+    pub pasted: Option<fn(&mut Drawing, &Drawing, &[CopyPair], &std::collections::BTreeMap<String, String>) -> Result<()>>,
+}
+
 pub struct DrawingPreset {
     pub create: fn() -> Drawing,
     pub first_layout: &'static str,
@@ -61,14 +72,14 @@ pub struct Extension {
     pub document_changed: ChangeHook,
     pub command_override: Option<CommandHook>,
     pub copy: Option<CopyHooks>,
-    pub clipboard: Option<fn(&mut Drawing)>,
+    pub clipboard: Option<ClipboardHooks>,
 }
 
 /// Deterministic dependency order: drafting properties, specification, then drawing links.
 pub fn installed() -> &'static [Extension] {
     #[cfg(feature = "gost")]
     {
-        &[gost::EXTENSION, specification::EXTENSION, drawing::EXTENSION]
+        &[gost::EXTENSION, specification::EXTENSION, drawing::EXTENSION, models::EXTENSION]
     }
     #[cfg(not(feature = "gost"))]
     {
@@ -167,8 +178,26 @@ pub(crate) fn copied_entities(drawing: &mut Drawing, pairs: &[CopyPair]) -> Resu
     Ok(())
 }
 
-pub(crate) fn prepare_clipboard_blocks(drawing: &mut Drawing) {
-    for run in installed().iter().filter_map(|extension| extension.clipboard) {
-        run(drawing);
+pub(crate) fn capture_clipboard(source: &Drawing, entities: &[Entity], definitions: &mut Drawing) -> Result<()> {
+    for hooks in installed().iter().filter_map(|extension| extension.clipboard.as_ref()) {
+        if let Some(capture) = hooks.capture {
+            capture(source, entities, definitions)?;
+        }
+        if let Some(prepare) = hooks.prepare_blocks {
+            prepare(definitions);
+        }
     }
+    Ok(())
+}
+
+pub(crate) fn pasted_clipboard(
+    drawing: &mut Drawing,
+    definitions: &Drawing,
+    pairs: &[CopyPair],
+    renames: &std::collections::BTreeMap<String, String>,
+) -> Result<()> {
+    for run in installed().iter().filter_map(|extension| extension.clipboard.as_ref()).filter_map(|hooks| hooks.pasted) {
+        run(drawing, definitions, pairs, renames)?;
+    }
+    Ok(())
 }

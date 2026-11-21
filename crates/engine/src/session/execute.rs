@@ -9,8 +9,18 @@ impl Session {
     /// for everything around it: the passes after a command (constraints, associativity, groups)
     /// are as able to panic as the command, and a panic there restores the drawing the same way.
     pub fn execute(&mut self, id: &str, params: &Value) -> Result<Value> {
+        self.execute_using(id, params, |run, session, params| run(session, params))
+    }
+
+    /// Complete already computed work through the same guards, events and Undo transaction.
+    #[cfg(feature = "gost")]
+    pub(crate) fn execute_prepared(&mut self, id: &str, params: &Value, apply: impl FnOnce(&mut Session) -> Result<Value>) -> Result<Value> {
+        self.execute_using(id, params, |_, session, _| apply(session))
+    }
+
+    fn execute_using(&mut self, id: &str, params: &Value, run: impl FnOnce(cmd::Run, &mut Session, &Value) -> Result<Value>) -> Result<Value> {
         let before = self.state().ok().map(|s| (s.doc.clone(), s.selection.clone(), s.uid));
-        match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| self.execute_guarded(id, params))) {
+        match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| self.execute_guarded(id, params, run))) {
             Ok(r) => r,
             Err(p) => {
                 if let Some((doc, sel, uid)) = before
@@ -24,7 +34,7 @@ impl Session {
         }
     }
 
-    fn execute_guarded(&mut self, id: &str, params: &Value) -> Result<Value> {
+    fn execute_guarded(&mut self, id: &str, params: &Value, apply: impl FnOnce(cmd::Run, &mut Session, &Value) -> Result<Value>) -> Result<Value> {
         let spec = find_command(id).ok_or_else(|| EngineError::UnknownCommand(id.to_string()))?;
         (spec.enabled)(self).map_err(|m| EngineError::Disabled(spec.id.into(), m))?;
         if let Some(why) = cmd::blocks::bedit::refused_in_editor(self, spec.id) {
@@ -33,7 +43,7 @@ impl Session {
         let before = self.state().ok().map(|s| (s.doc.clone(), s.selection.clone(), s.uid));
         let editing = self.state().is_ok_and(|s| s.block_edit.is_some());
         let run = spec.run;
-        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| run(self, params)));
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| apply(run, self, params)));
         let result = match result {
             Ok(r) => r,
             Err(p) => {
@@ -57,6 +67,15 @@ impl Session {
             (Some(m), Ok(_)) => Err(EngineError::Other(m)),
             (_, r) => r,
         };
+        if result.is_err() {
+            if let Some((doc, sel, uid)) = &before
+                && let Some(st) = self.docs.iter_mut().find(|d| d.uid == *uid)
+            {
+                st.doc = doc.clone();
+                st.selection = sel.clone();
+            }
+            return result;
+        }
         // Opening or closing the Block Editor swaps the whole drawing: nothing in it changed.
         let result = if self.state().is_ok_and(|s| s.block_edit.is_some()) == editing {
             match self.after_command(before.as_ref().map(|b| &b.0), before.as_ref().map(|b| b.2), spec.undoable && result.is_ok(), spec.id) {

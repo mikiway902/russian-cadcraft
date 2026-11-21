@@ -56,6 +56,12 @@ fn install_io() {
     });
     // ... and non-graphic objects (tables, dictionaries, layouts) as DXF records.
     cadcraft_engine::cmd::file::set_object_records(cadcraft_io::object_records);
+    cadcraft_engine::model_io::set_hooks(cadcraft_engine::model_io::ModelHooks {
+        load: cadcraft_io::native_models::load,
+        view: cadcraft_io::native_models::view,
+        preview: cadcraft_io::native_models::preview,
+        source_status: cadcraft_io::native_models::source_status,
+    });
 }
 
 /// `path` as text, for the engine and io calls that take a file name as a string.

@@ -4,6 +4,7 @@
 #
 #   curl -fsSLO https://raw.githubusercontent.com/flatpak/flatpak-builder-tools/master/cargo/flatpak-cargo-generator.py
 #   python3 flatpak-cargo-generator.py Cargo.lock -o packaging/linux/flatpak/cargo-sources.json
+#   python3 flatpak-cargo-generator.py tools/solidcraft-bridge/Cargo.lock -o packaging/linux/flatpak/cargo-worker-sources.json
 #   flatpak-builder --user --install --force-clean build-flatpak packaging/linux/flatpak/io.github.mikiway902.cadcraftgost.yml
 #   flatpak run io.github.mikiway902.cadcraftgost
 #
@@ -64,8 +65,34 @@ modules:
         path: ../../..
         skip:
           - target
+          - tools/solidcraft-bridge/target
           - dist
           - corpus
           - build-flatpak
           - .flatpak-builder
       - cargo-sources.json
+  # The exact-model worker keeps a separate Cargo home, source inventory and target directory:
+  # combining generated cargo/config files would discard one workspace's git-source mappings.
+  - name: cadcraft-model-worker
+    buildsystem: simple
+    build-options:
+      env:
+        CARGO_HOME: /run/build/cadcraft-model-worker/cargo
+        CARGO_TARGET_DIR: /run/build/cadcraft-model-worker/target
+        CARGO_NET_OFFLINE: 'true'
+    build-commands:
+      - cargo --offline build --release --locked --manifest-path tools/solidcraft-bridge/Cargo.toml --bin cadcraft-model-worker --target-dir "$CARGO_TARGET_DIR/model-worker"
+      - install -Dm755 "$CARGO_TARGET_DIR/model-worker/release/cadcraft-model-worker" /app/bin/cadcraftgost-model-worker
+      - install -d /app/share/doc/cadcraftgost/model-worker-licences
+      - cp packaging/model-worker-licences/*.txt /app/share/doc/cadcraftgost/model-worker-licences/
+    sources:
+      - type: dir
+        path: ../../..
+        skip:
+          - target
+          - tools/solidcraft-bridge/target
+          - dist
+          - corpus
+          - build-flatpak
+          - .flatpak-builder
+      - cargo-worker-sources.json

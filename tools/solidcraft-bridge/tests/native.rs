@@ -302,3 +302,228 @@ fn native_corrupt_authoritative_blob_cannot_be_replaced_by_preview_geometry() {
         assert_eq!(worker.call("v1.view", query(&loaded)).unwrap()["drawing"]["lines"], before["drawing"]["lines"]);
     });
 }
+
+fn reference_extrusion() -> (Document, u64) {
+    use solidcore_record::Vec2;
+    use solidcraft_doc::{Direction, Extent, PlaneRef, ProfileSel, SketchId, sketch::Sketch};
+    let mut doc = Document::new("Reference lineage fixture");
+    let component = doc.add_component(Some("Extruded part"), 0).unwrap();
+    let occurrence = doc.occurrences.iter_mut().find(|o| o.component == component).unwrap();
+    occurrence.transform = rigid(Vec3::new(100., 200., 0.), Vec3::ZERO, Vec3::Z, std::f64::consts::FRAC_PI_2);
+    doc.add_occurrence(component, 0, rigid(Vec3::new(-100., 0., 0.), Vec3::ZERO, Vec3::Z, 0.)).unwrap();
+    let mut sketch = Sketch::new();
+    let points = [Vec2::new(0., 0.), Vec2::new(10., 0.), Vec2::new(10., 6.), Vec2::new(0., 6.)];
+    let ids: Vec<_> = points.iter().map(|p| sketch.add_point(*p, None).unwrap()).collect();
+    for i in 0..4 {
+        sketch.add_line_pts(ids[i], ids[(i + 1) % 4], None).unwrap();
+    }
+    let sk = doc.add_feature(FeatureKind::Sketch { plane: PlaneRef::Origin { name: "XY".into() }, sketch }, Some("Profile")).unwrap();
+    doc.feature_mut(sk).unwrap().component = component;
+    let extent: Extent = serde_json::from_value(json!({"distance": "20", "direction": "positive"})).unwrap();
+    assert_eq!(extent.direction, Direction::Positive);
+    let id = doc
+        .add_feature(
+            FeatureKind::Extrude {
+                sketch: SketchId(sk),
+                profiles: ProfileSel::All,
+                extent,
+                operation: Operation::NewBody,
+                targets: vec![],
+                thin: None,
+            },
+            Some("Extrusion"),
+        )
+        .unwrap();
+    let f = doc.feature_mut(id).unwrap();
+    f.component = component;
+    f.body_names = vec!["Extruded body".into()];
+    // Keep one live body when the target is suppressed/deleted, to exercise successful reloads.
+    cylinder(&mut doc, 0, "Unrelated survivor");
+    (doc, id)
+}
+
+fn reference_point(worker: &mut Worker, load: &Value, reference: &Value, fraction: f64) -> Value {
+    worker.call("v1.resolve_point", json!({"source_sha256": load["source"]["sha256"], "reference": reference, "fraction": fraction})).unwrap()
+}
+
+fn vertical_reference(worker: &mut Worker, load: &Value, refs: &Value) -> Value {
+    for placement in refs["placements"].as_array().unwrap() {
+        if placement["native_identity"]["definition_body"] != "Extruded body" {
+            continue;
+        }
+        for edge in placement["edges"].as_array().unwrap() {
+            if edge["verification"] != "verified_upstream_history" || edge["cross_rebuild"] != true {
+                continue;
+            }
+            let a = reference_point(worker, load, &edge["reference"], 0.);
+            let b = reference_point(worker, load, &edge["reference"], 1.);
+            if a["status"] != "resolved" || b["status"] != "resolved" {
+                continue;
+            }
+            let a: Vec3 = serde_json::from_value(a["point"].clone()).unwrap();
+            let b: Vec3 = serde_json::from_value(b["point"].clone()).unwrap();
+            if (a.x - 100.).abs() < 1e-7
+                && (a.y - 200.).abs() < 1e-7
+                && (b.x - 100.).abs() < 1e-7
+                && (b.y - 200.).abs() < 1e-7
+                && (a.z - b.z).abs() > 19.9
+            {
+                return edge["reference"].clone();
+            }
+        }
+    }
+    panic!("real named extrusion must expose its verified vertical construction edge: {refs}");
+}
+
+#[test]
+fn saved_native_reference_follows_real_extrude_rebuild_in_new_session_with_one_world_placement() {
+    kernel_test(|| {
+        let fixture = Fixture::new();
+        let (mut doc, feature) = reference_extrusion();
+        let path = fixture.write("references.sc", container(&doc));
+        let mut worker = fixture.worker();
+        let loaded = worker.call("v1.load", json!({"path": path})).unwrap();
+        let refs = worker.call("v1.references", json!({"source_sha256": loaded["source"]["sha256"]})).unwrap();
+        assert_eq!(refs["protocol"], "cadcraft-references/1");
+        assert_eq!(refs["placements"].as_array().unwrap().len(), 3);
+        let reference = vertical_reference(&mut worker, &loaded, &refs);
+        let before = reference_point(&mut worker, &loaded, &reference, 0.25);
+        let before_point: Vec3 = serde_json::from_value(before["point"].clone()).unwrap();
+        assert!((before_point.z - 5.).abs() < 1e-7 || (before_point.z - 15.).abs() < 1e-7);
+        let FeatureKind::Extrude { extent, .. } = &mut doc.feature_mut(feature).unwrap().kind else { panic!("extrude") };
+        extent.distance = "40".into();
+        fs::write(&path, container(&doc)).unwrap();
+        drop(worker);
+        // Opaque tokens persist across worker restarts; no in-memory index registry or echo.
+        let mut worker = fixture.worker();
+        let rebuilt = worker.call("v1.load", json!({"path": path})).unwrap();
+        assert_ne!(rebuilt["source"]["sha256"], loaded["source"]["sha256"]);
+        let after = reference_point(&mut worker, &rebuilt, &reference, 0.25);
+        assert_eq!(after["status"], "resolved", "{after}");
+        assert_eq!(after["verification"], "verified_upstream_history");
+        assert_eq!(after["cross_rebuild"], true);
+        assert_eq!(after["baseline_source_sha256"], loaded["source"]["sha256"]);
+        let p: Vec3 = serde_json::from_value(after["point"].clone()).unwrap();
+        assert!((p.x - 100.).abs() < 1e-7 && (p.y - 200.).abs() < 1e-7, "{p:?}");
+        assert!((p.z - 2. * before_point.z).abs() < 1e-7, "{p:?}");
+        assert!(matches!(worker.call("v1.references", json!({"source_sha256": loaded["source"]["sha256"]})), Err(Error::StaleModel)));
+    });
+}
+
+#[test]
+fn native_references_never_jump_on_rename_delete_suppression_or_another_project_path() {
+    kernel_test(|| {
+        let fixture = Fixture::new();
+        let (doc, feature) = reference_extrusion();
+        let path = fixture.write("lineage.sc", container(&doc));
+        let mut worker = fixture.worker();
+        let loaded = worker.call("v1.load", json!({"path": path})).unwrap();
+        let refs = worker.call("v1.references", json!({"source_sha256": loaded["source"]["sha256"]})).unwrap();
+        let reference = vertical_reference(&mut worker, &loaded, &refs);
+        let other = fixture.write("different-project.sc", container(&doc));
+        let other_load = worker.call("v1.load", json!({"path": other})).unwrap();
+        let lost = reference_point(&mut worker, &other_load, &reference, 0.5);
+        assert_eq!(lost["status"], "lost");
+        assert!(lost.get("point").is_none());
+        for (change, expected) in [("rename", "lost"), ("delete", "lost"), ("suppress", "suppressed"), ("occurrence", "lost"), ("sketch", "lost")] {
+            let mut changed = doc.clone();
+            match change {
+                "rename" => changed.feature_mut(feature).unwrap().name = "Renamed feature".into(),
+                "delete" => changed.features.retain(|f| f.id != feature),
+                "suppress" => changed.feature_mut(feature).unwrap().suppressed = true,
+                "occurrence" => changed.occurrences.clear(),
+                "sketch" => {
+                    let FeatureKind::Sketch { sketch, .. } =
+                        &mut changed.features.iter_mut().find(|f| matches!(f.kind, FeatureKind::Sketch { .. })).unwrap().kind
+                    else {
+                        panic!("sketch")
+                    };
+                    sketch.add_point(solidcore_record::Vec2::new(99., 99.), None).unwrap();
+                }
+                _ => unreachable!(),
+            }
+            fs::write(&path, container(&changed)).unwrap();
+            let rebuilt = worker.call("v1.load", json!({"path": path})).unwrap();
+            let result = reference_point(&mut worker, &rebuilt, &reference, 0.5);
+            assert_eq!(result["status"], expected, "{change}: {result}");
+            assert!(result.get("point").is_none(), "{change}: {result}");
+        }
+    });
+}
+
+#[test]
+fn native_reference_bounds_face_refusal_and_unverified_names_remain_honest() {
+    kernel_test(|| {
+        let fixture = Fixture::new();
+        let mut doc = Document::new("Unverified sphere");
+        doc.add_feature(FeatureKind::Sphere { center: point_expr(Vec3::ZERO), radius: "5".into(), operation: Operation::NewBody }, Some("Sphere"))
+            .unwrap();
+        let path = fixture.write("sphere.sc", doc.to_json());
+        let mut worker = fixture.worker();
+        let loaded = worker.call("v1.load", json!({"path": path})).unwrap();
+        let refs = worker.call("v1.references", json!({"source_sha256": loaded["source"]["sha256"]})).unwrap();
+        for face in refs["placements"][0]["faces"].as_array().unwrap() {
+            assert_eq!(face["verification"], "unverified_upstream_name");
+            assert_eq!(face["cross_rebuild"], false);
+        }
+        let face = &refs["placements"][0]["faces"][0]["reference"];
+        let refused = reference_point(&mut worker, &loaded, face, 0.5);
+        assert_eq!(refused["status"], "unmeasurable");
+        assert!(refused.get("point").is_none());
+        let edge = refs["placements"][0]["edges"][0]["reference"].clone();
+        assert!(edge.is_string(), "the real sphere must expose its unverified seam edge: {refs}");
+        let FeatureKind::Sphere { radius, .. } = &mut doc.features[0].kind else { panic!("sphere") };
+        *radius = "10".into();
+        fs::write(&path, doc.to_json()).unwrap();
+        let rebuilt = worker.call("v1.load", json!({"path": path})).unwrap();
+        let lost = reference_point(&mut worker, &rebuilt, &edge, 0.5);
+        assert_eq!(lost["status"], "lost");
+        assert!(lost.get("point").is_none());
+        for fraction in [-0.1, 1.1] {
+            assert!(matches!(
+                worker.call("v1.resolve_point", json!({"source_sha256": loaded["source"]["sha256"], "reference": face, "fraction": fraction})),
+                Err(Error::Parameters(_))
+            ));
+        }
+        assert!(matches!(
+            worker.call("v1.resolve_point", json!({"source_sha256": rebuilt["source"]["sha256"], "reference": "x".repeat(8193), "fraction": 0.5})),
+            Err(Error::Limit(_))
+        ));
+        assert!(matches!(
+            worker.call("v1.references", json!({"source_sha256": loaded["source"]["sha256"], "unexpected": true})),
+            Err(Error::Parameters(_))
+        ));
+    });
+}
+
+#[test]
+fn native_circular_edge_fraction_is_on_trimmed_curve_not_its_rendered_chord() {
+    kernel_test(|| {
+        let fixture = Fixture::new();
+        let mut doc = Document::new("Exact circular reference");
+        cylinder(&mut doc, 0, "Cylinder");
+        let path = fixture.write("circular.sc", container(&doc));
+        let mut worker = fixture.worker();
+        let loaded = worker.call("v1.load", json!({"path": path})).unwrap();
+        let refs = worker.call("v1.references", json!({"source_sha256": loaded["source"]["sha256"]})).unwrap();
+        let mut curved = 0;
+        for edge in refs["placements"][0]["edges"].as_array().unwrap() {
+            let a = reference_point(&mut worker, &loaded, &edge["reference"], 0.);
+            let b = reference_point(&mut worker, &loaded, &edge["reference"], 1.);
+            let middle = reference_point(&mut worker, &loaded, &edge["reference"], 0.5);
+            assert_eq!(middle["status"], "resolved", "{middle}");
+            let a: Vec3 = serde_json::from_value(a["point"].clone()).unwrap();
+            let b: Vec3 = serde_json::from_value(b["point"].clone()).unwrap();
+            let p: Vec3 = serde_json::from_value(middle["point"].clone()).unwrap();
+            if (a.z - b.z).abs() > 1e-8 {
+                continue;
+            }
+            curved += 1;
+            assert!((p.z - a.z).abs() < 1e-8);
+            assert!((p.x * p.x + p.y * p.y - 25.).abs() < 1e-7);
+            let chord = (a + b) * 0.5;
+            assert!((p.x - chord.x).abs() + (p.y - chord.y).abs() > 1e-4, "a rim midpoint is not its chord midpoint");
+        }
+        assert!(curved > 0, "real native cylinder must contain a circular rim edge");
+    });
+}

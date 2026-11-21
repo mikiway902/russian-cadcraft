@@ -257,7 +257,63 @@ gost.hatch {"handles":["2B"],"spacing":3,"angle":45}
 - Штриховка имеет реальный шаг в миллиметрах бумаги и ассоциативные границы. Для смежных деталей меняют направление/шаг; для одной детали сохраняют согласованность. При совпадении 45° с контуром или осью выбирают 30° либо 60°. Специальные материалы и узкие сечения требуют отдельного оформления.
 
 
-### Ассоциативные виды и разрезы из 3D
+### Точные связанные модели SolidCraft, STEP и IGES
+
+Desktop: **Формат → ГОСТ / ЕСКД → Связанные 3D-модели**. Выберите файл,
+импортируйте модель и откройте **Просмотр 3D**. Drag вращает модель;
+доступны pan/zoom и стандартные направления. Перед созданием чертёжного вида
+выберите лист `GOST1`; менеджер показывает действующее пространство размещения.
+Точку вставки и масштаб задаёт конструктор: автоматической компоновки и
+гарантии отсутствия пересечений с рамкой/надписью пока нет.
+
+Те же операции доступны без диалогов:
+
+```text
+gost.model.import {"path":"/absolute/path/part.sc"}
+gost.model.list {}
+gost.model.inspect {"id":"1"}
+gost.model.status {"id":"1"}
+gost.model.view {"id":"1","layout":"GOST1","at":[80,150],"direction":"front","scale":2}
+gost.model.view {"id":"1","layout":"GOST1","at":[140,150],"direction":"isometric","scale":2,"hidden":true}
+gost.model.refresh {"id":"1"}
+```
+
+Используйте ID из ответа import/list, не фиксированное `1`. Поддерживаются
+`.sc`, STEP/STP и IGES/IGS; успешный импорт не означает, что ядро поддерживает
+все поверхности/обрезки файла. `scale:2` означает 1:2. Native entities
+сохраняют точные source curves, включая rational quadratic SPLINE; display mesh
+не служит источником видов или измерений. Вид остаётся редактируемым frozen block.
+
+Raw quality, uncertainty, unsupported geometry и provenance сохраняются.
+По умолчанию неполный вид отклоняется; `accept_incomplete:true` — явный выбор
+для ручной проверки, не подтверждение точности. Covered uncertain duplicates
+могут исключаться только по известному upstream coverage contract; raw quality
+при этом не переименовывается в `analytic_complete:true`.
+
+Изменение файла проверяется по SHA-256, включая изменения без изменения размера.
+Старые виды остаются frozen. Новая проекция требует совпадающего fingerprint;
+refresh меняет ревизию модели и помечает прежние виды stale, но ещё не
+перестраивает их и размеры автоматически. Связи сохраняются в DXF и Undo/Redo.
+Отсутствующий источник не заменяется mesh или другой похожей моделью.
+
+Установленный worker находится рядом с приложением/CLI:
+`cadcraftgost-model-worker` (`.exe` на Windows). Для явной собственной сборки
+используется `CADCRAFTGOST_MODEL_WORKER=/absolute/path/to/worker`.
+Host держит не более четырёх evaluated моделей; preview ограничен
+100 000 triangles / 200 000 vertices. Это native desktop/CLI путь;
+веб-сборка не запускает локальные процессы и не получает этот worker автоматически.
+
+Для разработки без установочного пакета:
+
+```sh
+cargo build --locked --manifest-path tools/solidcraft-bridge/Cargo.toml
+CADCRAFTGOST_MODEL_WORKER="$PWD/tools/solidcraft-bridge/target/debug/cadcraft-model-worker" \
+  cargo run -p cadcraft
+```
+
+При собственном `CARGO_TARGET_DIR` укажите фактический путь собранного worker.
+
+### Ассоциативные многогранные виды и разрезы из 3D
 
 ```text
 gost.solid {"box":{"min":[0,0,0],"max":[40,20,30]}}

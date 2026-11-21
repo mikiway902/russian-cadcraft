@@ -39,7 +39,7 @@ pub struct ClipSource {
 /// Put copies of `ents` from the active drawing on the clipboard, with `base` as base point.
 pub(crate) fn copy(s: &mut Session, ents: Vec<Entity>, base: Vec2) -> Result<()> {
     let uid = s.state()?.uid;
-    let defs = defs_for(s.doc()?, &ents);
+    let defs = defs_for(s.doc()?, &ents)?;
     set(s, ents, base, defs, Some(uid));
     Ok(())
 }
@@ -76,13 +76,14 @@ pub fn from_active(s: &Session) -> bool {
 /// returns the new objects.
 pub(crate) fn paste(s: &mut Session, m: &Mat3) -> Result<Vec<Handle>> {
     let ents = s.clipboard.clone();
-    let defs = s.clipboard_source.as_ref().map(|c| c.defs.clone());
+    let defs = s.clipboard_source.as_ref().map(|c| c.defs.clone()).unwrap_or_else(|| Arc::new(Drawing::new_imperial()));
     let space = s.space();
     let d = s.doc_mut()?;
-    let renames = defs.map(|x| merge(d, &x)).unwrap_or_default();
+    let mut pairs = Vec::new();
+    let renames = merge(d, &defs, &mut pairs);
     let mut out = Vec::new();
     for e in &ents {
-        let mut e = adopt(d, e, &renames);
+        let mut e = adopt(d, e, &renames, &mut pairs);
         e.kind.transform(m);
         d.ensure_layer(&e.common.layer);
         out.push(e.handle);
@@ -90,6 +91,7 @@ pub(crate) fn paste(s: &mut Session, m: &Mat3) -> Result<Vec<Handle>> {
             st.push(e);
         }
     }
+    crate::extensions::pasted_clipboard(d, &defs, &pairs, &renames)?;
     s.set_selection(out.clone());
     Ok(out)
 }
@@ -101,10 +103,11 @@ pub(crate) fn paste_block(s: &mut Session, at: Vec2) -> Result<Handle> {
     if ents.is_empty() {
         return Err(bad("pasteblock", "the clipboard is empty"));
     }
-    let defs = s.clipboard_source.as_ref().map(|c| c.defs.clone());
+    let defs = s.clipboard_source.as_ref().map(|c| c.defs.clone()).unwrap_or_else(|| Arc::new(Drawing::new_imperial()));
     let base = s.clipboard_base;
     let d = s.doc_mut()?;
-    let renames = defs.map(|x| merge(d, &x)).unwrap_or_default();
+    let mut pairs = Vec::new();
+    let renames = merge(d, &defs, &mut pairs);
     let seed = d.handseed;
     let name = (0..1_000_000u64)
         .map(|i| format!("A$C{:08X}", seed.wrapping_add(i) & 0xFFFF_FFFF))
@@ -113,11 +116,12 @@ pub(crate) fn paste_block(s: &mut Session, at: Vec2) -> Result<Handle> {
     let mut b = Block::new(&name);
     b.base = base.to3(0.0);
     for e in &ents {
-        let e = adopt(d, e, &renames);
+        let e = adopt(d, e, &renames, &mut pairs);
         d.ensure_layer(&e.common.layer);
         b.entities.push(e);
     }
     d.blocks.insert(name.clone(), Arc::new(b));
+    crate::extensions::pasted_clipboard(d, &defs, &pairs, &renames)?;
     let h = super::blocks::insert(s, &name, at, 1.0, 0.0, &serde_json::Map::new())?;
     s.set_selection(vec![h]);
     Ok(h)
@@ -126,26 +130,41 @@ pub(crate) fn paste_block(s: &mut Session, at: Vec2) -> Result<Handle> {
 /// The clipboard as DXF text (base point in `$INSBASE`), for the system clipboard. `None` when
 /// it is empty, very large, or this build has no DXF writer.
 pub fn system_text(s: &Session) -> Option<String> {
+    let hooks = super::file::io()?;
+    let d = system_drawing(s)?;
+    let bytes = (hooks.write)(&d, "clipboard.dxf").ok()?;
+    String::from_utf8(bytes).ok()
+}
+
+/// The drawing passed to the system DXF writer, including remapped extension metadata.
+pub(crate) fn system_drawing(s: &Session) -> Option<Drawing> {
     if s.clipboard.is_empty() || s.clipboard.len() > MAX_SYSTEM_OBJECTS {
         return None;
     }
-    let hooks = super::file::io()?;
     let mut d = Drawing::new_imperial();
+    let mut pairs = Vec::new();
     let renames = match &s.clipboard_source {
         Some(c) => {
             d.header = c.defs.header.clone();
-            merge(&mut d, &c.defs)
+            merge(&mut d, &c.defs, &mut pairs)
         }
         None => BTreeMap::new(),
     };
     d.header.set("INSBASE", HVal::Point(s.clipboard_base.to3(0.0)));
     for e in &s.clipboard {
-        let e = adopt(&mut d, e, &renames);
+        let e = adopt(&mut d, e, &renames, &mut pairs);
         d.ensure_layer(&e.common.layer);
         d.model.push(e);
     }
-    let bytes = (hooks.write)(&d, "clipboard.dxf").ok()?;
-    String::from_utf8(bytes).ok()
+    let empty;
+    let defs = if let Some(c) = &s.clipboard_source {
+        c.defs.as_ref()
+    } else {
+        empty = Drawing::new_imperial();
+        &empty
+    };
+    crate::extensions::pasted_clipboard(&mut d, defs, &pairs, &renames).ok()?;
+    Some(d)
 }
 
 /// Make DXF text (from the system clipboard) the clipboard: its model space objects with what
@@ -158,12 +177,17 @@ pub fn load_system_text(s: &mut Session, text: &str) -> bool {
     }
     let Some(hooks) = super::file::io() else { return false };
     let Ok(src) = (hooks.read)(text.as_bytes(), "clipboard.dxf") else { return false };
+    load_system_drawing(s, src)
+}
+
+/// Adopt a decoded system drawing only after its complete definitions have been captured.
+pub(crate) fn load_system_drawing(s: &mut Session, src: Drawing) -> bool {
     if src.model.is_empty() || src.model.len() > MAX_SYSTEM_OBJECTS {
         return false;
     }
     let ents: Vec<Entity> = src.model.iter().map(|e| (**e).clone()).collect();
     let base = src.header.point("INSBASE").map(|p| p.xy()).filter(|p| p.is_finite()).unwrap_or(Vec2::ZERO);
-    let defs = defs_for(&src, &ents);
+    let Ok(defs) = defs_for(&src, &ents) else { return false };
     set(s, ents, base, defs, None);
     true
 }
@@ -230,7 +254,7 @@ impl Used {
 
 /// The definitions `ents` need from `src`: the layers, linetypes, styles and blocks they (and the
 /// blocks they reference, nested ones too) use, and `src`'s header.
-fn defs_for(src: &Drawing, ents: &[Entity]) -> Drawing {
+pub(crate) fn defs_for(src: &Drawing, ents: &[Entity]) -> Result<Drawing> {
     let mut used = Used::default();
     let mut frontier: Vec<String> = ents.iter().flat_map(|e| used.note(e)).collect();
     let mut walked = 0usize;
@@ -242,7 +266,7 @@ fn defs_for(src: &Drawing, ents: &[Entity]) -> Drawing {
         for e in b.entities.iter() {
             walked += 1;
             if walked > MAX_WALK {
-                break;
+                return Err(bad("clipboard", "nested clipboard object limit exceeded"));
             }
             frontier.extend(used.note(e));
         }
@@ -273,13 +297,13 @@ fn defs_for(src: &Drawing, ents: &[Entity]) -> Drawing {
     d.table_styles = pick(&src.table_styles, &used.table_styles, |t| &t.name);
     d.blocks = src.blocks.iter().filter(|(k, _)| used.blocks.contains(&up(k))).map(|(k, b)| (k.clone(), b.clone())).collect();
     d.layouts.clear();
-    crate::extensions::prepare_clipboard_blocks(&mut d);
-    d
+    crate::extensions::capture_clipboard(src, ents, &mut d)?;
+    Ok(d)
 }
 
-/// Add `defs`' table records and blocks that `d` doesn't have. Returns the blocks copied, from
-/// their name in `defs` to their name in `d`.
-fn merge(d: &mut Drawing, defs: &Drawing) -> BTreeMap<String, String> {
+/// Add missing definitions, returning upper-case source block names mapped to destination names.
+/// `pairs` records every adopted nested entity as well as the caller's top-level objects.
+pub(crate) fn merge(d: &mut Drawing, defs: &Drawing, pairs: &mut Vec<crate::extensions::CopyPair>) -> BTreeMap<String, String> {
     use crate::cmd::merge::merge_named as add;
     add(&mut d.layers, &defs.layers, |l| &l.name);
     add(&mut d.linetypes, &defs.linetypes, |l| &l.name);
@@ -287,14 +311,14 @@ fn merge(d: &mut Drawing, defs: &Drawing) -> BTreeMap<String, String> {
     add(&mut d.dim_styles, &defs.dim_styles, |t| &t.name);
     add(&mut d.mleader_styles, &defs.mleader_styles, |t| &t.name);
     add(&mut d.table_styles, &defs.table_styles, |t| &t.name);
-    let renames = crate::cmd::merge::block_renames(d, defs, None);
-    for (from, to) in &renames {
-        let Some(b) = defs.blocks.get(from) else { continue };
+    let renames: BTreeMap<_, _> = crate::cmd::merge::block_renames(d, defs, None).into_iter().map(|(from, to)| (up(&from), to)).collect();
+    for (from, b) in &defs.blocks {
+        let Some(to) = renames.get(&up(from)) else { continue };
         let mut nb = (**b).clone();
         nb.name = to.clone();
         nb.entities = Default::default();
         for e in b.entities.iter() {
-            let e = adopt(d, e, &renames);
+            let e = adopt(d, e, &renames, pairs);
             d.ensure_layer(&e.common.layer);
             nb.entities.push(e);
         }
@@ -305,22 +329,38 @@ fn merge(d: &mut Drawing, defs: &Drawing) -> BTreeMap<String, String> {
 
 /// A copy of a clipboard object for `d`: a fresh handle, block references renamed, and links to
 /// objects of the source drawing (associative dimension points) dropped.
-fn adopt(d: &mut Drawing, e: &Entity, renames: &BTreeMap<String, String>) -> Entity {
+fn adopt(d: &mut Drawing, e: &Entity, renames: &BTreeMap<String, String>, pairs: &mut Vec<crate::extensions::CopyPair>) -> Entity {
+    let old = e.handle;
     let mut e = e.clone();
     e.handle = d.new_handle();
+    pairs.push((old, e.handle));
+    rename_references(&mut e, renames);
+    if let EntityKind::Dimension(dm) = &mut e.kind {
+        dm.assoc.clear();
+    }
+    e
+}
+
+/// Keep references to adopted definitions consistent for clipboard paste and same-document COPY.
+pub(crate) fn rename_references(e: &mut Entity, renames: &BTreeMap<String, String>) {
     match &mut e.kind {
         EntityKind::Insert(i) => {
-            if let Some(n) = renames.get(&i.block) {
+            if let Some(n) = renames.get(&up(&i.block)) {
                 i.block = n.clone();
             }
         }
         EntityKind::Dimension(dm) => {
-            dm.assoc.clear();
-            if let Some(n) = dm.block.as_ref().and_then(|b| renames.get(b)) {
+            if let Some(n) = dm.block.as_ref().and_then(|b| renames.get(&up(b))) {
                 dm.block = Some(n.clone());
+            }
+        }
+        EntityKind::MLeader(m) => {
+            if let Some(block) = &mut m.block
+                && let Some(n) = renames.get(&up(&block.block))
+            {
+                block.block = n.clone();
             }
         }
         _ => {}
     }
-    e
 }

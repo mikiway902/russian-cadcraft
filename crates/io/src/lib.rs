@@ -14,11 +14,16 @@ mod dxf_read;
 mod dxf_table;
 mod dxf_write;
 mod dxf_xref;
+/// Bounded display-only mesh consumption; never a drafting or measurement authority.
+pub mod model_preview;
 /// Exact native curve mapping for the versioned model worker's projection result.
 pub mod model_projection;
 /// Bounded transport to a separately packaged exact SolidCraft model worker.
 #[cfg(not(target_arch = "wasm32"))]
 pub mod model_worker;
+/// Serial native model sessions; GUI callers must use a background job.
+#[cfg(not(target_arch = "wasm32"))]
+pub mod native_models;
 pub mod pdf;
 pub mod plotter;
 /// Raster image files (PNG, JPEG, BMP, TIFF) decoded to pixels.

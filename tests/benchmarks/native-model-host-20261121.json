@@ -1,0 +1,63 @@
+{
+  "date": "2026-11-21",
+  "platform": "linux-x86_64",
+  "scope": "native desktop and CLI linked-model workflow, not full roadmap acceptance",
+  "cli": {
+    "native_sc": {"source_bytes":787,"source_sha256":"ed9d9e33ddf2b97c5528b61c5a02d77e2f318b698cc9d7fd651080e8dc798dab","volume_mm3":1570.7963267948958,"isometric_native_entities":11},
+    "step": {"source_bytes":5535,"source_sha256":"f77c0c8da14fa3eec2eddfee2e392f60f0cb48fb65d24009a4e6b8ff8ca755e0","volume_mm3":1570.7963267948971,"isometric_native_entities":11},
+    "iges": {"source_bytes":13527,"source_sha256":"3e88d562c7f727323b48293bd97f58d1915ba7925bccdb43cb370c927d8beb4d","volume_mm3":6000,"isometric_native_entities":12},
+    "default_sibling_discovery": {"worker_environment_unset":true,"staged_debug_host":true,"front_native_entities":8,"saved_dxf_bytes":79842},
+    "native_dxf_reopen": {"metadata_retained":true,"view_handle":"184","basis_retained":true,"raw_quality_retained":true,"stale":false}
+  },
+  "gui": {
+    "actual_import_button":true,
+    "actual_orbit_drag":true,
+    "actual_step_and_iges_import_buttons":true,
+    "actual_step_and_iges_3d_surfaces":true,
+    "neutral_model_refs_saved_dxf_bytes":68361,
+    "display_triangles":544,
+    "display_vertices":346,
+    "preview_certified":false,
+    "preview_changes_exact_hlr":false,
+    "inspect_during_import_seconds":0.00548,
+    "inspect_during_projection_seconds":0.00719855400166125,
+    "front_created_with_accept_incomplete_false":true,
+    "front_raw_analytic_complete":false,
+    "front_raw_uncertain_pieces":2,
+    "uncertain_pieces_all_covered":true,
+    "raw_quality_and_warning_retained":true,
+    "front_undo_view_count":0,
+    "front_redo_view_count":1,
+    "front_saved_dxf_bytes":80004,
+    "proof_under_target": ["coexistence/proof/model-manager-import-action.png","coexistence/proof/model-native-orbit.png","coexistence/proof/model-front-on-paper.png","coexistence/proof/model-step-preview-real.png","coexistence/proof/model-neutral-final-state.png"],
+    "observed_default_placement_bug":"GUI at [50,50] overlapped title block; aligned to existing engine [50,100], verified through the actual packaged GUI Create button and paper screenshot"
+  },
+  "source_change": {
+    "edit":"independent native cylinder height 20 -> 30 mm",
+    "bytes_before":787,
+    "bytes_after":787,
+    "sha256_after":"4215ee129e26517c1cf06a802b3fd9a3d4226de82a8b77ba6a716da9001edba5",
+    "changed_detected":true,
+    "new_geometry_refused_with":"stale_source",
+    "failed_view_keeps_model_record":true,
+    "refresh_revision":2,
+    "frozen_view_handle":"18D",
+    "frozen_view_stale":true,
+    "undo_restores_entire_model_record":true,
+    "redo_succeeded":true
+  },
+  "worker_reference_rpc": {
+    "worker_tests_passed":19,
+    "worker_clippy_all_targets_passed":true,
+    "actual_stdio_debug_and_release":true,
+    "protocol":"cadcraft-references/1",
+    "native_edge_verification":"verified_upstream_history",
+    "native_edge_point_fraction_0_25_mm":[4.089340965789886,2.8770280613008685,5.0],
+    "native_edges":3,
+    "native_faces":3,
+    "exit":0,
+    "stderr_empty":true,
+    "host_dimension_integration_accepted":false
+  },
+  "limits": ["No full GOST certification", "No automatic view placement/scale selection", "No automatic B-Rep view/dimension rebuild", "Worker references are not yet bound to host dimensions", "No Windows/macOS runtime verification"]
+}

@@ -67,15 +67,18 @@ CARGO_BUILD_FLAGS=(--release --locked ${CARGO_BUILD_TARGET:+--target "$CARGO_BUI
 if [[ "$DRY_RUN" = 1 ]]; then
   echo "dry run: archive $DIST/$BASENAME.tar.gz"
   echo "dry run: (cd $ROOT && cargo build ${CARGO_BUILD_FLAGS[*]} -p cadcraft -p cadcraft-cli)"
+  echo "dry run: (cd $ROOT && cargo build ${CARGO_BUILD_FLAGS[*]} --manifest-path $ROOT/tools/solidcraft-bridge/Cargo.toml --bin cadcraft-model-worker --target-dir $MODEL_WORKER_TARGET_DIR)"
   echo "dry run: (cd $ROOT && env -u CARGO_BUILD_TARGET cargo build --release --locked -p cadcraft-cli --example man-and-completions)"
   exit 0
 fi
 if [[ "$SKIP_BUILD" = 0 ]]; then
   (cd "$ROOT" && cargo build "${CARGO_BUILD_FLAGS[@]}" -p cadcraft -p cadcraft-cli)
   (cd "$ROOT" && env -u CARGO_BUILD_TARGET cargo build --release --locked -p cadcraft-cli --example man-and-completions)
+  build_model_worker "${CARGO_BUILD_TARGET:-}"
 fi
 # Cargo puts a cross build under target/<triple>/release.
 BIN="$CARGO_TARGET_DIR/${CARGO_BUILD_TARGET:+$CARGO_BUILD_TARGET/}release"
+WORKER_BIN="$(model_worker_binary "${CARGO_BUILD_TARGET:-}")"
 WORK="$CARGO_TARGET_DIR/freebsd-package"
 STAGE="$WORK/$BASENAME"
 rm -rf "$WORK"
@@ -85,7 +88,8 @@ mkdir -p "$STAGE/bin" "$STAGE/share/applications" "$STAGE/share/mime/packages" "
   "$STAGE/share/icons" "$STAGE/share/doc/cadcraftgost"
 install -m 755 "$BIN/cadcraft" "$STAGE/bin/cadcraftgost"
 install -m 755 "$BIN/cadcraft-cli" "$STAGE/bin/cadcraftgost-cli"
-strip "$STAGE/bin/cadcraftgost" "$STAGE/bin/cadcraftgost-cli" 2>/dev/null || true
+install -m 755 "$WORKER_BIN" "$STAGE/bin/cadcraftgost-model-worker"
+strip "$STAGE/bin/cadcraftgost" "$STAGE/bin/cadcraftgost-cli" "$STAGE/bin/cadcraftgost-model-worker" 2>/dev/null || true
 # The desktop entry, MIME type and metainfo are the freedesktop files the Linux packages use.
 install -m 644 "$LINUX/$APP_ID.desktop" "$STAGE/share/applications/$APP_ID.desktop"
 install -m 644 "$LINUX/$APP_ID.mime.xml" "$STAGE/share/mime/packages/$APP_ID.xml"
@@ -93,6 +97,7 @@ sed -e "s/@VERSION@/$VERSION/g" -e "s/@DATE@/$CADCRAFT_BUILD_DATE/g" \
   "$LINUX/$APP_ID.metainfo.xml.in" >"$STAGE/share/metainfo/$APP_ID.metainfo.xml"
 cp -R "$ROOT/assets/app-icon/hicolor" "$STAGE/share/icons/"
 copy_docs "$STAGE/share/doc/cadcraftgost"
+copy_model_worker_licences "$STAGE/share/doc/cadcraftgost"
 # cadcraft-cli's man pages and shell completions, from its clap definition, written by the
 # example built above.
 CLI_DOCS="$CARGO_TARGET_DIR/release/examples/man-and-completions"

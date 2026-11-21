@@ -17,8 +17,10 @@
 | Общие метаданные | `extensions/data.rs` | Ограниченные версионированные записи DXF xdata `CADCRAFTGOST` |
 | UI Extension API | `crates/ui-egui/src/extensions.rs`, `extensions/gost/*` | Команда → имя диалога → render function; только вызовы без параметров открывают окно |
 | CLI/MCP | `apps/cadcraft-cli`, `crates/mcp` | Тот же реестр engine, без отдельного языка команд |
-| Изолированный B-Rep-прототип | `tools/solidcraft-bridge` | Публичные STEP/IGES, `.sc` и HLR API SolidCraft/SolidCore; ещё не подключён к документу и GUI |
-| Host transport и native curves | `crates/io/src/model_worker.rs`, `model_projection.rs` | Ограниченный child-process JSON-RPC, точное отображение Seg2 в сущности CADCraft; без зависимости engine от SolidCraft |
+| Изолированный B-Rep worker | `tools/solidcraft-bridge` | Публичные STEP/IGES, `.sc`, точный HLR и ограниченный display mesh SolidCraft/SolidCore |
+| Host transport и native curves | `crates/io/src/model_worker.rs`, `native_models.rs`, `model_projection.rs`, `model_preview.rs` | Ограниченный child-process JSON-RPC, fingerprint источника, четыре кэшированные модели; без зависимости engine от SolidCraft |
+| Связанные модели | `extensions/models.rs`, `engine/model_io.rs`, `doc/model_{projection,preview}.rs` | JSON-команды, NOD XRECORD, frozen native curves и подготовленные транзакции без I/O на UI completion |
+| Менеджер и 3D-просмотр | `ui-egui/extensions/models*` | Фоновые UI-задания с UID/revision guards; временная Drawing, существующие Frame/renderer и отдельный GPU layer |
 | Шрифт | `assets/fonts/opengost`, `crates/fonts` | Офлайн OpenGost Type B, OFL-1.1, разрешённое исключение форка |
 
 Это compile-time Extension API, не динамический Plugin ABI. Порядок регистрации: оформление → спецификации → связи видов. `DocumentChange` заимствует `before: Arc<Drawing>`, UID исходного документа и ID команды. Callbacks выполняются внутри существующего guard/Undo команды; ошибка откатывает всю транзакцию. COPY передаёт точные пары старых/новых handles, собираемые только для объектов с обслуживаемыми связями. Нативные команды не ищут ГОСТ-генераторы и не знают их имён: подготовленное имя листа передаётся через `CommandContext`.
@@ -77,11 +79,24 @@ quadratic SPLINE, cubic/Bezier — clamped SPLINE, круг/дуга/отрез�
 Сохраняются source indices, интервал, направление дуги, качество и видимость;
 тесселяция или подмена неопределённых линий точными не выполняется.
 
-Standalone worker проверен 12 тестами на Linux; native curve adapter — тремя
-тестами граничных случаев. Подключение к пользовательскому документу, 3D-просмотр,
-устойчивое сопоставление топологии между перестроениями и полноценные гарантии
-ресурсной изоляции ещё не приняты. Payload-local indices не являются постоянными
-топологическими именами. Обычный DXF без метаданных эти задачи не решает.
+Host подключён к desktop и CLI через четыре `ModelHooks`: загрузка, точный вид,
+preview и проверка fingerprint. Saved records хранят полный provenance, ревизии
+и замороженные редактируемые native curves; preview никогда не попадает в документ,
+размеры или измерения. Refresh меняет ревизию источника, но не подменяет старые виды:
+они явно становятся stale. Проверка SHA до/после точного вида запрещает новую
+геометрию из изменённого файла даже при наличии старой модели в кэше.
+
+Raw quality и covered/uncertain provenance не переписываются. Обычный вид может
+исключить uncertain piece только при подтверждённом upstream coverage contract,
+когда тот уже покрыт видимой геометрией; uncovered uncertainty требует явного
+разрешения неполной геометрии. Это не формальное доказательство точности HLR.
+
+Настоящие native/STEP/IGES CLI → Drawing → DXF сценарии, native GUI import,
+orbit и Front view, Undo/Redo и изменение источника проверены на Linux.
+Полная ассоциативная перестройка, межревизионная топология и ресурсная изоляция
+требуют отдельной приёмки; payload-local indices не являются постоянными именами.
+Worker-only reference RPC использует реальные upstream NameCells и явные статусы
+потери/неоднозначности; перенос в host-размеры пока не принят.
 
 ## Инварианты перехода
 

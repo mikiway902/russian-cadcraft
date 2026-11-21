@@ -1544,3 +1544,10 @@ menu	View	视图
 	Show GOST Finding	显示 GOST 检查问题
 	Synchronize GOST Sheets	同步 GOST 图纸
 	Technical Requirement Templates	技术要求模板
+	Import Linked Model	导入关联模型
+	Linked 3D Models	关联三维模型
+	Inspect Linked Model	查看关联模型
+	Linked Model Source Status	关联模型源文件状态
+	Refresh Linked Model Source	刷新关联模型源文件
+	Remove Linked Model	移除关联模型
+	Create Exact Model View	创建精确模型视图

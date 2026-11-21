@@ -1,0 +1,374 @@
+//! Model metadata follows the actual clipboard graph, never a destination-local ID match.
+use super::{
+    Arc, Common, Drawing, Entity, EntityKind, Handle, MAX_MODELS, MAX_VIEWS, PIECE, Result, Store, VIEW, Value, ViewLink, data, digest, entities,
+    err, json, load, save, text,
+};
+use crate::extensions::{ClipboardHooks, CopyHooks, CopyPair};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
+
+const MAX_CLIPBOARD_MODELS: usize = 32;
+const MAX_CLIPBOARD_VIEWS: usize = 128;
+const MAX_CLIPBOARD_ENTITIES: usize = 50_000;
+
+pub(super) const HOOKS: ClipboardHooks = ClipboardHooks { prepare_blocks: None, capture: Some(capture), pasted: Some(pasted) };
+pub(super) const COPY_HOOKS: CopyHooks = CopyHooks { tracks, apply: copied };
+
+fn managed(e: &Entity) -> Result<bool> {
+    Ok(data::load::<ViewLink>(&e.common, VIEW)?.is_some() || data::load::<Value>(&e.common, PIECE)?.is_some())
+}
+
+fn references(e: &Entity) -> Option<&str> {
+    match &e.kind {
+        EntityKind::Insert(i) => Some(&i.block),
+        EntityKind::Dimension(d) => d.block.as_deref(),
+        EntityKind::MLeader(m) => m.block.as_ref().map(|b| b.block.as_str()),
+        _ => None,
+    }
+}
+
+fn tracks(d: &Drawing, handles: &[Handle]) -> bool {
+    let mut blocks = Vec::new();
+    let mut seen = BTreeSet::new();
+    let mut walked = 0usize;
+    for e in handles.iter().filter_map(|h| d.entity(*h)) {
+        // Malformed metadata must reach the fallible copy callback, not bypass isolation.
+        if managed(e).unwrap_or(true) {
+            return true;
+        }
+        blocks.extend(references(e).into_iter().map(str::to_owned));
+    }
+    while let Some(name) = blocks.pop() {
+        if !seen.insert(name.to_ascii_uppercase()) {
+            continue;
+        }
+        let Some(block) = d.block(&name) else { continue };
+        for e in block.entities.iter() {
+            walked += 1;
+            if walked > MAX_CLIPBOARD_ENTITIES || managed(e).unwrap_or(true) {
+                return true;
+            }
+            blocks.extend(references(e).into_iter().map(str::to_owned));
+        }
+    }
+    false
+}
+
+#[derive(Default)]
+struct Needed {
+    models: BTreeSet<String>,
+    views: BTreeSet<String>,
+    pieces: BTreeSet<(String, String)>,
+    blocks: BTreeSet<String>,
+    entities: usize,
+}
+impl Needed {
+    fn note(&mut self, e: &Entity, block: Option<&str>) -> Result<()> {
+        self.entities += 1;
+        let mut linked = false;
+        if let Some(link) = data::load::<ViewLink>(&e.common, VIEW)? {
+            if !matches!(e.kind, EntityKind::Insert(_)) || link.view != e.handle.hex() || link.revision == 0 {
+                return Err(err("inconsistent clipboard model view identity"));
+            }
+            if let EntityKind::Insert(insert) = &e.kind {
+                self.blocks.insert(insert.block.clone());
+            }
+            self.models.insert(link.model_id);
+            self.views.insert(link.view);
+            linked = true;
+        }
+        if let Some(piece) = data::load::<Value>(&e.common, PIECE)? {
+            let id = text(&piece, "model_id")?.to_owned();
+            let sha = text(&piece, "source_sha256")?.to_owned();
+            if !digest(&sha) {
+                return Err(err("invalid clipboard model piece source"));
+            }
+            self.models.insert(id.clone());
+            self.pieces.insert((id, sha));
+            linked = true;
+        }
+        if linked && let Some(block) = block {
+            self.blocks.insert(block.to_owned());
+        }
+        Ok(())
+    }
+}
+
+fn check_limits(store: &Store) -> Result<()> {
+    if store.models.len() > MAX_CLIPBOARD_MODELS || store.views.len() > MAX_CLIPBOARD_VIEWS {
+        return Err(err("model clipboard metadata count limit exceeded"));
+    }
+    Ok(())
+}
+
+/// Only selected/reachable links are captured. In particular, a whole source Store is not copied.
+fn capture(source: &Drawing, ents: &[Entity], defs: &mut Drawing) -> Result<()> {
+    let mut needed = Needed::default();
+    for e in ents {
+        needed.note(e, None)?;
+    }
+    for (name, block) in &defs.blocks {
+        for e in block.entities.iter() {
+            needed.note(e, Some(name))?;
+        }
+    }
+    if needed.models.is_empty() {
+        return Ok(());
+    }
+    if needed.entities > MAX_CLIPBOARD_ENTITIES {
+        return Err(err("model clipboard entity limit exceeded"));
+    }
+    let source_store = load(source)?;
+    let models: Vec<_> = source_store.models.iter().filter(|m| needed.models.contains(&m.id)).cloned().collect();
+    if models.len() != needed.models.len() {
+        return Err(err("clipboard model link has no source model record"));
+    }
+    // A detached stale curve still needs the old source snapshot, not only the current model.
+    for (id, sha) in &needed.pieces {
+        if !models.iter().any(|m| &m.id == id && &m.source.sha256 == sha) {
+            let mut found = false;
+            for view in source_store.views.iter().filter(|v| &v.model_id == id && &v.source.sha256 == sha) {
+                needed.views.insert(view.handle.clone());
+                found = true;
+            }
+            if !found {
+                return Err(err("clipboard model piece has no exact source snapshot"));
+            }
+        }
+    }
+    let views: Vec<_> = source_store.views.iter().filter(|v| needed.views.contains(&v.handle)).cloned().collect();
+    if views.len() != needed.views.len() {
+        return Err(err("clipboard model view has no saved source record"));
+    }
+    let store = Store { version: 1, next_id: source_store.next_id, models, views };
+    check_limits(&store)?;
+    // Check each entity link against the saved revision, including links inside nested blocks.
+    let mut handles = BTreeSet::new();
+    for e in ents.iter().chain(defs.blocks.values().flat_map(|b| b.entities.iter()).map(Arc::as_ref)) {
+        if !handles.insert(e.handle) {
+            return Err(err("duplicate clipboard source entity handle"));
+        }
+        if let Some(link) = data::load::<ViewLink>(&e.common, VIEW)? {
+            let saved = store.views.iter().find(|v| v.handle == link.view).ok_or_else(|| err("missing clipboard saved view"))?;
+            if saved.model_id != link.model_id || saved.revision != link.revision {
+                return Err(err("clipboard view revision differs from its saved record"));
+            }
+            let EntityKind::Insert(insert) = &e.kind else { return Err(err("clipboard view is not an INSERT")) };
+            if defs.block(&insert.block).is_none() {
+                return Err(err("clipboard model view block is missing"));
+            }
+        }
+    }
+    isolate_definitions(defs, &needed.blocks)?;
+    // The parent's capped writer/reader enforce MAX_BYTES for both clipboard and destination.
+    save(defs, &store)
+}
+
+/// Isolate managed definitions, every enclosing wrapper, and their annotation dependencies.
+/// Anonymous-block collision handling then clones them using the ordinary native merge path.
+fn isolate_definitions(defs: &mut Drawing, managed_blocks: &BTreeSet<String>) -> Result<()> {
+    let names: BTreeMap<_, _> = defs.blocks.keys().map(|n| (n.to_ascii_uppercase(), n.clone())).collect();
+    if names.len() != defs.blocks.len() {
+        return Err(err("ambiguous clipboard block names"));
+    }
+    let mut parents: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    let mut children: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    for (name, block) in &defs.blocks {
+        for target in block.entities.iter().flat_map(|e| references(e)) {
+            if let Some(target) = names.get(&target.to_ascii_uppercase()) {
+                parents.entry(target.clone()).or_default().push(name.clone());
+                children.entry(name.clone()).or_default().push(target.clone());
+            }
+        }
+    }
+    let mut isolated: BTreeSet<_> = managed_blocks.iter().filter_map(|n| names.get(&n.to_ascii_uppercase())).cloned().collect();
+    let mut queue: VecDeque<_> = isolated.iter().cloned().collect();
+    while let Some(name) = queue.pop_front() {
+        for parent in parents.get(&name).into_iter().flatten() {
+            if isolated.insert(parent.clone()) {
+                queue.push_back(parent.clone());
+            }
+        }
+    }
+    queue.extend(isolated.iter().cloned());
+    while let Some(name) = queue.pop_front() {
+        for child in children.get(&name).into_iter().flatten() {
+            if isolated.insert(child.clone()) {
+                queue.push_back(child.clone());
+            }
+        }
+    }
+    for name in isolated {
+        if let Some(block) = defs.blocks.get_mut(&name) {
+            Arc::make_mut(block).anonymous = true;
+        }
+    }
+    Ok(())
+}
+
+fn pasted(d: &mut Drawing, defs: &Drawing, pairs: &[CopyPair], renames: &BTreeMap<String, String>) -> Result<()> {
+    install(d, defs, pairs, renames, false)
+}
+
+fn fresh_handle(d: &mut Drawing) -> Result<Handle> {
+    if d.handseed == u64::MAX {
+        return Err(err("model clipboard handle space exhausted"));
+    }
+    Ok(d.new_handle())
+}
+
+fn install(d: &mut Drawing, defs: &Drawing, pairs: &[CopyPair], renames: &BTreeMap<String, String>, same_document: bool) -> Result<()> {
+    let source = load(defs)?;
+    check_limits(&source)?;
+    let mut forward = BTreeMap::new();
+    let mut reverse = BTreeMap::new();
+    for (old, new) in pairs {
+        if forward.insert(*old, *new).is_some() || reverse.insert(*new, *old).is_some() {
+            return Err(err("ambiguous clipboard entity handle mapping"));
+        }
+    }
+    if source.models.is_empty() {
+        // Hand-built or malformed clipboards cannot fall through to a colliding destination Store.
+        for e in entities(d).filter(|e| reverse.contains_key(&e.handle)) {
+            if managed(e)? {
+                return Err(err("clipboard model association has no transferred metadata"));
+            }
+        }
+        return Ok(());
+    }
+    if pairs.len() > MAX_CLIPBOARD_ENTITIES {
+        return Err(err("model clipboard entity limit exceeded"));
+    }
+    for (name, block) in &defs.blocks {
+        if block.anonymous && !renames.contains_key(&name.to_ascii_uppercase()) {
+            return Err(err("private clipboard block could not be isolated"));
+        }
+    }
+    let mut destination = load(d)?;
+    let mut ids = BTreeMap::new();
+    for model in &source.models {
+        let id = if same_document {
+            let original = super::model(&destination, &model.id)?;
+            if original.revision != model.revision || original.metadata != model.metadata {
+                return Err(err("same-document model changed during copy"));
+            }
+            model.id.clone()
+        } else {
+            if destination.models.len() >= MAX_MODELS {
+                return Err(err("destination linked-model count limit exceeded"));
+            }
+            let id = destination.next_id.to_string();
+            destination.next_id = destination.next_id.checked_add(1).ok_or_else(|| err("local model identity space exhausted"))?;
+            let mut copied = model.clone();
+            copied.id = id.clone();
+            destination.models.push(copied);
+            id
+        };
+        ids.insert(model.id.clone(), id);
+    }
+    let mut view_handles = BTreeMap::new();
+    for view in &source.views {
+        if destination.views.len() >= MAX_VIEWS {
+            return Err(err("destination saved-view count limit exceeded"));
+        }
+        let old = Handle::parse_hex(&view.handle).ok_or_else(|| err("invalid clipboard view handle"))?;
+        let new = match forward.get(&old) {
+            Some(h) => *h,
+            None => fresh_handle(d)?,
+        };
+        let mut copied = view.clone();
+        copied.handle = new.hex();
+        copied.model_id = ids.get(&view.model_id).ok_or_else(|| err("clipboard view model is missing"))?.clone();
+        copied.parameters["id"] = json!(copied.model_id);
+        view_handles.insert(view.handle.clone(), copied.handle.clone());
+        destination.views.push(copied);
+    }
+    let mut seen_views = BTreeSet::new();
+    let mut remap = |e: &Entity| -> Result<Option<Common>> {
+        let Some(old) = reverse.get(&e.handle) else { return Ok(None) };
+        if let Some(mut link) = data::load::<ViewLink>(&e.common, VIEW)? {
+            let saved = source.views.iter().find(|v| v.handle == link.view).ok_or_else(|| err("clipboard view metadata missing"))?;
+            if link.view != old.hex() || saved.model_id != link.model_id || saved.revision != link.revision {
+                return Err(err("clipboard view identity does not match the adopted entity"));
+            }
+            seen_views.insert(link.view.clone());
+            link.model_id = ids.get(&link.model_id).ok_or_else(|| err("clipboard view model mapping missing"))?.clone();
+            link.view = view_handles.get(&link.view).ok_or_else(|| err("clipboard view handle mapping missing"))?.clone();
+            let mut common = e.common.clone();
+            data::save(&mut common, VIEW, &link)?;
+            return Ok(Some(common));
+        }
+        if let Some(mut piece) = data::load::<Value>(&e.common, PIECE)? {
+            let id = text(&piece, "model_id")?;
+            let new = ids.get(id).ok_or_else(|| err("clipboard curve model mapping missing"))?;
+            let sha = text(&piece, "source_sha256")?;
+            if !source.models.iter().any(|m| m.id == id && m.source.sha256 == sha)
+                && !source.views.iter().any(|v| v.model_id == id && v.source.sha256 == sha)
+            {
+                return Err(err("clipboard curve source snapshot missing"));
+            }
+            piece["model_id"] = json!(new);
+            let mut common = e.common.clone();
+            data::save(&mut common, PIECE, &piece)?;
+            return Ok(Some(common));
+        }
+        Ok(None)
+    };
+    // EntityStore::modify is also used for nested block entities: Drawing::modify_entity only
+    // addresses model/layout space. PASTEBLOCK's freshly created wrapper is included here too.
+    let mut updates = BTreeMap::new();
+    let mut seen_entities = BTreeSet::new();
+    for e in entities(d).filter(|e| reverse.contains_key(&e.handle)) {
+        if !seen_entities.insert(e.handle) {
+            return Err(err("adopted clipboard handle collides with another entity"));
+        }
+        if let Some(common) = remap(e)? {
+            updates.insert(e.handle, common);
+        }
+    }
+    if seen_entities.len() != reverse.len()
+        || source.views.iter().any(|v| Handle::parse_hex(&v.handle).is_some_and(|h| forward.contains_key(&h)) && !seen_views.contains(&v.handle))
+    {
+        return Err(err("clipboard entity or saved view mapping is incomplete"));
+    }
+    for space in std::iter::once(&mut d.model).chain(d.layouts.iter_mut().map(|l| &mut l.entities)) {
+        apply_updates(space, &mut updates);
+    }
+    for block in d.blocks.values_mut() {
+        if block.entities.iter().any(|e| updates.contains_key(&e.handle)) {
+            apply_updates(&mut Arc::make_mut(block).entities, &mut updates);
+        }
+    }
+    if !updates.is_empty() {
+        return Err(err("adopted model clipboard entity disappeared"));
+    }
+    save(d, &destination)
+}
+
+fn apply_updates(store: &mut cadcraft_doc::EntityStore, updates: &mut BTreeMap<Handle, Common>) {
+    let handles: Vec<_> = store.iter().filter(|e| updates.contains_key(&e.handle)).map(|e| e.handle).collect();
+    for h in handles {
+        if let Some(common) = updates.remove(&h) {
+            store.modify(h, |e| e.common = common);
+        }
+    }
+}
+
+fn copied(d: &mut Drawing, pairs: &[CopyPair]) -> Result<()> {
+    let handles: Vec<_> = pairs.iter().map(|(old, _)| *old).collect();
+    if !tracks(d, &handles) {
+        return Ok(());
+    }
+    let originals: Vec<_> = handles.iter().filter_map(|old| d.entity(*old).map(|e| (**e).clone())).collect();
+    let defs = crate::cmd::clipboard::defs_for(d, &originals)?;
+    let mut mapped = Vec::new();
+    let renames = crate::cmd::clipboard::merge(d, &defs, &mut mapped);
+    for (_, new) in pairs {
+        d.modify_entity(*new, |e| crate::cmd::clipboard::rename_references(e, &renames))?;
+    }
+    mapped.extend_from_slice(pairs);
+    install(d, &defs, &mapped, &renames, true)
+}
+
+#[cfg(test)]
+#[path = "clipboard_tests.rs"]
+mod tests;

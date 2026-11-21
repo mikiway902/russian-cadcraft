@@ -149,4 +149,109 @@
   read/grep не возвращают snapshot tag для binary, обязательный для edit REM;
   дефект инструментов зарегистрирован. Удаление всего бренда не отмечено готовым.
 
+## Связанные native-модели — продолжение 21.11.2026
+
+- Desktop/CLI теперь подключают настоящие load/view/preview/status hooks.
+  Данные источника и frozen native curves сохраняются в DXF; mesh для просмотра
+  остаётся временным и не используется для измерений.
+- Реальный CLI импортировал `.sc`, STEP-цилиндр и IGES-параллелепипед; объёмы
+  соответственно `1570.7963267948958`, `1570.7963267948971`, `6000` мм³.
+  Изометрические виды содержат 11, 11 и 12 редактируемых native curves.
+  Reopen native DXF сохранил fingerprint, view handle, basis и quality.
+- Настоящий GUI импортировал native цилиндр, показал upstream display mesh
+  (544 triangles, 346 vertices); drag действительно изменил orbit.
+  Во время import/view control inspect отвечал примерно за 5–7 мс.
+- Default Front первоначально отказал: upstream сообщил два uncertain pieces,
+  оба covered уже видимыми линиями. Исправление исключает только такие duplicates
+  по явному coverage contract; raw `analytic_complete:false`, оба uncertainty
+  и provenance остаются сохранены. Регрессия covered/uncovered пройдена.
+  Настоящая кнопка создала Front без `accept_incomplete`, Undo/Redo дали 0/1 вид.
+- Визуальная проверка выявила пересечение default GUI точки `[50,50]` с основной
+  надписью. GUI приведён к существующей engine точке `[50,100]`; это не автоматическая
+  компоновка произвольных видов или подбор масштаба, они ещё требуют реализации.
+- Изменение высоты native цилиндра 20 → 30 мм при том же размере файла 787 bytes
+  обнаружено по SHA. Новая проекция отказала с `stale_source`; refresh дал ревизию 2
+  и оставил прежний view `18D` frozen/stale. Undo вернул всю прежнюю model record,
+  Redo повторил refresh. Этот smoke использовал отдельный mutable fixture.
+- Реальные кнопки менеджера также импортировали STEP и IGES; обе 3D-поверхности
+  просмотрены, DXF с двумя model records сохранён (68361 bytes).
+  Staged debug CLI нашёл sibling worker при удалённой `CADCRAFTGOST_MODEL_WORKER`,
+  создал 8 native entities Front и сохранил DXF 79842 bytes.
+  [Протокол и границы](tests/benchmarks/native-model-host-20261121.json).
+- Пакеты Linux включают настоящий sibling worker и полные third-party notices.
+  Staged release worker выполнил native load/preview; финальные host binaries
+  после подключения менеджера ещё нуждаются в повторной release-упаковке.
+- Проверка `cargo xtask i18n` запустила workspace ignored-test inventory и
+  достигла timeout 120 s; этот запуск не считается успешным gate.
+  Новый полный root gate и clipboard/native-reference проверки ещё не приняты.
+- Standalone worker прошёл **19 тестов** (6 suites) и all-targets Clippy.
+  Проверены реальные upstream named edges, exact arc-length fractions,
+  свежая worker-сессия после изменения extrusion distance с rotated/repeated
+  placements и явная потеря unverified/neutral references.
+  Настоящий stdio `v1.references`/`v1.resolve_point` для native цилиндра вернул
+  verified edge и exact point; worker завершился с exit 0 и пустым stderr.
+  Compile timeout 900 s и первоначальный неверный import исправлены/учтены;
+  успешный запуск после этого выполнен с deadline 1800 s.
+- Протокол `cadcraft-model-worker/1` и `cadcraft-references/1` принят в границах
+  опубликованной схемы/лимитов. Это не приёмка полной ассоциативности host-размеров:
+  `.sc` не содержит UUID, проверенная межревизионная связь ограничена тем же
+  canonical path и документом с разрешённым literal size/distance edit.
+  Другие перестроения не подбираются по похожей геометрии.
+- Новый root gate включает standalone worker девятым шагом (`cargo xtask models`).
+  Десять clipboard consumer regressions прошли; Clippy затем выявил wildcard import
+  и clone-on-Copy. После сужения imports потребовались явные imports в тестах;
+  полный gate повторяется только после исправления этих compile failures.
+- Remote `839343c7` Packaging lint: Linux lint прошёл, Windows MSI fixture step
+  отказал. Публичная аннотация содержит только exit 1, logs API вернул 403.
+  В fixture script добавлен diagnostic trap с экранированием `%`/CR/LF.
+  Настоящий PowerShell 7.7.0 разобрал script и выполнил его trap на ошибке:
+  exit 1 и корректная GitHub error annotation. Это не MSI runtime-проверка
+  и не устранение пока неизвестной причины Windows отказа.
+- Полный root запуск после imports прошёл native workspace-тесты и doctests:
+  **4029 passed, 0 failed, 26 ignored, 145 result-suites**; i18n inventory выполнен.
+  На WASM выявлены два невыводимых типа `channel()` в native-only ветках.
+  Каналы теперь создаются только в native cfg-блоках, без ненужной аллокации в web.
+  WASM и полный девятишаговый gate проверяются после исправления.
+- Дополнительный настоящий `.sc` — полый ступенчатый вал: Ø20 × 100 мм,
+  центральная ступень Ø30 × 40 мм на z=30…70 и сквозное Ø6.
+  Exact boolean evaluation дал один body, объём `14100π` мм³ и площадь `3432π` мм²
+  с невязками менее `1e-6`, центр масс z=50 мм и bbox ±15 × 0…100 мм.
+  Изометрия полностью analytic; top имеет только covered uncertainty.
+  **Front имеет 4 uncovered uncertain pieces**: обычный host CLI правильно
+  отказал с exit 1, не выдал вид за точный. Этот эталон ещё не принят;
+  причина HLR и полная инженерная приёмка остаются открытыми.
+- После WASM fix отдельный WASM check прошёл (4 прежних upstream warnings).
+  Следующий полный native gate выявил недетерминированный timing-test:
+  16× groups дали 81,2× wall time (`18,75 ms → 1,522 s`) в параллельном IO suite.
+  Повторного запуска «для подтверждения» не было. Reader уже использует hash index
+  для имён и memo для dictionary headers; производственный parser не подменён.
+  Вместо отношения wall time проверяется реальная работа reader на тех же
+  2500/40000 groups: thread-local test-only счётчик посещений header/dictionary tags,
+  линейный бюджет и сохранность всех anonymous groups. В production счётчика нет.
+  Существующий 20k mixed-case/member roundtrip test сохранён.
+- Исходник вала сохранён в `tests/fixtures/models/stepped-shaft.sc`, математический
+  эталон/допуски и конкретные unresolved intervals —
+  [воспроизводимый benchmark](tests/benchmarks/stepped-shaft-20261121.json).
+  Эталон не помечен принятым и не заменён простым цилиндром ради успешного gate.
+- Финальный `cargo xtask ci` прошёл **все 9 gate**: native workspace/doctests
+  **4029 passed**, feature-off **2 passed**, standalone worker **19 passed**;
+  0 failed, 26 прежних ignored. I18n inventory прошёл отдельно; RU всё ещё
+  содержит 346 English fallbacks. Сохранились 4 прежних WASM warnings.
+  Deterministic parser-work regression также прошёл отдельным запуском.
+- Release desktop/CLI и man/completions собраны. STEP, IGES в границах ядра,
+  native load, полные сохранённые metadata/assembly placements, SHA change detection
+  и read-only 3D preview приняты по проверенным сценариям; этап 4 завершён.
+  Это не закрывает точный HLR для всех моделей, ассоциативное перестроение,
+  все новые ГОСТ-профили или кроссплатформенную установку.
+- Все четыре Linux-пакета и zsync пересобраны с финальными host/worker binaries.
+  Packaged CLI без worker override импортировал native `.sc`, создал Front из
+  8 native entities и повторно открыл DXF с прежним fingerprint/raw quality.
+  Неверный smoke argv `run --open` исправлен на документированный positional FILE;
+  успешный import/view не повторялся для подтверждения.
+- Настоящая кнопка packaged GUI создала второй Front с default `[50,100]`,
+  `accept_incomplete:false`, без пересечения основной надписи в проверенном fixture.
+  Сохранённый DXF — 92737 bytes; GUI завершился с exit 0.
+  [SHA-256 артефактов и финальный runtime proof](tests/benchmarks/native-model-release-20261121.json).
+  Это не системная установка/удаление RPM/DEB и не публикация Alpha.
+
 Ни один из этих результатов не закрывает полный новый roadmap. Точные B-Rep-проекции, сборки, нормативные профили, полная русификация, кроссплатформенные установки и выпуск остаются в активном плане.

@@ -71,6 +71,10 @@
         <File Id="CadcraftCliExe" Source="$(var.BinDir)\cadcraftgost-cli.exe" KeyPath="yes" />
       </Component>
 
+      <Component Id="CadcraftModelWorker">
+        <File Id="CadcraftModelWorkerExe" Source="$(var.BinDir)\cadcraftgost-model-worker.exe" KeyPath="yes" />
+      </Component>
+
       <Component Id="OpenGostLicence">
         <File Id="OpenGostLicenceFile" Source="$(sys.SOURCEFILEDIR)..\..\assets\fonts\opengost\OFL.txt" Name="OFL-OpenGost.txt" KeyPath="yes" />
       </Component>

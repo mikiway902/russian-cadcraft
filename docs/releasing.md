@@ -14,16 +14,22 @@
 cargo xtask ci
 ```
 
-Восемь шагов: fmt, Clippy, workspace-тесты и doctests, отчёт i18n, атрибуция assets, слои зависимостей, WASM и функциональная проверка отключения расширений.
-Последний шаг проверяет настоящие DXF/LINE/COPY/Undo и будущие opaque XDATA, а также CLI, desktop и web без default feature `gost`.
+Девять шагов: fmt, Clippy, workspace-тесты и doctests, отчёт i18n, атрибуция assets,
+слои зависимостей, WASM, отключение расширений и standalone model worker.
+Feature-off проверяет настоящие DXF/LINE/COPY/Undo и opaque XDATA, а также CLI,
+desktop и web без default feature `gost`.
 Пробелы переводов выводятся отдельно; успешный i18n gate не означает полной русификации.
 
-Изолированный точный worker проверяется отдельно, пока не включён в root workspace:
+Worker остаётся вне root workspace, но входит в `cargo xtask ci`.
+Точечный gate запускает его fmt/Clippy/тесты с `--locked` для Cargo-проверок:
 
 ```sh
-cargo test --locked --manifest-path tools/solidcraft-bridge/Cargo.toml --all-targets
-cargo clippy --locked --manifest-path tools/solidcraft-bridge/Cargo.toml --all-targets -- -D warnings
+cargo xtask models
 ```
+
+Его build cache отделён от root workspace: обычный standalone `target`, либо
+`$CARGO_TARGET_DIR/model-worker`, если владелец явно выбрал внешний target.
+Packaging release-worker использует собственный `MODEL_WORKER_TARGET_DIR`.
 
 ## Проверка обновлений CADCraft
 

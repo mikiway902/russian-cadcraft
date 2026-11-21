@@ -235,6 +235,8 @@ impl Default for UiState {
 #[derive(Default)]
 pub struct Services {
     pub pick_open: Option<Box<dyn Fn() -> Option<String>>>,
+    /// Native exact-model files; uses the same asynchronous picker path as drawings.
+    pub pick_model: Option<Box<dyn Fn() -> Option<String>>>,
     pub pick_save: Option<Box<dyn Fn(&str) -> Option<String>>>,
     /// Where set, the file dialogs are shown with this instead of calling `pick_open` /
     /// `pick_save` / `pick_lisp` (which must still be set, to say which dialogs there are), and
@@ -258,6 +260,7 @@ pub struct Services {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Pick {
     Open,
+    Model,
     Save(String),
     Lisp(String),
     Pgp(String),
@@ -304,6 +307,8 @@ pub struct CadApp {
     pub status: Option<(String, f64)>,
     /// Drawings being read on worker threads ([`opening`]).
     pub opening: opening::Opening,
+    #[cfg(feature = "gost")]
+    pub(crate) models: extensions::models::State,
     pub integrated_titlebar: bool,
     control_rx: Option<Receiver<ControlRequest>>,
     /// Fresh surface and identity snapshot (see [`capture`]).
@@ -398,6 +403,8 @@ impl CadApp {
             cmd: cmdline::CmdLine::default(),
             status: None,
             opening: opening::Opening::default(),
+            #[cfg(feature = "gost")]
+            models: extensions::models::State::default(),
             integrated_titlebar: false,
             control_rx: None,
             capture_geometry: None,
@@ -472,6 +479,7 @@ impl CadApp {
     fn pick_for(&mut self, pick: Pick, bound: bool, then: PickDone) -> Option<Result<Value, String>> {
         let available = match pick {
             Pick::Open => self.services.pick_open.is_some(),
+            Pick::Model => self.services.pick_model.is_some(),
             Pick::Save(_) => self.services.pick_save.is_some(),
             Pick::Lisp(_) => self.services.pick_lisp.is_some(),
             Pick::Pgp(_) => self.services.pick_pgp.is_some(),
@@ -504,6 +512,7 @@ impl CadApp {
         }
         let path = match &pick {
             Pick::Open => self.services.pick_open.as_ref().and_then(|f| f()),
+            Pick::Model => self.services.pick_model.as_ref().and_then(|f| f()),
             Pick::Save(name) => self.services.pick_save.as_ref().and_then(|f| f(name)),
             Pick::Lisp(dir) => self.services.pick_lisp.as_ref().and_then(|f| f(dir)),
             Pick::Pgp(dir) => self.services.pick_pgp.as_ref().and_then(|f| f(Some(dir.as_str()).filter(|d| !d.is_empty()))),
@@ -1025,6 +1034,8 @@ impl CadApp {
     /// Frame-only work, run from the first real UI pass (never from a hidden logic tick).
     fn ui_frame_begin(&mut self, ui: &mut egui::Ui) {
         let ctx = ui.ctx().clone();
+        #[cfg(feature = "gost")]
+        extensions::models::tick(self, &ctx);
         let ctx = &ctx;
         let language = self.language();
         if self.fonts_language != Some(language) {

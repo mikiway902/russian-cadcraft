@@ -8,6 +8,12 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
+trap {
+  # Expose the actual failure through public check annotations, not only authenticated job logs.
+  $message = ($_ | Out-String).Trim().Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
+  Write-Output "::error title=Windows installer policy::$message"
+  exit 1
+}
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $policy = Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot 'install-policy.json') | ConvertFrom-Json
 [void](New-Item -ItemType Directory -Force -Path $OutputDirectory)

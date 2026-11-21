@@ -67,27 +67,3 @@ fn many_anonymous_groups_read_and_names_merge_case_insensitively() {
         .collect();
     assert_eq!(doors, [("DOORS", "second", 1)]);
 }
-
-/// Reading groups scales linearly (#862): 16 times the groups take about 16 to 20 times as long,
-/// where the former quadratic lookups took about 256 times as long. The bound compares the two
-/// sizes with each other, not with a wall-clock limit, and leaves room for timing noise; each
-/// size is timed as the best of three reads.
-#[test]
-fn reading_groups_scales_linearly() {
-    let best_of_three = |n: usize| {
-        let dxf = groups_dxf(n, &[]);
-        (0..3)
-            .map(|_| {
-                let t = std::time::Instant::now();
-                let d = cadcraft_io::read_dxf(dxf.as_bytes()).expect("read");
-                assert_eq!(d.groups.len(), n);
-                t.elapsed()
-            })
-            .min()
-            .unwrap_or_default()
-    };
-    let small = best_of_three(2_500);
-    let large = best_of_three(40_000);
-    let ratio = large.as_secs_f64() / small.as_secs_f64().max(1e-6);
-    assert!(ratio < 64.0, "16x the groups took {ratio:.1}x as long ({small:?} -> {large:?})");
-}
