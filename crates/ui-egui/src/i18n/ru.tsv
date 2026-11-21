@@ -1397,3 +1397,18 @@
 	Aligned: true 3D distance	Параллельный: истинное расстояние в 3D
 	Paper offset, mm	Отступ на листе, мм
 	Create exact dimension	Создать точный размер
+	Computing exact section…	Вычисление точного разреза…
+	Exact model section	Точный разрез модели
+	Plane origin (mm)	Точка секущей плоскости (мм)
+	Plane normal	Нормаль секущей плоскости
+	Keep positive half-space	Сохранить положительное полупространство
+	Keep negative half-space	Сохранить отрицательное полупространство
+	Omit bodies entirely (not uncut exceptions)	Исключить тела целиком (не оставлять неразрезанными)
+	Body	Тело
+	Hatching: 3 mm on paper; scale and insertion use the view controls above.	Шаг штриховки — 3 мм на листе; масштаб и вставка задаются выше.
+	Frozen exact geometry; cutting-plane labels are separate.	Снимок точной геометрии; обозначения секущей плоскости наносятся отдельно.
+	Create exact section	Создать точный разрез
+	Create Exact Model Section	Создать точный разрез модели
+	Section removes every selected body; no view was created.	Разрез удаляет все выбранные тела; вид не создан.
+	No body interior intersects the plane; no view was created.	Плоскость не пересекает внутренность тела; вид не создан.
+	Exact section created.	Точный разрез создан.

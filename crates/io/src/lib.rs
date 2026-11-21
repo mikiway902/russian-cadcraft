@@ -18,6 +18,8 @@ mod dxf_xref;
 pub mod model_preview;
 /// Exact native curve mapping for the versioned model worker's projection result.
 pub mod model_projection;
+/// Atomic exact section decoding, preserving directed native cap boundaries.
+pub mod model_section;
 /// Bounded transport to a separately packaged exact SolidCraft model worker.
 #[cfg(not(target_arch = "wasm32"))]
 pub mod model_worker;

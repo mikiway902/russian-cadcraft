@@ -1565,3 +1565,18 @@ menu	View	视图
 	Aligned: true 3D distance	对齐：真实三维距离
 	Paper offset, mm	图纸偏移，毫米
 	Create exact dimension	创建精确尺寸
+	Computing exact section…	正在计算精确剖视图…
+	Exact model section	精确模型剖视图
+	Plane origin (mm)	剖切平面原点（毫米）
+	Plane normal	剖切平面法线
+	Keep positive half-space	保留正半空间
+	Keep negative half-space	保留负半空间
+	Omit bodies entirely (not uncut exceptions)	完全排除实体（不是保持未剖切）
+	Body	实体
+	Hatching: 3 mm on paper; scale and insertion use the view controls above.	图纸剖面线间距为 3 毫米；比例和插入位置使用上方视图控件。
+	Frozen exact geometry; cutting-plane labels are separate.	冻结的精确几何；剖切平面标记需另行添加。
+	Create exact section	创建精确剖视图
+	Create Exact Model Section	创建精确模型剖视图
+	Section removes every selected body; no view was created.	剖切移除了全部所选实体；未创建视图。
+	No body interior intersects the plane; no view was created.	平面未穿过实体内部；未创建视图。
+	Exact section created.	精确剖视图已创建。

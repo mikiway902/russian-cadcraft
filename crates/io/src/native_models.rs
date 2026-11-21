@@ -5,10 +5,11 @@
 //! never supply engineering projections or measurements. The worker has deadlines and
 //! bounded messages, not an OS memory sandbox; local concurrent path mutation is not sandboxed.
 
-use crate::{model_preview, model_projection, model_worker};
+use crate::{model_preview, model_projection, model_section, model_worker};
 use cadcraft_doc::{
     model_preview::Preview,
     model_projection::{Projection, SourceReference},
+    model_section::{Section, SectionRequest},
 };
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
@@ -120,6 +121,35 @@ pub fn view(path: &str, expected_sha: &str, direction: [f64; 3], up: [f64; 3]) -
         }
         current_source(entry)?;
         Ok(projection)
+    })
+}
+
+/// Cut the immutable selected snapshot by an exact half-space, then project its result.
+/// Raw HLR quality is preserved for the caller's acceptance policy. A rejected cap or any
+/// changed source refuses the entire result; neither an uncut view nor a preview is a fallback.
+pub fn section(path: &str, expected_sha: &str, request: &SectionRequest) -> Result<Section, String> {
+    model_section::validate_request(request).map_err(|error| error.to_string())?;
+    with_session(path, expected_sha, |entry| {
+        if request.exclude_bodies.iter().any(|i| *i >= entry.bodies.len()) {
+            return Err("section exclusions must refer to original loaded body indices".into());
+        }
+        current_source(entry)?;
+        let value = entry.call(
+            "v1.section",
+            &json!({
+                "source_sha256": expected_sha, "plane": request.plane,
+                "kept_side": request.kept_side, "direction": request.direction, "up": request.up,
+                "exclude_bodies": request.exclude_bodies, "require_analytic": false,
+            }),
+        )?;
+        check_source(&value, &entry.source)?;
+        // Fixed-size scratch space: original face bounds validate only boolean ancestry.
+        // The decoder uses returned section topology for every HLR edge/face reference.
+        let faces: [usize; 32] = std::array::from_fn(|i| entry.bodies.get(i).map_or(0, |body| body.faces));
+        let result = model_section::decode(&value, request, expected_sha, entry.source.bytes, &faces[..entry.bodies.len()])
+            .map_err(|error| error.to_string())?;
+        current_source(entry)?;
+        Ok(result)
     })
 }
 

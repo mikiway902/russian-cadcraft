@@ -16,6 +16,7 @@ mod header;
 pub mod library;
 pub mod model_preview;
 pub mod model_projection;
+pub mod model_section;
 mod plotstyle;
 mod plotter;
 mod raster;

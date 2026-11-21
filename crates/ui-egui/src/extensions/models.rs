@@ -8,7 +8,7 @@ use std::sync::{
 };
 use std::time::{Duration, Instant};
 
-use cadcraft_doc::{Space, model_projection::Projection};
+use cadcraft_doc::{Space, model_projection::Projection, model_section::Section};
 use cadcraft_engine::{extensions::models, model_io};
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -21,6 +21,7 @@ use crate::{
 
 mod dimensions;
 mod preview;
+mod sections;
 
 pub(super) const DESCRIPTOR: ExtensionDescriptor = ExtensionDescriptor {
     id: "models",
@@ -94,6 +95,7 @@ enum Kind {
     Import,
     Refresh,
     View,
+    Section,
     Preview,
     Status,
     References,
@@ -105,6 +107,7 @@ impl Kind {
             Self::Import => crate::tl!("Importing 3D model…"),
             Self::Refresh => crate::tl!("Refreshing model source…"),
             Self::View => crate::tl!("Projecting exact model…"),
+            Self::Section => crate::tl!("Computing exact section…"),
             Self::Preview => crate::tl!("Loading 3D preview…"),
             Self::Status => crate::tl!("Checking model source…"),
             Self::References => crate::tl!("Loading exact model edges…"),
@@ -115,6 +118,7 @@ impl Kind {
 enum Outcome {
     Loaded(Value),
     View { projection: Box<Projection>, params: Value },
+    Section { section: Box<Section>, params: Value },
     Preview(Box<preview::Scene>),
     Status(Value),
     References(Value),
@@ -136,6 +140,7 @@ enum Act {
     Preview,
     Status,
     View,
+    Section,
     Remove,
     ReloadList,
     References,
@@ -159,6 +164,7 @@ pub(crate) struct State {
     hidden: bool,
     accept_incomplete: bool,
     dimensions: dimensions::State,
+    sections: sections::State,
 }
 impl Default for State {
     fn default() -> Self {
@@ -179,6 +185,7 @@ impl Default for State {
             hidden: false,
             accept_incomplete: false,
             dimensions: dimensions::State::default(),
+            sections: sections::State::default(),
         }
     }
 }
@@ -191,6 +198,7 @@ impl State {
         self.scene_guard = None;
         self.status = None;
         self.dimensions = dimensions::State::default();
+        self.sections = sections::State::default();
     }
     fn update(&mut self, app: &mut CadApp) -> Result<(), String> {
         let key = app.session.state().map(|s| (s.uid, s.revision)).map_err(|e| e.to_string())?;
@@ -234,8 +242,8 @@ impl State {
         }
         let state = app.session.state().map_err(|e| e.to_string())?;
         let uid = state.uid;
-        let document_revision = matches!(kind, Kind::View | Kind::Dimension).then_some(state.revision);
-        let space = matches!(kind, Kind::View | Kind::Dimension).then(|| (state.space.clone(), state.mspace));
+        let document_revision = matches!(kind, Kind::View | Kind::Section | Kind::Dimension).then_some(state.revision);
+        let space = matches!(kind, Kind::View | Kind::Section | Kind::Dimension).then(|| (state.space.clone(), state.mspace));
         #[cfg(not(target_arch = "wasm32"))]
         {
             let (tx, rx) = channel();
@@ -295,6 +303,15 @@ impl State {
                 self.start(app, Kind::View, Some(guard), move || {
                     (hooks.view)(&captured.path, &captured.sha256, direction, up)
                         .map(|projection| Outcome::View { projection: Box::new(projection), params })
+                })
+            }
+            Act::Section => {
+                let guard = self.selected_guard()?;
+                let params = self.sections.params(&guard, self.scale, self.at, self.hidden, self.accept_incomplete)?;
+                let request = models::sections::request(&params).map_err(|e| e.to_string())?;
+                let captured = guard.clone();
+                self.start(app, Kind::Section, Some(guard), move || {
+                    (hooks.section)(&captured.path, &captured.sha256, &request).map(|section| Outcome::Section { section: Box::new(section), params })
                 })
             }
             Act::References => {
@@ -373,6 +390,17 @@ pub(crate) fn tick(app: &mut CadApp, ctx: &egui::Context) {
                 Outcome::View { projection, params } => {
                     let guard = job.guard.as_ref().ok_or_else(|| "Projection has no source guard".to_string())?;
                     models::apply_view(&mut app.session, &guard.id, &guard.sha256, &params, *projection).map_err(|e| e.to_string())?;
+                    state.cache = None;
+                }
+                Outcome::Section { section, params } => {
+                    let guard = job.guard.as_ref().ok_or_else(|| "Section has no source guard".to_string())?;
+                    let report = models::sections::apply(&mut app.session, &guard.id, &guard.sha256, &params, *section).map_err(|e| e.to_string())?;
+                    app.set_status(match report["status"].as_str() {
+                        Some("empty") => crate::tl!("Section removes every selected body; no view was created."),
+                        Some("no_intersection") => crate::tl!("No body interior intersects the plane; no view was created."),
+                        Some("created") => crate::tl!("Exact section created."),
+                        _ => return Err("Invalid exact section completion status".into()),
+                    });
                     state.cache = None;
                 }
                 Outcome::Preview(scene) => {
@@ -566,10 +594,13 @@ fn dialog(app: &mut CadApp, ctx: &egui::Context, _: &str, open: &mut bool) -> Ac
                     if ui.button(crate::tl!("Create exact view")).clicked() {
                         action = Some(Act::View);
                     }
-                    if let Some(model) = state.rows.iter().find(|m| m.id == state.selected)
-                        && let Some(dimension_action) = state.dimensions.show(ui, model)
-                    {
-                        action = Some(dimension_action);
+                    if let Some(model) = state.rows.iter().find(|m| m.id == state.selected) {
+                        if let Some(section_action) = state.sections.show(ui, model) {
+                            action = Some(section_action);
+                        }
+                        if let Some(dimension_action) = state.dimensions.show(ui, model) {
+                            action = Some(dimension_action);
+                        }
                     }
                 });
                 if let Some((guard, status)) = &state.status

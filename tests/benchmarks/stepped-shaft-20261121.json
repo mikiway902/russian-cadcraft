@@ -1,4 +1,24 @@
 {
+  "upstream_candidate_evaluation": {
+    "date": "2026-11-22",
+    "revision": "2efc54c2c01b515bb30d7266518e9239bcd093c9",
+    "reason": "Evaluate upstream HLR migration to SolidCore, without modifying the production pin or source fixture.",
+    "fixture_sha256": "94344e28de8373b6896c143ee17ad81a17a1b456bee3315283db4a023c7d7039",
+    "source_bytes": 1754,
+    "dependency_review": {
+      "name_version_license_pairs": 128,
+      "changed_license_expressions": 0,
+      "changed_name_version_pairs": 0,
+      "changed_git_sources": 18
+    },
+    "build": "Isolated locked debug worker build succeeded; real supervised stdio load and Front view exited 0.",
+    "uncertain_pieces": 20,
+    "uncertain_uncovered": 4,
+    "front_curve_table_matches_production": true,
+    "source_measure_values_match_production": true,
+    "adopted": false,
+    "decision": "No improvement: all four uncovered uncertain fragments remain. Keep the production pin and strict default refusal; this benchmark remains unaccepted."
+  },
   "date": "2026-11-21",
   "fixture": "tests/fixtures/models/stepped-shaft.sc",
   "source_sha256": "94344e28de8373b6896c143ee17ad81a17a1b456bee3315283db4a023c7d7039",

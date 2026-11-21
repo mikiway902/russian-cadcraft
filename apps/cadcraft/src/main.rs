@@ -175,6 +175,7 @@ pub fn install_io() {
     cadcraft_engine::model_io::set_hooks(cadcraft_engine::model_io::ModelHooks {
         load: cadcraft_io::native_models::load,
         view: cadcraft_io::native_models::view,
+        section: cadcraft_io::native_models::section,
         preview: cadcraft_io::native_models::preview,
         source_status: cadcraft_io::native_models::source_status,
         references: cadcraft_io::native_models::references,

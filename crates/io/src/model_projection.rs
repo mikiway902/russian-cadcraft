@@ -38,7 +38,11 @@ pub enum Error {
 /// Decode atomically: any malformed/unknown segment fails the whole result. No geometry is
 /// fitted, sampled, repaired, translated or scaled. Covered and uncertain pieces survive.
 pub fn decode(result: &Value) -> Result<Projection, Error> {
-    let segment_count = preflight(result)?;
+    let (segment_count, _) = preflight(result)?;
+    decode_preflighted(result, segment_count)
+}
+
+pub(crate) fn decode_preflighted(result: &Value, segment_count: usize) -> Result<Projection, Error> {
     let source = field(result, "source")?;
     let sha256 = text(field(source, "sha256")?)?;
     if sha256.len() != 64 || !sha256.bytes().all(|b| b.is_ascii_hexdigit()) {
@@ -229,7 +233,7 @@ fn bezier(control: Vec<Vec2>, weights: Vec<f64>) -> EntityKind {
     EntityKind::Spline(Spline { degree, knots, control, weights, ..Spline::default() })
 }
 
-fn convert_segment(value: &Value) -> Result<(EntityKind, Option<ArcParameters>), Error> {
+pub(crate) fn convert_segment(value: &Value) -> Result<(EntityKind, Option<ArcParameters>), Error> {
     let kind = match text(field(value, "type")?)? {
         "line" => EntityKind::Line(Line { a: point3(field(value, "a")?)?, b: point3(field(value, "b")?)? }),
         "arc" => return convert_arc(value),
@@ -306,13 +310,13 @@ fn convert_arc(value: &Value) -> Result<(EntityKind, Option<ArcParameters>), Err
     Ok((kind, Some(ArcParameters { start, sweep })))
 }
 
-fn add_count(total: &mut usize, count: usize, maximum: usize, name: &'static str) -> Result<(), Error> {
+pub(crate) fn add_count(total: &mut usize, count: usize, maximum: usize, name: &'static str) -> Result<(), Error> {
     *total = total.checked_add(count).filter(|n| *n <= maximum).ok_or(Error::Limit(name))?;
     Ok(())
 }
 
 // No input-sized temporary vectors: check all aggregate counts before allocating native output.
-fn preflight(result: &Value) -> Result<usize, Error> {
+pub(crate) fn preflight(result: &Value) -> Result<(usize, usize), Error> {
     scan_value(result, 0, &mut 0, &mut 0)?;
     let drawing = field(result, "drawing")?;
     let lines = array(field(drawing, "lines")?)?;
@@ -330,25 +334,28 @@ fn preflight(result: &Value) -> Result<usize, Error> {
             let geometry = array(field(piece, "geometry")?)?;
             add_count(&mut segments, geometry.len(), MAX_SEGMENTS, "segments")?;
             for segment in geometry {
-                let count = match text(field(segment, "type")?)? {
-                    "line" => 2,
-                    "arc" => 1,
-                    "cubic" => 4,
-                    "conic" => 3,
-                    "bezier" => {
-                        let input = array(field(segment, "p")?)?;
-                        if input.len() != 10 {
-                            return Err(Error::Invalid("Bezier control count"));
-                        }
-                        10
-                    }
-                    other => return Err(Error::UnknownSegment(other.to_owned())),
-                };
+                let count = segment_control_count(segment)?;
                 add_count(&mut controls, count, MAX_CONTROLS, "controls")?;
             }
         }
     }
-    Ok(segments)
+    Ok((segments, controls))
+}
+
+pub(crate) fn segment_control_count(segment: &Value) -> Result<usize, Error> {
+    Ok(match text(field(segment, "type")?)? {
+        "line" => 2,
+        "arc" => 1,
+        "cubic" => 4,
+        "conic" => 3,
+        "bezier" => {
+            if array(field(segment, "p")?)?.len() != 10 {
+                return Err(Error::Invalid("Bezier control count"));
+            }
+            10
+        }
+        other => return Err(Error::UnknownSegment(other.to_owned())),
+    })
 }
 
 fn scan_value(value: &Value, depth: usize, nodes: &mut usize, text_bytes: &mut usize) -> Result<(), Error> {

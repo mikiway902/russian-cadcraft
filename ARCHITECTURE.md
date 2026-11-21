@@ -88,8 +88,8 @@ span policy. Старый polyline refill не подменяет curved paths: 
 снимает неподдерживаемую ассоциативность с сообщением. REGION остаётся
 polyline/bulge-only и отвергает curve-path payload при десериализации.
 
-Host подключён к desktop и CLI через шесть `ModelHooks`: загрузка, точный вид,
-preview, проверка fingerprint, discovery references и resolve point.
+Host подключён к desktop и CLI через семь `ModelHooks`: загрузка, точный вид,
+точный разрез, preview, проверка fingerprint, discovery references и resolve point.
 Saved records хранят полный provenance, ревизии и замороженные редактируемые
 native curves; preview никогда не попадает в документ,
 размеры или измерения. Refresh меняет ревизию источника, но не подменяет старые виды:
@@ -115,6 +115,19 @@ Reference RPC использует реальные upstream NameCells и явн
 GUI discovery/resolve выполняются в фоне, completion проверяет UID/revision/space
 и ревизию linked source перед guarded transaction. Полная автоматическая
 межревизионная перестройка видов и размеров этим не подменяется.
+
+`model_section::Section` отделяет исходные body placements от result-local
+топологии boolean. IO переиспользует exact projection converter, проверяет
+плоскость/basis, compact mapping, topology bounds, provenance и directed cap loops;
+входные кривые не аппроксимируются. Worker вычитает исходные outward coplanar
+области из merged cut faces перед выдачей крышек.
+`models::sections` добавляет HATCH overlay в общий installer, сохраняет audit
+в SavedView.provenance.section и явно возвращает empty/no_intersection без мутации.
+3 мм бумажного шага хранятся как model-space pattern delta с reciprocal INSERT
+scale. Малый отдельный style marker переживает clipboard-remapping; document event
+отклоняет нарушающие стиль generic/nested transforms без чтения большого Store.
+Source-anchor validation отвергает удалённые/исключённые тела и точки вне kept side.
+GUI section completion использует тот же UID/revision/space/source guard, что и вид.
 
 ## Инварианты перехода
 

@@ -203,6 +203,12 @@ fn points(d: &Drawing, store: &Store, r: &Link) -> Result<(Vec2, Vec2, f64, Spac
     if v.model_id != r.model_id || v.revision != r.revision || v.source.sha256 != r.source_sha256 {
         return Err(err("dimension belongs to a different view revision"));
     }
+    if let Some(section) = v.provenance.get("section") {
+        for anchor in [&r.a, &r.b] {
+            let placement = anchor.audit["placement"].as_u64().ok_or_else(|| err("missing exact source placement"))?;
+            super::sections::validate_source_anchor(section, placement, anchor.world)?;
+        }
+    }
     let EntityKind::Insert(i) = &d.entity(h).ok_or_else(|| err("missing view"))?.kind else {
         return Err(err("missing view INSERT"));
     };

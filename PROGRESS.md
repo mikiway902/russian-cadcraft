@@ -316,7 +316,7 @@
   сохранил DXF **18723 bytes**. GUI повторно открыл его: три edge loops `[1,1,4]`,
   без polygon vertices; отверстие осталось незаполненным, островок — видимым.
   [Runtime proof и пределы AREA](tests/benchmarks/native-hatch-boundaries-20261122.json).
-- Section host/UI integration остаётся открытой. Stepped-shaft Front uncertainty,
+- Приёмка one-plane section host/UI описана ниже. Stepped-shaft Front uncertainty,
   полная ассоциативная перестройка и полный ГОСТ не объявлены подтверждёнными
   этими частными сценариями.
 - CI `44948553629` на `0a36ff2a93` дал конкретную причину macOS failure:
@@ -331,5 +331,61 @@
   В models gate прошли все **27 worker cases**, включая 8 exact-section и
   3 supervised-transport cases. Изменённый CLI filename contract отдельно прошёл
   узкую проверку после правки; успешный локальный gate не заменяет macOS runtime.
+- Проверен отдельный upstream HLR candidate `2efc54c2c01b515bb30d7266518e9239bcd093c9`
+  (переход HLR на SolidCore). Dependency review: 128 name/version/license pairs
+  совпали с принятой closure; изменились 18 git sources. Изолированная locked
+  debug-сборка worker прошла. На неизменном stepped-shaft SHA `94344e28…7039`
+  реальный stdio load/Front дал прежние **20 uncertain / 4 uncovered**:
+  таблица кривых и exact source measures совпали с production. Кандидат не принят;
+  production pin и строгий отказ default Front не изменены.
+
+## Точный простой разрез — приёмка host/UI 22.11.2026
+
+- `model_section` DTO и bounded decoder сохраняют directed native cap loops,
+  исходный/result-local body mapping, отверстия и boolean recognition provenance.
+  ModelHooks.section использует прежний supervised session pool и SHA guards;
+  ordinary view/reference поведение не подменяется.
+- Engine создаёт HATCH overlay с бумажным шагом 3 мм и сохраняет plane/side/audit.
+  Empty и no-intersection возвращаются явно без мутации. Paper-style marker
+  запрещает generic и nested scale/rotate/mirror; MOVE/COPY/Undo остаются доступны.
+  Exact source dimensions отказывают на удалённых телах и точках вне kept side.
+- Узкие проверки: **9 IO section**, **3 IO projection**, **36 engine model**
+  cases прошли. Исправлены test import `PolyVertex` и Clippy `is_multiple_of`;
+  doc/IO/engine/UI all-target Clippy, fmt, i18n и debug CLI/desktop build прошли.
+  Русских fallback strings осталось 346; новые section controls переведены.
+- Настоящий GUI: импорт неизменного stepped-shaft, ввод Z=50 и масштаба 1:2,
+  нажатие **Создать точный разрез**. Worker вернул настоящую кольцевую крышку
+  R15/R3 с двумя exact arc loops, без polygon vertices. Raw quality остаётся
+  `analytic_complete:false`: 2 uncertain pieces покрыты по известному upstream
+  contract; `accept_incomplete` оставался false, uncovered pieces не скрывались.
+- На листе видна штриховка и незаполненное отверстие. MOVE +15 мм и Undo прошли;
+  SCALE отказал с полной отменой. EXPLODE дал редактируемые native curves/HATCH;
+  AREA на настоящей бумажной крышке: **169.64600329384896 мм²**, эталон `54*pi`.
+  Pattern delta 6 мм × scale 0,5 = **3 мм** бумаги.
+- DXF **84622 bytes** повторно открыт GUI и CLI; полный section provenance
+  совпал с исходным. Реальные Z=101 и касание Z=0 дали `empty` и `no_intersection`
+  без новых entities/dirty state; SHA исходника не изменился. GUI завершился 0.
+  [Runtime evidence и пределы](tests/benchmarks/native-model-sections-20261122.json).
+- Это frozen one-plane geometry, не ступенчатые/ломаные/местные разрезы,
+  не uncut assembly exceptions и не ассоциативная перестройка B-Rep.
+  Cutting-plane arrows/captions остаются отдельными drafting controls.
+- Remote CI `44954122076` на `da4eb88271`: Ubuntu и Windows gates прошли;
+  macOS дошёл до другого старого теста `read_file_unicode` и упал при создании
+  raw non-UTF-8 fixture (`os error 92`), до вызова проверяемой функции.
+  Удалено ненужное создание файла: `read_file` обязан отказать ещё до filesystem IO.
+  Сценарий отказа и успешный Unicode-файл сохранены; узкий Linux test и fmt прошли.
+  Новый macOS run ещё не подтверждён.
+- Полный локальный `cargo xtask ci` на section arc: **9/9 gates прошли**,
+  включая extensions feature-off и WASM. Последняя правка filename fixture
+  отдельно проверена существующим regression после правки.
+- Дополнительная runtime-приёмка: в одном сохранённом DXF **125028 bytes**
+  созданы три native вида при масштабах **1:2, 1:1, 1:4**; реальные INSERT scales
+  **0,5 / 1 / 0,25**. GUI открыл тот же лист, screenshot трёх размеров прочитан.
+  На настоящем EXPLODE-generated HATCH выполнен HATCHEDIT 45° → 30°:
+  обе exact loops сохранены; Undo восстановил полный объект. GUI завершился 0.
+- Приняты отдельные пункты «Поддержать разные масштабы видов» и
+  «Сохранить редактируемость сформированной 2D-геометрии»: **59/172** приняты,
+  **113** остаются открытыми. Это не закрывает неопределённости ordinary HLR,
+  полную ассоциативность или остальные виды разрезов.
 
 Ни один из этих результатов не закрывает полный новый roadmap. Точные B-Rep-проекции, сборки, нормативные профили, полная русификация, кроссплатформенные установки и выпуск остаются в активном плане.

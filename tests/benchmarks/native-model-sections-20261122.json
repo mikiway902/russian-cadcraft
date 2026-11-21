@@ -1,0 +1,98 @@
+{
+  "date": "2026-11-22",
+  "status": "verified_one_plane_native_section_not_full_roadmap_acceptance",
+  "fixture": "tests/fixtures/models/stepped-shaft.sc",
+  "source_sha256": "94344e28de8373b6896c143ee17ad81a17a1b456bee3315283db4a023c7d7039",
+  "source_bytes": 1754,
+  "creation": "Actual desktop manager, real plane Z=50/normal +Z fields, scale 1:2, real Create exact section button; asynchronous supervised worker.",
+  "plane": {
+    "normal": [
+      0.0,
+      0.0,
+      1.0
+    ],
+    "origin": [
+      0.0,
+      0.0,
+      50.0
+    ]
+  },
+  "kept_side": "positive",
+  "paper_scale": 2,
+  "view_handle": "184",
+  "raw_quality": {
+    "analytic_complete": false,
+    "bounded_pieces": 0,
+    "import_issues": 0,
+    "open_bodies": 0,
+    "sampled_pieces": 0,
+    "uncertain_pieces": 2,
+    "unsupported_faces": 0,
+    "unsupported_trims": 0
+  },
+  "uncertainty": "Two raw uncertain pieces were covered under the existing upstream coverage contract. accept_incomplete stayed false. Raw analytic_complete remains false.",
+  "cap": {
+    "loops": 2,
+    "vertices": 0,
+    "edge_types": [
+      "CCW full circular arc",
+      "CW full circular arc"
+    ],
+    "source_radii_mm": [
+      15,
+      3
+    ],
+    "paper_radii_mm": [
+      7.5,
+      1.5
+    ],
+    "expected_paper_area_expression": "54*pi",
+    "expected_paper_area_mm2": 169.64600329384882,
+    "observed_paper_area_mm2": 169.64600329384896,
+    "paper_spacing_mm": 3,
+    "angle_degrees": 45,
+    "recognition_tolerance_mm": 6.086078447147301e-05,
+    "boundary_operation": "exact_planar_difference_from_original_coplanar_faces"
+  },
+  "runtime": {
+    "move_delta": [
+      15,
+      0
+    ],
+    "undo_restored_view": true,
+    "generic_scale_refused_atomically": true,
+    "explode": "Produces editable native HATCH and curves; AREA exercised that real exploded cap, not a mesh or synthetic DTO.",
+    "empty_cut_status": "empty",
+    "tangent_status": "no_intersection",
+    "empty_and_tangent_do_not_mutate_drawing": true,
+    "source_fingerprint_unchanged": true,
+    "saved_dxf_bytes": 84622,
+    "gui_reopen_full_provenance_equal": true,
+    "cli_reopen_exit": 0,
+    "cli_reopen_full_provenance_equal": true,
+    "gui_exit": 0,
+    "paper_scales_same_sheet": [2, 1, 4],
+    "reciprocal_insert_scales": [0.5, 1.0, 0.25],
+    "multiscale_saved_dxf_bytes": 125028,
+    "multiscale_visual_proof": "target/coexistence/proof/exact-section-three-scales.png (read)",
+    "generated_native_hatch_edit": "Actual HATCHEDIT changed the generated 1:1 cap angle to 30 degrees without changing either exact loop; Undo restored the whole HATCH.",
+    "multiscale_gui_exit": 0
+  },
+  "checks": {
+    "io_section_cases": 9,
+    "io_projection_cases": 3,
+    "engine_model_cases": 36,
+    "clippy": "doc/io/engine/ui all-target PASS",
+    "i18n": "PASS; 346 existing Russian fallback strings",
+    "desktop_and_cli_debug_build": "PASS",
+    "full_ci": "PASS all 9 gates: fmt, workspace Clippy, tests, i18n, assets, layers, WASM, extensions, models"
+  },
+  "visual_proof": "target/coexistence/proof/exact-section-paper.png (read)",
+  "limits": [
+    "One-plane frozen editable exact-source geometry; no automatic B-Rep rebuild or general persistent cut-topology identity.",
+    "Omitted bodies disappear entirely; uncut assembly exceptions are not implemented by exclude_bodies.",
+    "Cutting-plane arrows/captions remain separate drafting commands; stepped/aligned/local sections remain open.",
+    "Generic section rotation/scaling/mirroring, including nested wrappers, refuses to preserve paper hatch style; use section scale/up parameters.",
+    "Ordinary stepped-shaft Front benchmark remains unaccepted with four uncovered uncertain fragments."
+  ]
+}

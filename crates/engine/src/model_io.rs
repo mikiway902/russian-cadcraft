@@ -1,12 +1,17 @@
 //! Host-installed model services. The engine never opens files or starts a worker.
 use std::sync::OnceLock;
 
-use cadcraft_doc::{model_preview::Preview, model_projection::Projection};
+use cadcraft_doc::{
+    model_preview::Preview,
+    model_projection::Projection,
+    model_section::{Section, SectionRequest},
+};
 use serde_json::Value;
 
 pub struct ModelHooks {
     pub load: fn(&str) -> std::result::Result<Value, String>,
     pub view: fn(&str, &str, [f64; 3], [f64; 3]) -> std::result::Result<Projection, String>,
+    pub section: fn(&str, &str, &SectionRequest) -> std::result::Result<Section, String>,
     pub preview: fn(&str, &str, u8) -> std::result::Result<Preview, String>,
     pub source_status: fn(&str, &str, u64) -> std::result::Result<Value, String>,
     pub references: fn(&str, &str) -> std::result::Result<Value, String>,

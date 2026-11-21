@@ -339,3 +339,27 @@ fn pasteblock_keeps_exact_provenance_but_never_claims_a_nested_paper_measurement
     assert!(block.entities.iter().any(|e| e.handle.hex() == r.view));
     assert!(destination.doc().unwrap().entity(Handle::parse_hex(&r.view).unwrap()).is_none());
 }
+
+#[test]
+fn section_dimensions_reject_removed_half_space_and_excluded_source_placements_atomically() {
+    let (mut s, _, view) = setup();
+    let mut store = load(s.doc().unwrap()).unwrap();
+    store.views.iter_mut().find(|v| v.handle == view.hex()).unwrap().provenance["section"] = json!({
+        "plane":{"origin":[0.,0.,0.],"normal":[0.,1.,0.]},
+        "kept_side":"positive","topology_identity":"section_result_local_only",
+        "bodies":[
+            {"source_body":0,"source_placement":0,"result_body":0,"status":"cut"},
+            {"source_body":1,"source_placement":1,"result_body":null,"status":"excluded"}
+        ]
+    });
+    super::super::save(s.doc_mut().unwrap(), &store).unwrap();
+    let dimension = add(&mut s, view);
+    assert_eq!(report(&mut s, dimension)["resolved"], true);
+    let before = s.doc().unwrap().clone();
+    for (point, placement) in [([6., -8., 0.], 0), ([6., 8., 0.], 1)] {
+        let mut endpoint = audit(1., point);
+        endpoint["placement"] = json!(placement);
+        assert!(apply_dimension(&mut s, &params(view, "aligned"), [audit(0., [0., 0., 0.]), endpoint]).is_err());
+        assert_eq!(s.doc().unwrap(), &before);
+    }
+}

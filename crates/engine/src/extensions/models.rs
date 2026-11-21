@@ -19,6 +19,7 @@ use std::{
 
 mod clipboard;
 pub mod dimensions;
+pub mod sections;
 
 const RECORD: &str = "CADCRAFT_GOST_LINKED_MODELS";
 const VIEW: &str = "linked-model-view";
@@ -34,7 +35,10 @@ pub(super) const EXTENSION: super::Extension = super::Extension {
     version: 1,
     commands: specs,
     drawing_preset: None,
-    document_changed: |s, e| dimensions::after_command(s, e.before, e.uid),
+    document_changed: |s, e| {
+        sections::after_command(s, e.before, e.uid)?;
+        dimensions::after_command(s, e.before, e.uid)
+    },
     command_override: None,
     copy: Some(clipboard::COPY_HOOKS),
     clipboard: Some(clipboard::HOOKS),
@@ -328,6 +332,7 @@ fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("gost.model.view", "Create Exact Model View", view).params("{id,layout?,at?:[x,y],direction?:front|rear|top|bottom|left|right|isometric|[x,y,z],up?:[x,y,z],scale?:model mm per paper mm,hidden?:bool,accept_incomplete?:false}; frozen editable native curves, no mesh fallback"),
     ];
     commands.extend(dimensions::specs());
+    commands.extend(sections::specs());
     commands
 }
 pub(super) fn dimension_factor(d: &Drawing, e: &Entity) -> Option<f64> {
@@ -435,6 +440,10 @@ struct Options {
     accept: bool,
     space: Space,
 }
+struct SectionOverlay {
+    entities: Vec<(Common, EntityKind)>,
+    audit: Value,
+}
 fn vector(v: &Value) -> Result<[f64; 3]> {
     let a = v.as_array().filter(|a| a.len() == 3).ok_or_else(|| err("expected [x,y,z]"))?;
     let n =
@@ -500,6 +509,9 @@ pub fn view_vectors(p: &Value) -> Result<([f64; 3], [f64; 3])> {
 
 fn options(s: &Session, p: &Value) -> Result<Options> {
     let (direction, up) = view_vectors(p)?;
+    options_for_basis(s, p, direction, up)
+}
+fn options_for_basis(s: &Session, p: &Value, direction: [f64; 3], up: [f64; 3]) -> Result<Options> {
     let scale = p
         .get("scale")
         .map_or(Some(1.), Value::as_f64)
@@ -533,7 +545,7 @@ fn view(s: &mut Session, p: &Value) -> Result<Value> {
     let store = load(s.doc()?)?;
     let m = model(&store, text(p, "id")?)?;
     let projection = (hooks()?.view)(&m.path, &m.source.sha256, opts.direction, opts.up).map_err(err)?;
-    install_view_options(s, &m.id, &m.source.sha256, p, projection, opts)
+    install_view_options(s, &m.id, &m.source.sha256, p, projection, opts, None)
 }
 /// Complete background exact projection, never calling host I/O. The caller verifies document UID.
 /// `params` are the original gost.model.view parameters, including the same local `id`.
@@ -542,9 +554,17 @@ pub fn apply_view(s: &mut Session, id: &str, expected_sha: &str, params: &Value,
 }
 fn install_view(s: &mut Session, id: &str, expected_sha: &str, p: &Value, projection: Projection) -> Result<Value> {
     let opts = options(s, p)?;
-    install_view_options(s, id, expected_sha, p, projection, opts)
+    install_view_options(s, id, expected_sha, p, projection, opts, None)
 }
-fn install_view_options(s: &mut Session, id: &str, expected_sha: &str, p: &Value, projection: Projection, opts: Options) -> Result<Value> {
+fn install_view_options(
+    s: &mut Session,
+    id: &str,
+    expected_sha: &str,
+    p: &Value,
+    projection: Projection,
+    opts: Options,
+    mut section_overlay: Option<SectionOverlay>,
+) -> Result<Value> {
     if text(p, "id")? != id {
         return Err(err("view completion model ID mismatch"));
     }
@@ -581,7 +601,11 @@ fn install_view_options(s: &mut Session, id: &str, expected_sha: &str, p: &Value
     if incomplete && !opts.accept {
         return Err(err("incomplete or uncertain exact projection; explicit accept_incomplete:true and manual engineering review required"));
     }
-    if projection.entities.len() > MAX_ENTITIES || projection.lines.len() > MAX_ENTITIES || store.views.len() >= MAX_VIEWS {
+    let overlay_count = section_overlay.as_ref().map_or(0, |overlay| overlay.entities.len());
+    if projection.entities.len().checked_add(overlay_count).is_none_or(|n| n > MAX_ENTITIES)
+        || projection.lines.len() > MAX_ENTITIES
+        || store.views.len() >= MAX_VIEWS
+    {
         return Err(err("model-view count limit exceeded"));
     }
     let direction = Vec3::new(opts.direction[0], opts.direction[1], opts.direction[2]);
@@ -598,7 +622,8 @@ fn install_view_options(s: &mut Session, id: &str, expected_sha: &str, p: &Value
     {
         return Err(err("projection basis differs from requested sight direction/up"));
     }
-    let mut kinds = Vec::new();
+    let is_section = section_overlay.is_some();
+    let mut kinds = section_overlay.as_mut().map_or_else(Vec::new, |overlay| std::mem::take(&mut overlay.entities));
     for e in projection.entities {
         let line = projection.lines.get(e.line_index).ok_or_else(|| err("projection line provenance missing"))?;
         let piece = line.pieces.get(e.piece_index).ok_or_else(|| err("projection piece provenance missing"))?;
@@ -652,6 +677,11 @@ fn install_view_options(s: &mut Session, id: &str, expected_sha: &str, p: &Value
     if covered_uncertain > 0 {
         warnings.push(format!("{covered_uncertain} raw uncertain pieces coincide with known visible pieces and were omitted under the upstream coverage contract; the raw quality report and provenance remain unchanged"));
     }
+    let mut provenance = json!({"lines":projection.lines,"unsupported":projection.unsupported,"prepare_reports":projection.prepare_reports,
+        "drawing_stats":projection.drawing_stats,"source_mapping":projection.source_mapping,"visibility_contract":projection.visibility_contract});
+    if let Some(overlay) = section_overlay {
+        provenance["section"] = overlay.audit;
+    }
     let saved = SavedView {
         handle: String::new(),
         model_id: id.into(),
@@ -662,8 +692,7 @@ fn install_view_options(s: &mut Session, id: &str, expected_sha: &str, p: &Value
         parameters: p.clone(),
         basis: json!(projection.basis),
         quality: q,
-        provenance: json!({"lines":projection.lines,"unsupported":projection.unsupported,"prepare_reports":projection.prepare_reports,
-            "drawing_stats":projection.drawing_stats,"source_mapping":projection.source_mapping,"visibility_contract":projection.visibility_contract}),
+        provenance,
         warnings,
     };
     atomic(s, |s| {
@@ -681,6 +710,8 @@ fn install_view_options(s: &mut Session, id: &str, expected_sha: &str, p: &Value
         block.units = 4;
         block.description = if incomplete {
             "INCOMPLETE exact-source model view; manual engineering review required"
+        } else if is_section {
+            "Frozen editable exact half-space section; result-local topology"
         } else {
             "Frozen editable exact-source model view (not associative topology)"
         }
@@ -696,8 +727,11 @@ fn install_view_options(s: &mut Session, id: &str, expected_sha: &str, p: &Value
             e.common = common;
             e.kind = EntityKind::Insert(insert);
         })?;
-        let result = json!({"id":id,"handle":saved.handle,"revision":saved.revision,"source":saved.source,"basis":saved.basis,"quality":saved.quality,
-            "warnings":saved.warnings,"stale":false,"entities":count,"representation":"frozen-editable-exact-source-curves"});
+        let mut result = json!({"id":id,"handle":saved.handle,"revision":saved.revision,"source":saved.source,"basis":saved.basis,"quality":saved.quality,
+            "warnings":saved.warnings,"stale":false,"entities":count,"representation":if is_section {"frozen-editable-exact-half-space-section"}else{"frozen-editable-exact-source-curves"}});
+        if is_section {
+            result["section"] = saved.provenance["section"].clone();
+        }
         store.views.push(saved);
         save(d, &store)?;
         Ok(result)
