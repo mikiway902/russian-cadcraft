@@ -90,3 +90,80 @@ fn dashed_axes_intersect_and_end_on_strokes_despite_global_linetype_scale() {
     assert_eq!(axes.iter().filter(|e| matches!(&e.kind, EntityKind::Line(l) if l.a.xy() == Vec2::ZERO)).count(), 4);
     assert!(axes.iter().all(|e| e.common.linetype == "Continuous"));
 }
+
+#[test]
+fn designation_alphabet_rejects_every_excluded_letter_before_any_mutation() {
+    let mut s = session();
+    for label in ["Ё", "З", "Й", "О", "Х", "Ч", "Ъ", "Ы", "Ь", "A", "АБ", "АA"] {
+        for (command, params) in [("gost.section", json!({"p1":[0,0],"p2":[100,0],"label":label})), ("gost.view", json!({"at":[0,0],"label":label}))]
+        {
+            let before = s.doc().unwrap().clone();
+            let undo = s.state().unwrap().undo.len();
+            let result = if command == "gost.section" { super::section(&mut s, &params) } else { super::view(&mut s, &params) };
+            assert!(result.is_err(), "{command}: {label}");
+            assert_eq!(s.doc().unwrap(), &before, "direct consumer must validate before mutation, without relying on command rollback");
+            assert_eq!(s.state().unwrap().undo.len(), undo);
+        }
+    }
+    s.execute("gost.profile", &json!({"action":"set","id":"rf-2026-v1","alphabet":"latin"})).unwrap();
+    for label in ["I", "O", "V", "X", "А", "WА"] {
+        let before = s.doc().unwrap().clone();
+        assert!(super::view(&mut s, &json!({"at":[0,0],"label":label})).is_err(), "{label}");
+        assert_eq!(s.doc().unwrap(), &before);
+    }
+    s.execute("gost.view", &json!({"at":[0,0],"label":"W"})).unwrap();
+    let section = s.execute("gost.section", &json!({"p1":[0,0],"p2":[100,0]})).unwrap();
+    assert_eq!(section["designation"], "A—A", "default letter must follow explicitly selected alphabet");
+}
+
+#[test]
+fn designation_height_tracks_dimension_numbers_once_in_model_and_not_view_scale_in_paper() {
+    use cadcraft_doc::{Handle, Space};
+    let mut s = session();
+    for scale in [0.5, 2.0, 4.0] {
+        s.execute("gost.setup", &json!({"scale":scale})).unwrap();
+        let dimension = s.execute("dimlinear", &json!({"p1":[0,0],"p2":[120.5,0],"at":[60,30]})).unwrap();
+        let dim = Handle::parse_hex(dimension["handle"].as_str().unwrap()).unwrap();
+        let label = s.execute("gost.view", &json!({"at":[0,50],"label":"Б","viewScale":"1:2"})).unwrap();
+        let label = Handle::parse_hex(label["handle"].as_str().unwrap()).unwrap();
+        let d = s.doc().unwrap();
+        let EntityKind::Dimension(dim) = &d.entity(dim).unwrap().kind else { panic!() };
+        let numbers = cadcraft_render::dimension_in(d, dim);
+        let EntityKind::Text(text) = &d.entity(label).unwrap().kind else { panic!() };
+        assert_eq!(numbers.measurement, 120.5);
+        assert_eq!(numbers.text_height, 3.5 * scale);
+        assert_eq!(text.height, numbers.text_height * 2.0);
+    }
+    s.state_mut().unwrap().space = Space::Paper("GOST1".into());
+    let label = s.execute("gost.view", &json!({"at":[50,100],"label":"Б","viewScale":"1:10"})).unwrap();
+    let h = Handle::parse_hex(label["handle"].as_str().unwrap()).unwrap();
+    let EntityKind::Text(text) = &s.doc().unwrap().entity(h).unwrap().kind else { panic!() };
+    assert_eq!(text.height, 7.0, "paper lettering must not inherit the model annotation scale or represented view scale");
+    let before = s.doc().unwrap().clone();
+    assert!(super::view(&mut s, &json!({"at":[0,0],"label":"Б","scale":10})).is_err());
+    assert_eq!(s.doc().unwrap(), &before);
+}
+
+#[test]
+fn designation_uses_actual_dimension_style_height_and_keeps_clear_of_source_arrow() {
+    let mut s = session();
+    let d = s.doc_mut().unwrap();
+    d.dim_styles.iter_mut().find(|style| style.name == "GOST").unwrap().text_height = 5.0;
+    d.sync_dim_vars();
+    let result = s.execute("gost.section", &json!({"p1":[0,0],"p2":[100,0],"label":"Б"})).unwrap();
+    let labels: Vec<_> = result["handles"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|value| value.as_str().and_then(cadcraft_doc::Handle::parse_hex))
+        .filter_map(|h| match &s.doc().unwrap().entity(h).unwrap().kind {
+            EntityKind::Text(t) => Some(t),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(labels.len(), 2);
+    for label in labels {
+        assert_eq!(label.height, 10.0, "designation must follow the actual 5 mm dimension numbers, not a hardcoded 5/7 mm caption");
+        assert!(label.insert.y + label.height <= -13.0, "lettering must stay at least 3 mm below the arrow shaft starting at y=-10");
+    }
+}

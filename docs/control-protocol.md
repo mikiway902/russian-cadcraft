@@ -121,8 +121,8 @@ acceptance. Unregistered controls still report their actual focus ID, with a nul
 The native host restores layout choices from `workspace.json` and saves changes atomically.
 It stores palette/toolset visibility, selected toolset, collapsed groups, command-line history
 height and related chrome choices. It does not store drawings, command buffers, dialogs or the
-current Start tab. The default directory is `~/Library/Application Support/CADCraft` on macOS,
-`%APPDATA%/CADCraft` on Windows, and `$XDG_CONFIG_HOME/cadcraft` or `~/.config/cadcraft` elsewhere.
+current Start tab. The default directory is `~/Library/Application Support/io.github.mikiway902.cadcraftgost` on macOS,
+`%APPDATA%/io.github.mikiway902.cadcraftgost` on Windows, and `$XDG_CONFIG_HOME/cadcraftgost` or `~/.config/cadcraftgost` elsewhere.
 Set `CADCRAFT_CONFIG_DIR` to a private directory for an isolated profile; an explicitly empty
 value disables all settings reads and writes (workspace, logs, autosave, plotters). An invalid, oversized or newer-version file is
 reported and left untouched, with persistence disabled for that launch. Repair or move that

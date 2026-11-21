@@ -32,6 +32,11 @@ rstar = { version = "0.13", default-features = false }
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
 
+[build-dependencies]
+chrono = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
 [dev-dependencies]
 # Real DXF files for the external reference tests (io is a lower layer).
 cadcraft-io = { workspace = true }

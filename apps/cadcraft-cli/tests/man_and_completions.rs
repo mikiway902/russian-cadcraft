@@ -1,5 +1,4 @@
-//! The clap definition is consistent, and `examples/man-and-completions.rs` writes every shell's
-//! completions and every man page under the names `packaging/linux/package.sh` installs.
+//! Generated completion is executable for the installed product command, not upstream's name.
 
 // The example itself, so the test runs its code; its `main` is unused here.
 #[allow(dead_code)]
@@ -12,19 +11,39 @@ fn command_is_consistent() {
 }
 
 #[test]
-fn the_example_writes_the_files_the_packages_install() {
+#[cfg(unix)]
+fn installed_cli_completes_a_subcommand_in_bash() {
     let dir = std::path::Path::new(env!("CARGO_TARGET_TMPDIR")).join(format!("man-and-completions-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     example::generate(&dir).unwrap();
-
-    let mut written: Vec<String> = std::fs::read_dir(&dir).unwrap().map(|e| e.unwrap().file_name().into_string().unwrap()).collect();
-    written.sort();
-    let completions = ["cadcraft-cli.bash", "_cadcraft-cli", "cadcraft-cli.fish", "cadcraft-cli.elv", "_cadcraft-cli.ps1"];
-    let subcommands = ["info", "convert", "run", "commands", "mcp", "perf", "sample", "roundtrip"];
-    let mut expected: Vec<String> = completions.map(String::from).into();
-    expected.push("cadcraft-cli.1".into());
-    expected.extend(subcommands.iter().map(|s| format!("cadcraft-cli-{s}.1")));
-    expected.sort();
-    assert_eq!(written, expected);
+    let result = std::process::Command::new("bash")
+        .args([
+            "-c",
+            r#"
+set -eu
+source "$1"
+read -r -a registration <<< "$(complete -p cadcraftgost-cli)"
+function_name=
+for ((i=0; i+1<${#registration[@]}; i++)); do
+    if [[ ${registration[i]} == -F ]]; then
+        function_name=${registration[i+1]}
+        break
+    fi
+done
+[[ -n $function_name ]]
+COMP_WORDS=(cadcraftgost-cli con)
+COMP_CWORD=1
+COMP_LINE='cadcraftgost-cli con'
+COMP_POINT=${#COMP_LINE}
+"$function_name" cadcraftgost-cli con cadcraftgost-cli
+printf '%s\n' "${COMPREPLY[@]}"
+"#,
+            "completion-smoke",
+        ])
+        .arg(dir.join("cadcraftgost-cli.bash"))
+        .output()
+        .unwrap();
+    assert!(result.status.success(), "{}", String::from_utf8_lossy(&result.stderr));
+    assert!(String::from_utf8_lossy(&result.stdout).lines().any(|candidate| candidate == "convert"));
     std::fs::remove_dir_all(&dir).unwrap();
 }

@@ -1,0 +1,60 @@
+{
+  "date": "2026-11-21",
+  "platform": "linux-x86_64 Fedora",
+  "release_status": "local development worktree artifacts; no published Alpha or system-wide installation acceptance",
+  "original": {
+    "product": "official CADCraft 0.20.1",
+    "appimage_sha256": "e7a5d244500fe45ccabfa85c632c25ecda1fb03799c318d9ad541f65b150e78f",
+    "rpm_sha256": "7bb12cd08dfff992f215e81a56cfcbd5ebf135977f32b081ce07bbf79c89e378",
+    "theme": "light",
+    "configuration": "target/coexistence/config/cadcraft",
+    "eframe": "target/coexistence/data/ai.storyteller.cadcraft/app.ron"
+  },
+  "fork": {
+    "product": "CADCraftGOST 0.21.0 (dev)",
+    "launch": "actual locally packaged AppImage, extract-and-run, alongside original AppImage; no CADCRAFT_CONFIG_DIR override",
+    "theme": "dark",
+    "configuration_and_eframe": "target/coexistence/config/cadcraftgost/app.ron",
+    "log": "target/coexistence/config/cadcraftgost/logs/cadcraftgost.log",
+    "artifacts_built": ["AppImage", "AppImage.zsync", "DEB", "RPM", "tar.gz"],
+    "appstream_validation": "passed",
+    "deb_dependency": "libc6 (>= 2.44)",
+    "rpm_dependency": "glibc >= 2.44",
+    "appimage_update_info": "gh-releases-zsync|mikiway902|russian-cadcraft|latest|cadcraftgost-*-linux-x86_64.AppImage.zsync"
+  },
+  "coexistence": {
+    "both_real_windows_running_with_separate_themes": true,
+    "rpm_owned_non_directory_path_collisions": [],
+    "common_icon_mime_directories_only": true,
+    "closed_original_config_and_data_sha256_unchanged_by_fork_save_and_exit": true,
+    "original_document_sha256_unchanged": true,
+    "original_document_sha256": "3447f74ab9feb2f44b1af022a47262f2202ac5e276f76ac849e60d998dddb9cf",
+    "baseline_note": "An early store-hash comparison while original was running differed after original reopened its document and saved recentFiles. Final controlled baseline was taken after original exited, before fork saved/exited; all original files then remained identical."
+  },
+  "profile_gui": {
+    "menu": "Format / GOST / GOST Normative Profile",
+    "new_drawing_profile": "rf-2026-v1",
+    "legacy_open_profile": "legacy-unversioned",
+    "actual_apply_button_result": "rf-2026-v1",
+    "undo": "legacy-unversioned",
+    "redo": "rf-2026-v1",
+    "saved_dxf_reopen": "rf-2026-v1",
+    "geometry_after_selection": {"type":"Circle", "handle":"100", "center_mm":[34,71,0], "radius_mm":5, "layer":"0", "dimStyles":["Standard"], "layouts":["Layout1","Layout2"]},
+    "screenshots_read": ["original.png", "original-light.png", "fork-profile.png", "fork-legacy-profile.png", "fork-profile-applied.png"],
+    "screenshot_working_directory": "target/coexistence/proof",
+    "limits": ["Authoritative clause review remains required", "Future editions are not silently selected", "English engine evidence/warnings are not yet fully localized"]
+  },
+  "final_narrow_smoke": {
+    "cli_help_tests_passed": 2,
+    "cli_and_ui_all_targets_clippy": "passed",
+    "rebuilt_all_four_linux_formats_and_zsync": true,
+    "actual_installed_cli_usage": "cadcraftgost-cli",
+    "actual_run_missing_flag_help_usage": "cadcraftgost-cli run",
+    "actual_convert_help_usage": "cadcraftgost-cli convert",
+    "arc_backed_profile_reopen_and_actual_reload_button": "passed; profile rf-2026-v1, theme dark restored",
+    "arc_dialog_screenshots_read": ["fork-final-profile-reload.png"],
+    "actual_update_check": "completed; branded CADCraftGOST dialog reported no newer version; no update installation attempted",
+    "update_screenshot_read": "fork-own-update-complete.png"
+  },
+  "known_remaining_checks": ["No host RPM/DEB installation or uninstall was performed", "Windows/macOS installer co-installation and update application remain unverified", "Local Fedora GLIBC_2.44 binaries are not Ubuntu22.04-compatible release artifacts"]
+}

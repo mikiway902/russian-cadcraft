@@ -12,6 +12,7 @@ use cadcraft_color::Color;
 use cadcraft_doc::{DimStyle, Drawing, EntityKind, Layer, Linetype, Lineweight, TextStyle};
 use serde_json::{Value, json};
 
+use super::standards::{self, Drafting};
 use crate::cmd::{CommandSpec, bad};
 use crate::{Result, Session};
 
@@ -21,16 +22,16 @@ const DEFAULT_FONT: &str = cadcraft_fonts::GOST_FONT;
 // sizes finite and useful, and reject hostile/underflowing scales before any edit.
 const MIN_SCALE: f64 = 1e-6;
 const MAX_SCALE: f64 = 1e6;
-const LAYERS: &[(&str, &str, u16)] = &[
-    ("GOST-OUTLINE", "Continuous", 70),
-    ("GOST-THIN", "Continuous", 25),
-    ("GOST-HIDDEN", "GOST-HIDDEN", 25),
-    ("GOST-CENTER", "GOST-CENTER", 25),
-    ("GOST-HATCH", "Continuous", 25),
-    ("GOST-TEXT", "Continuous", 25),
-    ("GOST-DIM", "Continuous", 25),
-    ("GOST-FRAME", "Continuous", 70),
-    ("GOST-SECTION", "Continuous", 70),
+const LAYERS: &[(&str, &str, bool)] = &[
+    ("GOST-OUTLINE", "Continuous", true),
+    ("GOST-THIN", "Continuous", false),
+    ("GOST-HIDDEN", "GOST-HIDDEN", false),
+    ("GOST-CENTER", "GOST-CENTER", false),
+    ("GOST-HATCH", "Continuous", false),
+    ("GOST-TEXT", "Continuous", false),
+    ("GOST-DIM", "Continuous", false),
+    ("GOST-FRAME", "Continuous", true),
+    ("GOST-SECTION", "Continuous", true),
 ];
 const LINETYPES: &[(&str, &str, &[f64])] = &[
     ("GOST-HIDDEN", "ESKD hidden: 4 mm dash, 2 mm gap", &[4.0, -2.0]),
@@ -52,16 +53,16 @@ pub(super) fn specs() -> Vec<CommandSpec> {
 
 const MAX_FINDINGS: usize = 2000;
 
-fn options(p: &Value) -> Result<(&str, f64)> {
+fn options<'a>(p: &'a Value, policy: &'a Drafting) -> Result<(&'a str, f64)> {
     if !p.is_object() {
         return Err(bad("gost.setup", "parameters must be an object"));
     }
     let font = match p.get("font") {
-        None => DEFAULT_FONT,
+        None => &policy.font,
         Some(v) => v.as_str().ok_or_else(|| bad("gost.setup", "font must be a nonempty installed font family or file name"))?.trim(),
     };
     let scale = match p.get("scale") {
-        None => 1.0,
+        None => policy.annotation_scale,
         Some(v) => v.as_f64().ok_or_else(|| bad("gost.setup", "scale must be a number, not a string or null"))?,
     };
     validate_options(font, scale)?;
@@ -82,15 +83,15 @@ fn populated(d: &Drawing) -> bool {
     !d.model.is_empty() || d.layouts.iter().any(|l| !l.entities.is_empty()) || d.blocks.values().any(|b| !b.entities.is_empty())
 }
 
-fn dimension_style(scale: f64) -> DimStyle {
+fn dimension_style(scale: f64, policy: &Drafting) -> DimStyle {
     DimStyle {
         name: NAME.into(),
         scale,
-        arrow_size: 3.5,
+        arrow_size: policy.dimension_arrow_mm,
         ext_offset: 0.0,
-        ext_extend: 2.0,
-        text_height: 3.5,
-        text_gap: 1.0,
+        ext_extend: policy.extension_protrusion_mm,
+        text_height: policy.dimension_text_mm,
+        text_gap: policy.text_gap_mm,
         // Decimal places are an editable precision choice; trailing zeros are suppressed.
         decimals: 2,
         angular_decimals: 0,
@@ -104,13 +105,13 @@ fn dimension_style(scale: f64) -> DimStyle {
         text_style: NAME.into(),
         center_mark: 0.0,
         zero_suppression: 8,
-        baseline_spacing: 7.0,
+        baseline_spacing: policy.baseline_spacing_mm,
         decimal_separator: ",".into(),
         dim_linetype: "Continuous".into(),
         ext_linetype1: "Continuous".into(),
         ext_linetype2: "Continuous".into(),
-        dim_lineweight: 25,
-        ext_lineweight: 25,
+        dim_lineweight: i16::from(policy.thin_width_mm100),
+        ext_lineweight: i16::from(policy.thin_width_mm100),
         force_line_inside: true,
         ..DimStyle::default()
     }
@@ -134,7 +135,7 @@ enum InstallMode {
     PaperOnly,
 }
 
-pub(super) fn configure(d: &mut Drawing, font: &str, scale: f64, model_preset: bool) {
+pub(super) fn configure(d: &mut Drawing, font: &str, scale: f64, model_preset: bool, policy: &Drafting) {
     for &(name, description, pattern) in LINETYPES {
         let expected = || Linetype::simple(name, description, pattern);
         if let Some(record) = d.linetypes.iter_mut().find(|r| r.name.eq_ignore_ascii_case(name)) {
@@ -149,7 +150,8 @@ pub(super) fn configure(d: &mut Drawing, font: &str, scale: f64, model_preset: b
     if d.linetype("Continuous").is_none() {
         d.linetypes.push(Linetype::continuous());
     }
-    for &(name, linetype, width) in LAYERS {
+    for &(name, linetype, thick) in LAYERS {
+        let width = if thick { policy.outline_width_mm100 } else { u16::from(policy.thin_width_mm100) };
         let expected = || Layer { name: name.into(), linetype: linetype.into(), lineweight: Lineweight::Mm100(width), ..Layer::default() };
         if let Some(record) = d.layer_mut(name) {
             if model_preset {
@@ -167,7 +169,7 @@ pub(super) fn configure(d: &mut Drawing, font: &str, scale: f64, model_preset: b
     } else {
         d.text_styles.push(text());
     }
-    let dim = || dimension_style(scale);
+    let dim = || dimension_style(scale, policy);
     if let Some(record) = d.dim_styles.iter_mut().find(|r| r.name.eq_ignore_ascii_case(NAME)) {
         if model_preset {
             *record = dim();
@@ -189,7 +191,7 @@ pub(super) fn configure(d: &mut Drawing, font: &str, scale: f64, model_preset: b
         d.header.set_i64("CECOLOR", 256);
         d.header.set_i64("CELWEIGHT", -1);
         d.header.set_f64("CELTSCALE", 1.0);
-        d.header.set_f64("TEXTSIZE", 3.5 * scale);
+        d.header.set_f64("TEXTSIZE", policy.dimension_text_mm * scale);
         d.header.set_f64("DIMSCALE", scale);
         d.header.set_str("HPLAYER", "GOST-HATCH");
         d.header.set_str("HPNAME", "ANSI31");
@@ -206,7 +208,8 @@ pub(super) fn configure(d: &mut Drawing, font: &str, scale: f64, model_preset: b
 
 /// All fallible validation precedes mutation in either entry point.
 fn apply(s: &mut Session, p: &Value, mode: InstallMode) -> Result<Value> {
-    let (font, scale) = options(p)?;
+    let policy = standards::drafting(s.doc()?)?;
+    let (font, scale) = options(p, policy)?;
     let d = s.doc()?;
     let model_preset = matches!(mode, InstallMode::MetricDrawing);
     let inherited_font = if !model_preset && p.get("font").is_none() { d.text_style(NAME).map(|style| style.font.clone()) } else { None };
@@ -234,7 +237,10 @@ fn apply(s: &mut Session, p: &Value, mode: InstallMode) -> Result<Value> {
         ));
     }
     let d = s.doc_mut()?;
-    configure(d, font, scale, model_preset);
+    if model_preset {
+        standards::select_default(d)?;
+    }
+    configure(d, font, scale, model_preset, policy);
     // Do not reset global LTSCALE: that would silently change unrelated linework.
     let mut warnings = vec![font_warning(font)];
     if d.header.f64("LTSCALE", 1.0) != 1.0 {
@@ -246,7 +252,8 @@ fn apply(s: &mut Session, p: &Value, mode: InstallMode) -> Result<Value> {
     Ok(json!({
         "profile": "GOST/ESKD", "units": if model_preset { "mm" } else { "paper_mm" }, "modelHeaderChanged": model_preset, "textStyle": NAME, "dimStyle": NAME,
         "font": font, "scale": scale, "geometryRescaled": false,
-        "paperTextHeight": 3.5, "paperArrowSize": 3.5,
+        "paperTextHeight": policy.dimension_text_mm, "paperArrowSize": policy.dimension_arrow_mm,
+        "normativeProfile": standards::response(d)?,
         "warnings": warnings,
         "message": "Native ESKD preset installed; run gost.check and review the drawing. This is not a certificate of GOST compliance."
     }))
@@ -264,7 +271,7 @@ fn finding(findings: &mut Vec<Value>, severity: &str, code: &str, location: &str
     findings.push(json!({ "severity": severity, "code": code, "location": location, "message": message, "actual": actual, "expected": expected }));
 }
 
-fn check_dimension_style(st: &DimStyle, location: &str, findings: &mut Vec<Value>, expected_factor: f64) {
+fn check_dimension_style(st: &DimStyle, location: &str, findings: &mut Vec<Value>, expected_factor: f64, policy: &Drafting) {
     // Exact-value findings below are deviations from THIS preset, not a claim that
     // alternative valid GOST sizes or precision choices violate the standard.
     macro_rules! preset {
@@ -287,16 +294,16 @@ fn check_dimension_style(st: &DimStyle, location: &str, findings: &mut Vec<Value
             json!({"min": MIN_SCALE, "max": MAX_SCALE}),
         );
     }
-    preset!(text_height, 3.5);
-    preset!(arrow_size, 3.5);
-    preset!(ext_extend, 2.0);
+    preset!(text_height, policy.dimension_text_mm);
+    preset!(arrow_size, policy.dimension_arrow_mm);
+    preset!(ext_extend, policy.extension_protrusion_mm);
     preset!(ext_offset, 0.0);
-    preset!(text_gap, 1.0);
+    preset!(text_gap, policy.text_gap_mm);
     preset!(text_above, 1);
     preset!(text_inside_horizontal, false);
     preset!(text_outside_horizontal, false);
-    preset!(dim_lineweight, 25);
-    preset!(ext_lineweight, 25);
+    preset!(dim_lineweight, i16::from(policy.thin_width_mm100));
+    preset!(ext_lineweight, i16::from(policy.thin_width_mm100));
     preset!(dim_line_color, Color::Index(7));
     preset!(ext_line_color, Color::Index(7));
     preset!(text_color, Color::Index(7));
@@ -393,6 +400,8 @@ fn check_text_style(d: &Drawing, findings: &mut Vec<Value>) {
 
 fn run_check(s: &mut Session, _p: &Value) -> Result<Value> {
     let d = s.doc()?;
+    let policy = standards::drafting(d)?;
+    let normative = standards::check_metadata(d)?;
     let mut findings = Vec::new();
     let mut missing_records = Vec::new();
     for (table, missing) in [("textStyle", d.text_style(NAME).is_none()), ("dimStyle", d.dim_style(NAME).is_none())] {
@@ -457,7 +466,7 @@ fn run_check(s: &mut Session, _p: &Value) -> Result<Value> {
     }
     check_text_style(d, &mut findings);
     if let Some(st) = d.dim_style(NAME) {
-        check_dimension_style(st, "dimStyle.GOST", &mut findings, 1.0);
+        check_dimension_style(st, "dimStyle.GOST", &mut findings, 1.0, policy);
     }
     for &(name, _, pattern) in LINETYPES {
         if let Some(lt) = d.linetype(name)
@@ -498,7 +507,8 @@ fn run_check(s: &mut Session, _p: &Value) -> Result<Value> {
             json!([]),
         );
     }
-    for &(name, linetype, width) in LAYERS {
+    for &(name, linetype, thick) in LAYERS {
+        let width = if thick { policy.outline_width_mm100 } else { u16::from(policy.thin_width_mm100) };
         if let Some(layer) = d.layer(name)
             && (layer.color != Color::Index(7)
                 || layer.linetype != linetype
@@ -567,7 +577,7 @@ fn run_check(s: &mut Session, _p: &Value) -> Result<Value> {
                 effective = base.with_overrides(&dim.overrides);
                 &effective
             };
-            check_dimension_style(style, &location, &mut findings, projection_factor.unwrap_or(1.0));
+            check_dimension_style(style, &location, &mut findings, projection_factor.unwrap_or(1.0), policy);
         } else {
             finding(
                 &mut findings,
@@ -621,6 +631,7 @@ fn run_check(s: &mut Session, _p: &Value) -> Result<Value> {
     let font = d.text_style(NAME).map(|st| st.font.as_str()).unwrap_or(DEFAULT_FONT);
     Ok(json!({
         "profilePresent": profile_present,
+        "normativeProfile": normative,
         "status": "manual_review_required",
         "automaticChecksPassed": profile_present && errors == 0 && warnings == 0 && !truncated,
         "errors": errors, "warnings": warnings, "findings": findings,

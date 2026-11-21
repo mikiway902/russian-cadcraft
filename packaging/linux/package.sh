@@ -92,16 +92,11 @@ else
   for man in "$WORK"/cli-docs/*.1; do
     name="$(basename "$man")"
     install -d "$STAGE/usr/share/man/man1"
-    sed 's/cadcraft-cli/cadcraftgost-cli/g' "$man" >"$STAGE/usr/share/man/man1/${name/cadcraft-cli/cadcraftgost-cli}"
+    install -m644 "$man" "$STAGE/usr/share/man/man1/$name"
   done
-  # Completion contents and filenames must name the installed command, not upstream's.
-  for file in "$WORK"/cli-docs/*.bash "$WORK"/cli-docs/_* "$WORK"/cli-docs/*.fish; do
-    sed 's/cadcraft-cli/cadcraftgost-cli/g' "$file" >"$file.fork"
-    mv "$file.fork" "$file"
-  done
-  install -Dm644 "$WORK/cli-docs/cadcraft-cli.bash" "$STAGE/usr/share/bash-completion/completions/cadcraftgost-cli"
-  install -Dm644 "$WORK/cli-docs/_cadcraft-cli" "$STAGE/usr/share/zsh/site-functions/_cadcraftgost-cli"
-  install -Dm644 "$WORK/cli-docs/cadcraft-cli.fish" "$STAGE/usr/share/fish/vendor_completions.d/cadcraftgost-cli.fish"
+  install -Dm644 "$WORK/cli-docs/cadcraftgost-cli.bash" "$STAGE/usr/share/bash-completion/completions/cadcraftgost-cli"
+  install -Dm644 "$WORK/cli-docs/_cadcraftgost-cli" "$STAGE/usr/share/zsh/site-functions/_cadcraftgost-cli"
+  install -Dm644 "$WORK/cli-docs/cadcraftgost-cli.fish" "$STAGE/usr/share/fish/vendor_completions.d/cadcraftgost-cli.fish"
 fi
 
 if command -v desktop-file-validate >/dev/null; then
@@ -126,6 +121,13 @@ if has deb || has rpm; then
   command -v nfpm >/dev/null || { echo "error: nfpm not found (https://nfpm.goreleaser.com/install/)" >&2; exit 1; }
   export VERSION
   export NFPM_ARCH="$DEB_ARCH"
+  # A local or cross build may use a newer glibc than CI. Derive the requirement
+  # from the actual ELF files instead of advertising an incompatible minimum.
+  GLIBC_MIN="$("${CROSS_COMPILE:-}readelf" --version-info \
+    "$STAGE/usr/bin/cadcraftgost" "$STAGE/usr/bin/cadcraftgost-cli" \
+    | grep -oE 'GLIBC_[0-9]+(\.[0-9]+)+' | sort -Vu | tail -n1 | cut -d_ -f2)"
+  [[ -n "$GLIBC_MIN" ]] || { echo "error: cannot determine the ELF glibc requirement" >&2; exit 1; }
+  export GLIBC_MIN
   # nfpm expands env vars in fields like `version` and `arch`, but not in `contents[].src`.
   sed "s|\${STAGE}|$STAGE|g" "$HERE/nfpm.yaml" >"$WORK/nfpm.yaml"
   for fmt in deb rpm; do

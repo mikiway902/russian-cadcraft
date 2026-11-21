@@ -8,6 +8,7 @@ mod navigation;
 mod profile;
 mod requirements;
 pub(super) mod sheet;
+pub(super) mod standards;
 
 use super::{CommandContext, DrawingPreset, Extension, data};
 use crate::cmd::CommandSpec;
@@ -26,6 +27,7 @@ pub(super) const EXTENSION: Extension = Extension {
 pub(super) fn specs() -> Vec<CommandSpec> {
     profile::specs()
         .into_iter()
+        .chain(standards::specs())
         .chain(sheet::specs())
         .chain(book::specs())
         .chain(annotations::specs())
@@ -61,23 +63,24 @@ fn override_command(session: &mut crate::Session, context: CommandContext<'_>) -
 }
 
 pub(crate) fn new_drawing() -> cadcraft_doc::Drawing {
-    let mut d = cadcraft_doc::Drawing::new_metric();
+    let mut d = standards::initial_drawing();
     // Do not leave blank, non-ESKD paper tabs in the initial drawing or PDF book.
     d.layouts.clear();
-    profile::configure(&mut d, cadcraft_fonts::GOST_FONT, 1.0, true);
+    let policy = &standards::default_profile().drafting;
+    profile::configure(&mut d, &policy.font, policy.annotation_scale, true, policy);
     // Native table-cell defaults still reference Standard; keep that face ESKD too.
     for style in &mut d.text_styles {
-        style.font = cadcraft_fonts::GOST_FONT.into();
+        style.font.clone_from(&policy.font);
     }
     for style in &mut d.mleader_styles {
         style.text_style = "GOST".into();
-        style.text_height = 3.5;
-        style.arrow_size = 3.5;
+        style.text_height = policy.dimension_text_mm;
+        style.arrow_size = policy.dimension_arrow_mm;
         style.landing_gap = 1.0;
-        style.dogleg = 7.0;
+        style.dogleg = policy.baseline_spacing_mm;
     }
     for style in &mut d.table_styles {
-        style.text_height = 3.5;
+        style.text_height = policy.dimension_text_mm;
     }
     sheet::initial(&mut d);
     d

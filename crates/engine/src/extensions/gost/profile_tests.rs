@@ -282,3 +282,106 @@ fn native_sheet_check_reports_page_frame_and_unfilled_attributes() {
         assert!(report["findings"].as_array().unwrap().iter().any(|f| f["code"] == code), "{report}");
     }
 }
+
+#[test]
+fn normative_selection_is_document_owned_undoable_and_survives_repeated_dxf_reopen() {
+    let mut s = imperial_session();
+    let before = s.doc().unwrap().clone();
+    let undo = s.state().unwrap().undo.len();
+    let legacy = s.execute("gost.profile", &json!({})).unwrap();
+    assert_eq!(legacy["profile"]["id"], "legacy-unversioned");
+    s.execute("gost.profile", &json!({"action":"list"})).unwrap();
+    let catalog = s.execute("gost.standards", &json!({})).unwrap();
+    assert_eq!(catalog["standards"].as_array().unwrap().len(), 18);
+    assert_eq!(s.doc().unwrap(), &before);
+    assert_eq!(s.state().unwrap().undo.len(), undo, "queries must not create document transactions");
+    let chosen = s.execute("gost.profile", &json!({"action":"set","id":"rf-2026-v1","alphabet":"latin"})).unwrap();
+    assert_eq!(chosen["profile"]["drafting"]["designation_alphabet"], "latin");
+    let selected = s.doc().unwrap().clone();
+    assert_eq!(selected.header, before.header, "selecting editions never changes units or measurements");
+    assert_eq!(selected.model, before.model);
+    assert_eq!(selected.dim_styles, before.dim_styles, "identity selection does not migrate existing drafting tables");
+    assert!(selected.foreign.objects.iter().any(|o| o.kind == "XRECORD"));
+    s.execute("undo", &json!({})).unwrap();
+    assert_eq!(s.doc().unwrap(), &before);
+    s.execute("redo", &json!({})).unwrap();
+    assert_eq!(s.doc().unwrap(), &selected);
+    for _ in 0..2 {
+        let reopened = cadcraft_io::read_dxf(cadcraft_io::write_dxf(s.doc().unwrap()).as_bytes()).unwrap();
+        s.open_drawing(reopened, "profile DXF", None);
+        let opened = s.doc().unwrap().clone();
+        assert_eq!(s.execute("gost.profile", &json!({})).unwrap(), chosen_without_action_warning(chosen.clone()));
+        assert_eq!(s.doc().unwrap(), &opened, "reopening/querying must not silently edit identity");
+    }
+    s.execute("gost.setup", &json!({})).unwrap();
+    let label = s.execute("gost.view", &json!({"at":[0,0],"label":"W"})).unwrap();
+    let h = cadcraft_doc::Handle::parse_hex(label["handle"].as_str().unwrap()).unwrap();
+    let EntityKind::Text(letter) = &s.doc().unwrap().entity(h).unwrap().kind else { panic!() };
+    assert_eq!(letter.value, "W", "reopened alphabet must control actual drafting, not only profile query output");
+    assert_eq!(letter.height, 7.0);
+    let before_rejection = s.doc().unwrap().clone();
+    assert!(s.execute("gost.view", &json!({"at":[0,0],"label":"А"})).is_err());
+    assert_eq!(s.doc().unwrap(), &before_rejection);
+}
+
+fn chosen_without_action_warning(mut value: Value) -> Value {
+    value["warnings"].as_array_mut().unwrap().pop();
+    value
+}
+
+#[test]
+fn unknown_future_profiles_and_alphabet_errors_are_atomic() {
+    let mut s = imperial_session();
+    for p in [
+        json!({"action":"set","id":"rf-2027-v1"}),
+        json!({"action":"set","id":"unknown"}),
+        json!({"action":"set","id":"rf-2026-v1","alphabet":"mixed"}),
+        json!({"action":"set","id":"rf-2026-v1","version":999}),
+        json!({"action":"set","id":"rf-2026-v1","alphabet":null}),
+    ] {
+        let before = s.doc().unwrap().clone();
+        let undo = s.state().unwrap().undo.len();
+        assert!(s.execute("gost.profile", &p).is_err(), "{p}");
+        assert_eq!(s.doc().unwrap(), &before);
+        assert_eq!(s.state().unwrap().undo.len(), undo);
+    }
+}
+
+#[test]
+fn unsupported_persisted_version_never_falls_back_in_drafting_consumers() {
+    let mut s = crate::extensions::new_session();
+    let foreign = std::sync::Arc::make_mut(&mut s.doc_mut().unwrap().foreign);
+    let h = foreign.dictionary.iter().find(|(key, _)| key == "CADCRAFT_GOST_PROFILE").unwrap().1;
+    let object = foreign.objects.iter_mut().find(|o| o.handle == h).unwrap();
+    let payload = object.tags.iter_mut().find(|t| t.code == 1).unwrap();
+    let mut value: Value = serde_json::from_str(&payload.value).unwrap();
+    value["version"] = json!(999);
+    payload.value = value.to_string();
+    let before = s.doc().unwrap().clone();
+    for (command, params) in [("gost.profile", json!({})), ("gost.setup", json!({})), ("gost.view", json!({"at":[0,0],"label":"А"}))] {
+        assert!(s.execute(command, &params).is_err(), "{command}");
+        assert_eq!(s.doc().unwrap(), &before);
+    }
+}
+
+#[test]
+fn checking_reports_selected_editions_and_evidence_limits_without_migrating_legacy() {
+    let mut s = imperial_session();
+    let before = s.doc().unwrap().clone();
+    let legacy = run_check(&mut s, &json!({})).unwrap();
+    assert_eq!(legacy["normativeProfile"]["profile"]["id"], "legacy-unversioned");
+    assert_eq!(s.doc().unwrap(), &before);
+    s.execute("gost.setup", &json!({})).unwrap();
+    let report = run_check(&mut s, &json!({})).unwrap();
+    let standards = report["normativeProfile"]["profile"]["standards"].as_array().unwrap();
+    for (id, designation) in [
+        ("gost-2-316", "ГОСТ Р 2.316-2023"),
+        ("gost-2-308", "ГОСТ Р 2.308-2023"),
+        ("gost-2-503", "ГОСТ Р 2.503-2023"),
+        ("gost-2-301", "ГОСТ 2.301-68"),
+    ] {
+        assert!(standards.iter().any(|s| s["id"] == id && s["designation"] == designation));
+    }
+    assert_eq!(report["status"], "manual_review_required");
+    assert!(!report["normativeProfile"]["access_limitations"].as_array().unwrap().is_empty());
+}

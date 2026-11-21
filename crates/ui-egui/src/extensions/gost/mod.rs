@@ -13,11 +13,13 @@ mod position;
 mod projection;
 mod requirements;
 mod specification;
+mod standards;
 
 pub(super) const DESCRIPTOR: ExtensionDescriptor = ExtensionDescriptor {
     id: "gost",
     dialogs: &[
         DialogSpec { commands: &["gost.setup"], name: "gostsetup", render: dialog },
+        DialogSpec { commands: &["gost.profile"], name: "gostprofile", render: standards::dialog },
         DialogSpec { commands: &["gost.sheet"], name: "gostsheet", render: dialog },
         DialogSpec { commands: &["gost.check"], name: "gostcheck", render: dialog },
         DialogSpec { commands: &["gost.document"], name: "gostdocument", render: book::dialog },

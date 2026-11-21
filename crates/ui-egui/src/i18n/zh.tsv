@@ -1523,11 +1523,13 @@ menu	View	视图
 	GOST Drawing Sheet	GOST 图纸
 	GOST Geometric Tolerance	GOST 几何公差
 	GOST Metal Hatch	GOST 金属剖面线
+	GOST Normative Profile	GOST 标准配置
 	GOST Polyhedral Solid	GOST 多面体实体
 	GOST Position	GOST 零件序号
 	GOST Roughness	GOST 表面粗糙度
 	GOST Sheet Properties	GOST 图纸属性
 	GOST Specification	GOST 明细表
+	GOST Standards Catalog	GOST 标准目录
 	GOST Symbolic Thread	GOST 螺纹简化表示
 	GOST Technical Requirements	GOST 技术要求
 	GOST View Designation	GOST 视图标记

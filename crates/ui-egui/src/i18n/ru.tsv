@@ -1285,3 +1285,57 @@
 	CADCraftGOST source	Исходный код CADCraftGOST
 	CADCraftGOST releases	Выпуски CADCraftGOST
 	CADCraftGOST support	Поддержка CADCraftGOST
+	GOST Standards Profile	Профиль стандартов ГОСТ
+	Malformed engine response	Некорректный ответ движка
+	Profile change was not confirmed. See the command line.	Изменение профиля не подтверждено. См. сообщение в командной строке.
+	Profile identifier	Идентификатор профиля
+	Profile version	Версия профиля
+	Jurisdiction	Юрисдикция
+	Applicability date	Дата применимости
+	Official metadata verified; authoritative full text is not verified.	Официальные метаданные проверены; полный официальный текст не проверен.
+	Secondary text only; comparison with an authorized authoritative edition is required.	Проверен только вторичный текст; требуется сверка с правомерно полученной официальной редакцией.
+	Verification status	Статус проверки источника
+	Verification status unavailable	Статус проверки источника недоступен
+	Source link unavailable	Ссылка на источник недоступна
+	Selected document edition	Редакция, выбранная для документа
+	Edition year	Год редакции
+	Not selected in this document profile	Не выбран в профиле этого документа
+	Catalog card edition	Редакция карточки каталога
+	RF card status	Статус карточки в РФ
+	Card status date	Дата статуса карточки
+	Applicable from	Применяется с
+	Applicable until (exclusive)	Применяется до (не включая дату)
+	RF successor edition	Последующая редакция для РФ
+	Effective from	Дата введения
+	Future edition at the profile or catalog reference date; not the current default.	На дату профиля либо справочную дату каталога это будущая редакция; она не выбрана по умолчанию как действующая.
+	Early application is permitted only with explicit validated profile selection; legacy rules do not transfer automatically.	Досрочное применение допускается только при явном выборе проверенного профиля; правила прежней редакции не переносятся автоматически.
+	Successor publication verification	Проверка публикации последующей редакции
+	Official successor card	Официальная карточка последующей редакции
+	Cited normative sources	Нормативные источники и ссылки
+	Source	Источник
+	Source authority	Официальность источника
+	Accessed on	Дата обращения
+	Source evidence	Сведения из источника
+	Amendments and corrections	Изменения и поправки
+	Authoritative amendment text comparison	Сверка с официальным текстом изменения
+	Scoped rules and implementation assessments	Извлечённые правила и оценка реализации
+	Catalog presence is not implementation or a conformity certificate. Numerical rules remain secondary-source evidence.	Наличие в каталоге не означает реализацию или подтверждение соответствия. Числовые правила подтверждены только вторичными источниками.
+	Rule	Правило
+	Applies to edition	Применимо к редакции
+	Clause	Пункт
+	Implementation assessment	Оценка реализации
+	Rule source identifiers	Идентификаторы источников правила
+	Rule parameters	Параметры правила
+	Required manual review	Необходимая ручная проверка
+	Manual review	Ручная проверка
+	Source discrepancies	Расхождения источников
+	Profile selection does not certify compliance or rescale existing geometry.	Выбор профиля не подтверждает соответствие и не изменяет масштаб существующей геометрии.
+	Metadata verification is not verification of authoritative clauses. Review all applicable editions and amendments.	Проверка метаданных не подтверждает официальный текст требований. Проверьте все применимые редакции, изменения и поправки.
+	Reload profile and catalog	Перечитать профиль и каталог
+	Current document profile	Текущий профиль документа
+	Available validated profiles	Доступные проверенные профили
+	Apply selected standards profile	Применить выбранный профиль стандартов
+	Local catalog version	Версия локального каталога
+	No versioned profile is selected. Choose one explicitly before normative review.	Версионный профиль не выбран. Выберите его явно перед нормативной проверкой.
+	GOST Normative Profile	Нормативный профиль ГОСТ
+	GOST Standards Catalog	Каталог стандартов ГОСТ

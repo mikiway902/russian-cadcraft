@@ -11,6 +11,7 @@
 - [Полный план разработки](ROADMAP.md), [проверки и открытые ограничения](PROGRESS.md).
 - [Руководство ГОСТ и нормативные источники](docs/gost.md).
 - [Архитектура](ARCHITECTURE.md), [исследование интеграции SolidCraft](docs/solidcraft-reuse.md).
+- [Подходящие функции КОМПАС-3D и критерии их реализации](docs/kompas-comparison.md).
 - [Исходный код и поддержка](https://github.com/mikiway902/russian-cadcraft).
 - [Сборки и выпуски форка](https://github.com/mikiway902/russian-cadcraft/releases).
 
@@ -19,9 +20,9 @@
 roadmap ещё не приняты; старый семиэтапный план не является их подтверждением.
 
 Далее описаны возможности унаследованного 2D-приложения и действующие инструменты
-форка. Бинарные имена Cargo (`cadcraft`, `cadcraft-cli`) сохранены для совместимости
-автоматизации; установленные пакеты используют `cadcraftgost`, `cadcraftgost-cli`
-и отдельные каталоги настроек.
+форка. Cargo-пакеты и build targets (`cadcraft`, `cadcraft-cli`) — внутренние имена
+workspace. Установленные программы: `cadcraftgost` и `cadcraftgost-cli`; они не
+заменяют программы оригинального CADCraft.
 
 ## Screenshots
 
@@ -67,16 +68,16 @@ roadmap ещё не приняты; старый семиэтапный план
 | Layers & properties | Layers palette and Layer Properties Manager (on/off, freeze, lock, plot, colour, linetype), layer tools (isolate, freeze, off, lock, match, previous), Properties palette with per-object editing, linetypes, lineweights, colour index and true colour |
 | Annotation | All DIM* commands with full DIMSTYLE variables, overrides and every arrowhead, associative dimensions that follow geometry, MLEADER, TABLE, TrueType fonts (`.ttf`, `.otf`, `.ttc` collections), MTEXT formatting codes (fonts, heights, colours, stacked fractions), our own single-stroke drafting font |
 | Hatch & blocks | Pick-point hatch boundaries with islands, pattern, solid and gradient fills from our own pattern library, BLOCK/INSERT, attributes and nested blocks |
-| Files | DXF read (R12–2018, ASCII and binary) and write (R2000), including dimension styles, associativity, tables and constraints; DWG read (via the acadrust library) and write (R2000); PDF plotting, SVG and PNG export. Entities CADCraft doesn't model yet are not kept on save: see [file-format parity](docs/file-format-parity.md) |
+| Files | DXF read (R12–2018, ASCII and binary) and write (R2000), including dimension styles, associativity, tables and constraints; DWG read (via the acadrust library) and write (R2000); PDF plotting, SVG and PNG export. Unsupported or damaged data can be skipped; inspect read warnings before saving. See [file-format parity](docs/file-format-parity.md) |
 | Layouts & plotting | Paper-space layouts, viewports (scale, lock, per-viewport layer freeze), MSPACE/PSPACE through viewports, page setups, PLOT and EXPORTPDF |
 | Parametric | Geometric and dimensional constraints, AUTOCONSTRAIN, PARAMETERS with expressions, conflict detection; constraints re-solve after every edit |
 | Grips | Hot grips with Space to cycle Stretch, Move, Rotate, Scale and Mirror |
 | Interface languages | English, Ukrainian (Українська), Brazilian Portuguese (Português (Brasil)), German (Deutsch), Spanish (Español), Czech (Čeština), Russian (Русский), French (Français), Simplified Chinese (简体中文, with an installed CJK font), Italian (Italiano), Korean (한국어, with an installed Hangul font), Swedish (Svenska), Arabic (العربية, with an installed Arabic font), Hungarian (Magyar), Turkish (Türkçe), Greek (Ελληνικά), Bosnian (Bosanski) and Georgian (ქართული), live switching and a remembered Auto/system-language choice; [details](docs/localization.md) |
-| Automation | MCP server, JSON control channel, `cadcraft-cli` (info, convert, run, commands, mcp) |
+| Automation | MCP server, JSON control channel, `cadcraftgost-cli` (info, convert, run, commands, mcp) |
 
 ## Quick start
 
-CADCraft requires Rust 1.95 or later.
+CADCraftGOST requires Rust 1.95 or later.
 
 ```sh
 git clone https://github.com/mikiway902/russian-cadcraft
@@ -159,13 +160,14 @@ point.
 
 ### Logs
 
-The desktop app writes its `log` records to standard error and to `logs/cadcraft.log` in the
-settings directory (Linux and the BSDs `~/.config/cadcraft/logs/`, or
-`$XDG_CONFIG_HOME/cadcraft/logs/`; macOS `~/Library/Application Support/CADCraft/logs/`; Windows
-`%APPDATA%\CADCraft\logs\`; or under `CADCRAFT_CONFIG_DIR`). A start from a desktop menu or the
-Dock has no terminal, so this file is what to attach to a bug report. Each launch moves the
-previous log to `cadcraft.1.log` (and that one to `cadcraft.2.log`), so the log of a run that
-crashed survives the next start. The file stops growing at 16 MiB. `--version` writes no file.
+The desktop app writes its `log` records to standard error and to `logs/cadcraftgost.log` in the
+settings directory (Linux and the BSDs `~/.config/cadcraftgost/logs/`, or
+`$XDG_CONFIG_HOME/cadcraftgost/logs/`; macOS
+`~/Library/Application Support/io.github.mikiway902.cadcraftgost/logs/`; Windows
+`%APPDATA%\io.github.mikiway902.cadcraftgost\logs\`; or under `CADCRAFT_CONFIG_DIR`).
+A start from a desktop menu or the Dock has no terminal, so this file is what to attach
+to a bug report. Previous logs are `cadcraftgost.1.log` and `cadcraftgost.2.log`.
+The file stops growing at 16 MiB. `--version` writes no file.
 
 | Variable | Effect |
 |---|---|
@@ -178,22 +180,22 @@ The logger is `apps/cadcraft/src/logging.rs`; the web build logs to the browser 
 
 ```sh
 # MCP server on stdio, headless:
-cadcraft-cli mcp
+cadcraftgost-cli mcp
 # …or bridged to the running app (start it with --control 7979):
-cadcraft-cli mcp --connect 127.0.0.1:7979
+cadcraftgost-cli mcp --connect 127.0.0.1:7979
 
 # One-shot headless runs:
-cadcraft-cli run --sample --script 'CIRCLE 22,3 1\n' --save out.dxf --export out.png
-cadcraft-cli info drawing.dxf
-cadcraft-cli convert drawing.dxf drawing.svg
+cadcraftgost-cli run --sample --script 'CIRCLE 22,3 1\n' --save out.dxf --export out.png
+cadcraftgost-cli info drawing.dxf
+cadcraftgost-cli convert drawing.dxf drawing.svg
 
 # Frame part of the drawing (model space, drawing units, lower-left corner first):
-cadcraft-cli convert drawing.dwg detail.png --window 0,0,20000,15000
-cadcraft-cli run drawing.dwg --cmd 'zoom {"mode":"window","p1":[0,0],"p2":[20000,15000]}' --export detail.png
-cadcraft-cli run drawing.dwg --cmd 'select {"window":[[0,0],[20000,15000]]}' --cmd 'zoom {"mode":"object"}' --export sel.png
+cadcraftgost-cli convert drawing.dwg detail.png --window 0,0,20000,15000
+cadcraftgost-cli run drawing.dwg --cmd 'zoom {"mode":"window","p1":[0,0],"p2":[20000,15000]}' --export detail.png
+cadcraftgost-cli run drawing.dwg --cmd 'select {"window":[[0,0],[20000,15000]]}' --cmd 'zoom {"mode":"object"}' --export sel.png
 
 # Act on what an earlier --cmd made: {last} is the last handle it returned.
-cadcraft-cli run --metric --cmd 'layout.set {"name":"GOST1"}' \
+cadcraftgost-cli run --metric --cmd 'layout.set {"name":"GOST1"}' \
   --cmd 'mview {"p1":[20,20],"p2":[200,150]}' --cmd 'viewport.set {"handle":"{last}","scale":1}'
 ```
 
@@ -216,7 +218,7 @@ MCP tools include `command_line` (type at the prompt), `execute` (any command wi
 To run LISP routines, scripts and alias files, or to drive CADCraft from your own programs, see
 [docs/customization.md](docs/customization.md).
 
-`cadcraft-cli --help` documents every subcommand and flag; exit codes, streams, environment
+`cadcraftgost-cli --help` documents every subcommand and flag; exit codes, streams, environment
 variables and its RFC-0012 conventions are in [docs/cli.md](docs/cli.md).
 
 ## Architecture

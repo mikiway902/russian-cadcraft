@@ -105,15 +105,11 @@ mkdir -p "$STAGE/man/man1" "$STAGE/share/bash-completion/completions" \
   "$STAGE/share/zsh/site-functions" "$STAGE/share/fish/vendor_completions.d"
 for man in "$WORK"/cli-docs/*.1; do
   name="$(basename "$man")"
-  sed 's/cadcraft-cli/cadcraftgost-cli/g' "$man" >"$STAGE/man/man1/${name/cadcraft-cli/cadcraftgost-cli}"
+  install -m644 "$man" "$STAGE/man/man1/$name"
 done
-for file in "$WORK"/cli-docs/*.bash "$WORK"/cli-docs/_* "$WORK"/cli-docs/*.fish; do
-  sed 's/cadcraft-cli/cadcraftgost-cli/g' "$file" >"$file.fork"
-  mv "$file.fork" "$file"
-done
-install -m 644 "$WORK/cli-docs/cadcraft-cli.bash" "$STAGE/share/bash-completion/completions/cadcraftgost-cli"
-install -m 644 "$WORK/cli-docs/_cadcraft-cli" "$STAGE/share/zsh/site-functions/_cadcraftgost-cli"
-install -m 644 "$WORK/cli-docs/cadcraft-cli.fish" "$STAGE/share/fish/vendor_completions.d/cadcraftgost-cli.fish"
+install -m 644 "$WORK/cli-docs/cadcraftgost-cli.bash" "$STAGE/share/bash-completion/completions/cadcraftgost-cli"
+install -m 644 "$WORK/cli-docs/_cadcraftgost-cli" "$STAGE/share/zsh/site-functions/_cadcraftgost-cli"
+install -m 644 "$WORK/cli-docs/cadcraftgost-cli.fish" "$STAGE/share/fish/vendor_completions.d/cadcraftgost-cli.fish"
 
 # ---- .tar.gz -------------------------------------------------------------------------------------
 mkdir -p "$DIST"

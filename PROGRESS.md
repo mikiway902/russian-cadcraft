@@ -66,4 +66,87 @@
 - **Проверено:** 70 desktop-тестов, Clippy `-D warnings`, desktop build. Настоящие отдельные GUI A/B сохранили разные темы и восстановили их после перезапуска. Временная light-сессия не изменила следующую временную dark-сессию; выбранные глобальные файлы не изменились, временный каталог удалился. Окна и отсутствие постороннего recovery проверены снимками.
 - Доказательства: [settings-isolation-20261119.json](tests/benchmarks/settings-isolation-20261119.json). Windows/macOS и установка рядом с оригинальным executable пока не приняты.
 
+## Продолжение — 21.11.2026
+
+- По прямому запросу владельца `main` отправлен через SSH: сначала `74889621`,
+  затем проверенный cache-fix `e1452557`. Force-push и замена пользовательских
+  настроек remote не выполнялись.
+- [Удалённый CI для `74889621`](https://github.com/mikiway902/russian-cadcraft/actions/runs/44897897118):
+  Ubuntu 24.04 и Windows gate прошли; macOS gate завершился ошибкой, точная
+  причина пока недоступна (API logs требует token, browser relay недоступен).
+  Это не успешная приёмка трёх ОС и не проверка последующих ревизий.
+- Создан каталог 18 нормативных семейств, 88 извлечённых правил и профиль
+  `rf-2026-v1`. Источники, даты, поправки, будущие редакции и непроверенные
+  официальные тексты разделены явно. Наличие правила в каталоге не означает его
+  реализацию; все 18 нормативных acceptance-пунктов остаются открытыми.
+- Добавлены API `gost.profile`, `gost.standards`, document-owned XRECORD,
+  алфавит обозначений и связь их высоты с размерным текстом. Исправлена потеря
+  профиля при DXF reopen: неизвестный `CADCRAFT*` key не считается автоматически
+  моделируемой native записью. Проверка repeated reopen/Undo/Redo прошла.
+- **101 engine extension-тест пройден.** После этого удалены оставшиеся
+  production-`expect` из factory и lineweight conversions; Clippy engine/UI/IO
+  all-targets прошёл. Typed policy и исходная identity-запись генерируются при
+  сборке, неверный bundle отклоняется с понятной ошибкой; feature-off не читает
+  policy. Проверены настоящий build-script на валидном bundle, отказ с exit 1
+  на отдельном неполном fixture и успешный feature-off для того же fixture.
+- Полный root gate выявил два настоящих i18n отказа: повторный русский ключ и
+  два непереведённых китайских command labels. Исправлены; повторный gate прошёл
+  все **8 шагов, 4005 тестов, 0 отказов, 26 ignored, 157 result-suites**.
+  Остались 346 русских English fallback-строк и 4 исходных WASM dead-code warning.
+  [Точные границы и результаты](tests/benchmarks/ci-profiles-bridge-20261121.json).
+  Последующие точечные изменения CLI argv и Arc-кэша GUI проверяются отдельно.
+- **SolidCraft worker: 12 тестов пройдено**, включая STEP/IGES, native JSON и
+  контейнер, точное размещение сборки/свойства, испорченный authoritative blob,
+  атомарность отказов и настоящий bounded JSON-RPC. Clippy all-targets прошёл.
+  Лицензия embedded upstream Liberation Sans сохранена отдельно.
+- **Настоящий host-client smoke:** native цилиндр R5 × 20 мм — объём
+  `1570.7963267948958` мм³; наклонная проекция содержит 10 rational conic segments
+  и `analytic_complete:true`; remote error не уничтожает модель, изменение
+  файла обнаружено. Временные smoke-программы удалены.
+- **Точный native curve adapter: 3 теста пройдены** — rational midpoint/weights,
+  signed arcs и near-full gaps, malformed/nonfinite/oversized rejection.
+  Подключение worker к пользовательскому документу, preview и persistent
+  topology matching ещё не выполнены.
+- End-to-end proof `Client → exact Seg2 → native SPLINE/LINE → DXF → reopen`
+  прошёл для того же цилиндра: 10 рациональных квадратичных сплайнов, максимальная
+  ошибка выборочных точек DXF **0 мм**, невязка аналитического уравнения эллипсов
+  **1,9984·10⁻¹⁵**. Native render повторно открытого DXF просмотрен.
+  [Результаты и ограничения](tests/benchmarks/exact-model-bridge-20261121.json).
+- При подготовке Linux-пакетов найдена неверная исходная декларация glibc:
+  ELF этой Fedora-сборки требует `GLIBC_2.44`, а DEB объявлял `>=2.35`.
+  Packaging теперь извлекает минимум из реальных staged ELF для DEB/RPM.
+  DEB/RPM пересобраны; их control/requires действительно содержат минимум 2.44.
+- Настоящие official CADCraft 0.20.1 и упакованный CADCraftGOST запущены
+  одновременно с общими XDG roots, без `CADCRAFT_CONFIG_DIR`: original сохранил
+  light-тему, fork использовал dark. RPM не имеют общих недиректориальных
+  путей; совпадают только общие системные каталоги icons/mime.
+- В настоящем GUI профиль открытого original DXF был `legacy-unversioned`;
+  реальная кнопка Apply выбрала `rf-2026-v1`, Undo/Redo восстановили оба состояния,
+  сохранённый DXF после reopen сохранил выбор и исходную окружность R5 в (34,71).
+  После закрытия original его файлы настроек/данных остались побайтно неизменными
+  при последующем save/exit форка. Раннее сравнение при работающем original
+  не было однозначным: original сам сохранил recentFiles после reopen.
+  [Протокол приёмки и ограничения](tests/benchmarks/linux-coexistence-profile-20261121.json).
+- Созданы все четыре локальных Linux-формата и zsync, appstream validation прошёл.
+  DEB и RPM действительно объявляют минимум glibc 2.44; AppImage указывает собственный
+  GitHub zsync channel. Это не системная установка RPM/DEB, не обновление готового
+  релиза и не переносимая Ubuntu 22.04 сборка.
+- Packaging smoke выявил второй CLI branding-дефект: `--version` уже был правильным,
+  но parser оставлял `Usage: cadcraft-cli`. Оба argv пути используют `identity::CLI_BINARY`.
+  Два help-теста, all-targets Clippy, release build и повторная упаковка прошли;
+  настоящий установленный CLI показывает canonical argv в main/run/convert help,
+  включая ошибочный `--script` без значения перед `--help`.
+- Неизменяемые данные диалога норм разделяются через `Arc`, без глубокого копирования
+  каждый кадр. В пересобранном AppImage восстановились dark theme и `rf-2026-v1`;
+  настоящий диалог и нажатие Reload проверены визуально. All-targets Clippy прошёл.
+- Настоящий собственный updater завершил запрос: branded CADCraftGOST dialog сообщил,
+  что новой версии нет. Это проверка канала и UI, не установка обновления.
+- Изучены публичные функции КОМПАС-3D: связанные виды/размеры/оси,
+  местные разрезы и исключения штриховки, спецификации/позиции и реквизиты.
+  [Сопоставление с roadmap и проверяемые критерии](docs/kompas-comparison.md).
+  Закрытые шрифты, код и UI-ресурсы КОМПАС не переносились.
+- Удалены четыре SVG марки ArtCraft. Четыре PNG ещё остаются:
+  read/grep не возвращают snapshot tag для binary, обязательный для edit REM;
+  дефект инструментов зарегистрирован. Удаление всего бренда не отмечено готовым.
+
 Ни один из этих результатов не закрывает полный новый roadmap. Точные B-Rep-проекции, сборки, нормативные профили, полная русификация, кроссплатформенные установки и выпуск остаются в активном плане.

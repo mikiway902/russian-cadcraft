@@ -10,8 +10,6 @@ use crate::cmd::machines::SelectRun;
 use crate::cmd::{CommandSpec, bad, find_command, point_req, size_param, targets};
 use crate::{Accept, Input, Interactive, Prompt, Result, Session, Step};
 
-const LETTERS: &str = "АБВГДЕЖЗИКЛМНПРСТУФЦЧШЩЭЮЯ";
-
 pub(super) fn specs() -> Vec<CommandSpec> {
     vec![
         CommandSpec::new("gost.center", "GOST Center Axes", center)
@@ -20,11 +18,11 @@ pub(super) fn specs() -> Vec<CommandSpec> {
             .interactive(|_| Ok(Box::new(SelectRun::new("gost.center", "GOST.CENTER")))),
         CommandSpec::new("gost.section", "GOST Cutting Plane", section)
             .menu(&["Format", "GOST", "GOST Cutting Plane"])
-            .params("{p1:[x,y], p2:[x,y]: outer stroke ends, label?: Russian capital (default А), reverse?: bool, scale?: model units per paper mm, caption?:[x,y]} → static cutting-plane marks, not model section geometry")
+            .params("{p1:[x,y], p2:[x,y]: outer stroke ends, label?: capital in the selected document alphabet, reverse?: bool, scale?: model units per paper mm (paper space: 1), caption?:[x,y]} → static cutting-plane marks, not model section geometry")
             .interactive(|_| Ok(Box::new(SectionM::default()))),
         CommandSpec::new("gost.view", "GOST View Designation", view)
             .menu(&["Format", "GOST", "GOST View Designation"])
-            .params("{at:[x,y], label: Russian capital, arrowFrom?:[x,y], arrowTo?:[x,y] (both for source direction), scale?: model units per paper mm, viewScale?: standard scale string, section?: bool}; designation only, no view geometry")
+            .params("{at:[x,y], label: capital in the selected document alphabet, arrowFrom?:[x,y], arrowTo?:[x,y] (both for source direction), scale?: model units per paper mm (paper space: 1), viewScale?: standard scale string, section?: bool}; designation only, no view geometry")
             .interactive(|_| Ok(Box::new(ViewM::default()))),
         CommandSpec::new("gost.hatch", "GOST Metal Hatch", hatch)
             .menu(&["Format", "GOST", "GOST Metal Hatch"])
@@ -47,7 +45,11 @@ fn ready(s: &Session, cmd: &str, layer: &str) -> Result<()> {
 
 fn annotation_scale(s: &Session, p: &Value, cmd: &str) -> Result<f64> {
     if p.get("scale").is_some() {
-        return size_param(cmd, p, "scale", false)?.filter(|v| *v <= 10_000.0).ok_or_else(|| bad(cmd, "scale must be in (0,10000]"));
+        let scale = size_param(cmd, p, "scale", false)?.filter(|v| *v <= 10_000.0).ok_or_else(|| bad(cmd, "scale must be in (0,10000]"))?;
+        if s.space().is_paper() && scale != 1.0 {
+            return Err(bad(cmd, "paper-space annotations use paper millimetres: scale must be 1; use viewScale for the represented model scale"));
+        }
+        return Ok(scale);
     }
     if s.space().is_paper() {
         Ok(1.0)
@@ -65,15 +67,13 @@ fn point(s: &Value, key: &str, cmd: &str) -> Result<Vec2> {
     Ok(v)
 }
 
-fn letter<'a>(p: &'a Value, cmd: &str) -> Result<&'a str> {
+fn letter<'a>(s: &Session, p: &'a Value, cmd: &str) -> Result<&'a str> {
     let t = match p.get("label") {
-        None => "А",
+        None => super::standards::default_letter(s.doc()?)?,
         Some(Value::String(t)) => t.as_str(),
-        _ => return Err(bad(cmd, "label must be a Russian capital letter")),
+        _ => return Err(bad(cmd, "label must be one capital in the selected document alphabet")),
     };
-    if t.chars().count() != 1 || !t.chars().all(|c| LETTERS.contains(c)) {
-        return Err(bad(cmd, "use one Russian capital, excluding Ё, Й, О, Х, Ъ, Ы, Ь"));
-    }
+    super::standards::validate_letter(s.doc()?, t, cmd)?;
     Ok(t)
 }
 
@@ -164,7 +164,8 @@ fn section(s: &mut Session, p: &Value) -> Result<Value> {
     if a.dist(b) < 25.0 * k {
         return Err(bad(cmd, "stroke ends must be at least 25 paper mm apart"));
     }
-    let label = letter(p, cmd)?;
+    let label = letter(s, p, cmd)?;
+    let height = super::standards::designation_height(s.doc()?)?;
     let reverse = flag(p, "reverse", cmd)?;
     let caption = if p.get("caption").is_some() { Some(point(p, "caption", cmd)?) } else { None };
     let dir = (b - a).normalized();
@@ -177,11 +178,11 @@ fn section(s: &mut Session, p: &Value) -> Result<Value> {
         vec![add(s, line(a, a + dir * (10.0 * k)), "GOST-SECTION", k)?.hex(), add(s, line(b - dir * (10.0 * k), b), "GOST-SECTION", k)?.hex()];
     for at in [a + dir * (2.5 * k), b - dir * (2.5 * k)] {
         hs.extend(arrow(s, at, normal, k)?);
-        hs.push(add(s, text(at - normal * (15.0 * k), label.into(), 5.0 * k), "GOST-TEXT", k)?.hex());
+        hs.push(add(s, text(at - normal * ((13.0 + height) * k), label.into(), height * k), "GOST-TEXT", k)?.hex());
     }
     let value = format!("{label}—{label}");
     if let Some(at) = caption {
-        hs.push(add(s, text(at, value.clone(), 5.0 * k), "GOST-TEXT", k)?.hex());
+        hs.push(add(s, text(at, value.clone(), height * k), "GOST-TEXT", k)?.hex());
     }
     Ok(json!({"handles": hs, "designation": value, "associative": false,
         "warning": "Cutting-plane notation only. Place terminal strokes outside the object contour; model section geometry is not generated."}))
@@ -192,7 +193,8 @@ fn view(s: &mut Session, p: &Value) -> Result<Value> {
     ready(s, cmd, "GOST-TEXT")?;
     let k = annotation_scale(s, p, cmd)?;
     let at = point(p, "at", cmd)?;
-    let label = letter(p, cmd)?;
+    let label = letter(s, p, cmd)?;
+    let height = super::standards::designation_height(s.doc()?)?;
     let mut value = if flag(p, "section", cmd)? { format!("{label}—{label}") } else { label.into() };
     if let Some(v) = p.get("viewScale") {
         let scale = v.as_str().ok_or_else(|| bad(cmd, "viewScale must be a standard scale string"))?;
@@ -219,7 +221,7 @@ fn view(s: &mut Session, p: &Value) -> Result<Value> {
     } else {
         None
     };
-    let h = add(s, text(at, value, 5.0 * k), "GOST-TEXT", k)?;
+    let h = add(s, text(at, value, height * k), "GOST-TEXT", k)?;
     let mut handles = vec![h.hex()];
     if let Some((from, to)) = source {
         let dir = (to - from).normalized();
@@ -227,7 +229,7 @@ fn view(s: &mut Session, p: &Value) -> Result<Value> {
         if from.dist(to) > 10.0 * k {
             handles.push(add(s, line(from, to - dir * (10.0 * k)), "GOST-THIN", k)?.hex());
         }
-        handles.push(add(s, text(from - dir * (5.0 * k), label.into(), 5.0 * k), "GOST-TEXT", k)?.hex());
+        handles.push(add(s, text(from - dir * ((height * 0.6 + 3.0) * k), label.into(), height * k), "GOST-TEXT", k)?.hex());
     }
     Ok(json!({"handle": h.hex(), "handles": handles, "directionArrow": source.is_some(),
         "warning": "Designation only; no view geometry is generated. If this view is outside direct projection, provide its source direction arrow. Main views in direct projection do not require a name."}))
@@ -285,11 +287,12 @@ impl Interactive for SectionM {
     fn name(&self) -> &'static str {
         "GOST.SECTION"
     }
-    fn prompt(&self, _s: &Session) -> Prompt {
+    fn prompt(&self, s: &Session) -> Prompt {
         match (self.first, self.second) {
             (None, _) => Prompt::new("Specify first outer cutting-plane stroke end", Accept::POINT),
             (Some(p), None) => Prompt::new("Specify last outer cutting-plane stroke end", Accept::POINT).base_opt(Some(p)),
-            _ => Prompt::new("Enter Russian section letter", Accept::TEXT).default("А"),
+            _ => Prompt::new("Enter section letter in the selected document alphabet", Accept::TEXT)
+                .default(s.doc().and_then(super::standards::default_letter).unwrap_or("")),
         }
     }
     fn input(&mut self, s: &mut Session, i: Input) -> Result<Step> {
@@ -297,7 +300,8 @@ impl Interactive for SectionM {
             (None, _, Input::Point(p)) => self.first = Some(p),
             (Some(_), None, Input::Point(p)) => self.second = Some(p),
             (Some(a), Some(b), Input::Text(t)) => {
-                section(s, &json!({"p1":[a.x,a.y], "p2":[b.x,b.y], "label": if t.trim().is_empty() { "А" } else { t.trim() }}))?;
+                let label = if t.trim().is_empty() { super::standards::default_letter(s.doc()?)? } else { t.trim() };
+                section(s, &json!({"p1":[a.x,a.y], "p2":[b.x,b.y], "label":label}))?;
                 return Ok(Step::Done);
             }
             (Some(a), Some(b), Input::Enter) => {
@@ -318,12 +322,13 @@ impl Interactive for ViewM {
     fn name(&self) -> &'static str {
         "GOST.VIEW"
     }
-    fn prompt(&self, _s: &Session) -> Prompt {
+    fn prompt(&self, s: &Session) -> Prompt {
         match self.points.len() {
             0 => Prompt::new("Specify view direction arrow tail", Accept::POINT),
             1 => Prompt::new("Specify view direction arrow tip", Accept::POINT).base_opt(self.points.first().copied()),
             2 => Prompt::new("Specify view designation position", Accept::POINT),
-            _ => Prompt::new("Enter Russian view letter", Accept::TEXT).default("А"),
+            _ => Prompt::new("Enter view letter in the selected document alphabet", Accept::TEXT)
+                .default(s.doc().and_then(super::standards::default_letter).unwrap_or("")),
         }
     }
     fn input(&mut self, s: &mut Session, i: Input) -> Result<Step> {
@@ -336,12 +341,12 @@ impl Interactive for ViewM {
         let label = match i {
             Input::Text(t) => {
                 if t.trim().is_empty() {
-                    "А".into()
+                    super::standards::default_letter(s.doc()?)?.into()
                 } else {
                     t.trim().to_string()
                 }
             }
-            Input::Enter => "А".into(),
+            Input::Enter => super::standards::default_letter(s.doc()?)?.into(),
             _ => return Ok(Step::Continue),
         };
         if let [from, to, at] = self.points.as_slice() {

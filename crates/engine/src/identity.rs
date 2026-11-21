@@ -2,6 +2,7 @@
 
 pub const PRODUCT_ID: &str = "io.github.mikiway902.cadcraftgost";
 pub const PACKAGE: &str = "cadcraftgost";
+pub const CLI_BINARY: &str = "cadcraftgost-cli";
 pub const NAME: &str = "CADCraftGOST";
 pub const REPOSITORY: &str = "mikiway902/russian-cadcraft";
 pub const REPOSITORY_URL: &str = "https://github.com/mikiway902/russian-cadcraft";

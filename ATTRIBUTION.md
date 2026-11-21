@@ -20,11 +20,13 @@ Generated-in-code assets are original and have no file to list:
   names, our own dash/spacing values);
 - the colour index palette, generated from its structure (`crates/color/src/lib.rs`);
 - the sample drawings (`crates/engine/src/sample.rs`).
-- ESKD sheet geometry and annotation definitions (`crates/engine/src/cmd/gost/`), independently implemented from the public standards linked in `docs/gost.md`; no third-party template or font files copied.
+- ESKD sheet geometry and annotation definitions (`crates/engine/src/extensions/gost/`), independently implemented from the public standards linked in `docs/gost.md`; no third-party template or font files copied.
 
 | Asset | Author | Source | Licence | Notes |
 |---|---|---|---|---|
 | `assets/fonts/opengost/OpenGostTypeB-Regular.ttf`, `assets/fonts/opengost/OFL.txt` | Nikita Volchenkov, Valek Filippov, Nadeŭka | [OpenGost Fonts v0.4.0](https://codeberg.org/nadevko/opengostfonts/releases/tag/v0.4.0) | OFL-1.1 | Unmodified plain TTF, embedded offline; SHA-256 `032fc0cf2108d726cfdd2299f542175940929f39cead71756263633a6df1a867`. Not a KOMPAS font. |
+| `solidcraft-sketch / LiberationSans-Regular.ttf` (worker dependency-embedded), `tools/solidcraft-bridge/licenses/OFL-LiberationSans.txt` | Google Corporation (2010), Red Hat, Inc. (2012) | [Pinned SolidCraft font and notice](https://github.com/tangency-labs/solidcraft/tree/c5f47e501169c7f0f9e8191b2541e689e2f018e8/crates/sketch/assets/fonts/liberation-sans) | OFL-1.1 | Unmodified upstream font used by native document evaluation; no TTF copied here. SHA-256 `075e71be4c58beda172ecb574a799308f04c3d054c6a5b7434954d3b0f1b28d8`. Worker distributions must carry the notice. |
+| `data/gost/standards-catalog.json`, `data/gost/profiles/rf-2026-v1.json` | CADCraftGOST contributors | Original structured normative facts and drafting policy; official cards, amendments and secondary clause references are recorded in the catalog | MIT OR Apache-2.0 | No full standards text or proprietary templates copied; source verification limits and manual review remain explicit. |
 | `licenses/jpeg-encoder-0.6.1/` | jpeg-encoder contributors and Independent JPEG Group | [jpeg-encoder 0.6.1](https://crates.io/crates/jpeg-encoder/0.6.1) | (MIT OR Apache-2.0) AND IJG | Dependency license and SIMD notices; source hashes in SOURCE.json. |
 | `epaint_default_fonts::EGUI_ICONS`, `epaint_default_fonts::EMOJI_ICON` (dependency font inputs) | John Slegers | [egui 173cc737](https://github.com/storytold/egui/tree/6d518fc799681571963842f95b55a6b68431b15a/crates/epaint_default_fonts/fonts), [emoji-icon-font](https://github.com/jslegers/emoji-icon-font) | MIT (Copyright (c) 2014 John Slegers; full upstream text in `NOTICE`) | egui-icons.ttf is the five-glyph subset; emoji-icon-font.ttf is the full monochrome fallback. Registered by the production default font definitions; dependency assets unmodified here, no font file copied into this repository. |
 | `krilla 0.8.2 / icc/sGrey-v2-magic.icc` (dependency-embedded) | Clinton Ingram | [craft-libs 9f89fe8 vendor/krilla/icc/sGrey-v2-magic.icc](https://github.com/storytold/craft-libs/blob/9f89fe8f6d72ab4db4cc06f186381a6a254463ab/vendor/krilla/icc/sGrey-v2-magic.icc) (Krilla 0.8.2 upstream 3ffdf0588cf98050aad6edba51ca70162e1fb5b5) | CC0-1.0 | Embedded by the pinned PDF writer (`craft-pdf` 0.1.0, Krilla 0.8.2); unmodified dependency asset, no file copied into this repository. SHA-256 `4110169287e5f1b5149ca9f1da1814d32943905bba8030e849d1a3b729a19481`. |
@@ -53,13 +55,9 @@ Generated-in-code assets are original and have no file to list:
 | `docs/images/ui-layout.png` | CADCraft contributors | screenshot of CADCraft itself (a layout of examples/apartment.dxf) | MIT OR Apache-2.0 | Original; no Autodesk UI |
 | `docs/images/ui-bracket.png` | CADCraft contributors | screenshot of CADCraft itself (sample drawing generated in code) | MIT OR Apache-2.0 | Original; no Autodesk UI |
 | `docs/brand/artcraft-logo-white.png` | ArtCraft Team | ArtCraft brand kit | ArtCraft brand terms (`docs/brand/LICENSE-brand.txt`) | Trademark, not open source |
-| `docs/brand/artcraft-logo-white.svg` | ArtCraft Team | ArtCraft brand kit | ArtCraft brand terms (`docs/brand/LICENSE-brand.txt`) | Trademark, not open source |
 | `docs/brand/artcraft-logo.png` | ArtCraft Team | ArtCraft brand kit | ArtCraft brand terms (`docs/brand/LICENSE-brand.txt`) | Trademark, not open source |
-| `docs/brand/artcraft-logo.svg` | ArtCraft Team | ArtCraft brand kit | ArtCraft brand terms (`docs/brand/LICENSE-brand.txt`) | Trademark, not open source |
 | `docs/brand/artcraft-mark-black.png` | ArtCraft Team | ArtCraft brand kit | ArtCraft brand terms (`docs/brand/LICENSE-brand.txt`) | Trademark, not open source |
-| `docs/brand/artcraft-mark-black.svg` | ArtCraft Team | ArtCraft brand kit | ArtCraft brand terms (`docs/brand/LICENSE-brand.txt`) | Trademark, not open source |
 | `docs/brand/artcraft-mark.png` | ArtCraft Team | ArtCraft brand kit | ArtCraft brand terms (`docs/brand/LICENSE-brand.txt`) | Trademark, not open source |
-| `docs/brand/artcraft-mark.svg` | ArtCraft Team | ArtCraft brand kit | ArtCraft brand terms (`docs/brand/LICENSE-brand.txt`) | Trademark, not open source |
 
 ## Interface translations
 

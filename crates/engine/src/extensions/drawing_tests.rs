@@ -219,3 +219,56 @@ fn existing_view_refuses_creation_only_layout_change_without_touching_the_docume
     assert_eq!(s.doc().unwrap(), &before);
     assert_eq!(s.state().unwrap().undo.len(), undo);
 }
+
+#[test]
+fn projection_rejects_ruled_out_and_mixed_alphabet_labels_atomically() {
+    let mut s = crate::extensions::new_session();
+    let source = model(&mut s);
+    for label in ["Ё", "З", "Й", "О", "Х", "Ч", "Ъ", "Ы", "Ь", "A", "АA"] {
+        let before = s.doc().unwrap().clone();
+        let undo = s.state().unwrap().undo.len();
+        assert!(view(&mut s, &json!({"sources":[source.hex()],"label":label})).is_err(), "{label}");
+        assert_eq!(s.doc().unwrap(), &before);
+        assert_eq!(s.state().unwrap().undo.len(), undo);
+    }
+    s.execute("gost.profile", &json!({"action":"set","id":"rf-2026-v1","alphabet":"latin"})).unwrap();
+    for label in ["I", "O", "V", "X", "А"] {
+        let before = s.doc().unwrap().clone();
+        assert!(view(&mut s, &json!({"sources":[source.hex()],"label":label})).is_err(), "{label}");
+        assert_eq!(s.doc().unwrap(), &before);
+    }
+    let h = created(&mut s, "gost.projection", json!({"sources":[source.hex()],"label":"W"}));
+    let before = s.doc().unwrap().clone();
+    assert!(view(&mut s, &json!({"handle":h.hex(),"label":"V"})).is_err());
+    assert_eq!(s.doc().unwrap(), &before);
+}
+
+#[test]
+fn paper_projection_caption_and_dimension_keep_paper_heights_across_model_and_view_scales() {
+    let mut s = crate::extensions::new_session();
+    s.execute("gost.setup", &json!({"scale":8})).unwrap();
+    let source = model(&mut s);
+    for scale in [0.25, 2.0, 10.0] {
+        let h = created(&mut s, "gost.projection", json!({"sources":[source.hex()],"direction":"top","label":"Б","scale":scale}));
+        let dimension = created(
+            &mut s,
+            "gost.projection.dimension",
+            json!({"view":h.hex(),"a":{"source":source.hex(),"vertex":1},"b":{"source":source.hex(),"vertex":2}}),
+        );
+        let d = s.doc().unwrap();
+        let EntityKind::Insert(insert) = &d.entity(h).unwrap().kind else { panic!() };
+        let block = d.block(&insert.block).unwrap();
+        let caption = block.entities.iter().find_map(|e| if let EntityKind::Text(t) = &e.kind { Some(t) } else { None }).unwrap();
+        let top = block
+            .entities
+            .iter()
+            .filter_map(|e| if let EntityKind::Line(l) = &e.kind { Some(l.a.y.max(l.b.y)) } else { None })
+            .fold(f64::NEG_INFINITY, f64::max);
+        let numbers = cadcraft_render::dimension_in(d, dm(&s, dimension));
+        assert!((numbers.measurement - 40.0 / scale).abs() < 1e-9, "definition points measure the actual paper projection");
+        assert_eq!(numbers.value, "40", "displayed measurement must retain the true model length through the projection factor");
+        assert_eq!(numbers.text_height, 3.5, "paper dimensions must not inherit model DIMSCALE=8");
+        assert_eq!(caption.height, numbers.text_height * 2.0);
+        assert!(caption.insert.y >= top + 8.0 - 1e-9, "caption clearance must account for both ends of every projected edge");
+    }
+}

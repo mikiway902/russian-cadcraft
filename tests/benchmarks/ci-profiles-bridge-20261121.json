@@ -1,0 +1,13 @@
+{
+  "date":"2026-11-21",
+  "platform":"linux-x86_64",
+  "scope":"development worktree with native bridge IO adapter, versioned normative policy and profile dialog",
+  "command":"CARGO_BUILD_JOBS=4 RUST_TEST_THREADS=4 cargo xtask ci",
+  "gates":{"fmt":"passed","clippy":"passed","test":"passed","i18n":"passed with gaps reported","assets":"27 files attributed","layers":"14 crates, no layering violations","wasm":"passed with 4 existing dead-code warnings","extensions":"2 functional feature-off tests and CLI/desktop/web checks passed"},
+  "tests":{"passed":4005,"failed":0,"ignored":26,"result_suites":157,"count_scope":"all test result: ok lines, including doctests and 2 feature-off integration tests"},
+  "ru_english_fallback_strings":346,
+  "initial_failures_fixed":["Duplicate Russian Open a drawing first. catalog key","Two missing Chinese command labels for normative profile/catalog"],
+  "later_narrow_changes":{"cli":"Parser argv uses identity::CLI_BINARY; 2 focused help tests, Clippy, release build, all-format repackaging and actual main/subcommand/error-help usage passed","ui":"Arc-backed immutable snapshot; all-targets Clippy and release build passed; actual rebuilt AppImage reopened profile/theme, rendered standards dialog and reloaded through its real button"},
+  "remote_ci":{"revision":"748896210a539303cb93f8bf37f44e35be8b3906","run_url":"https://github.com/mikiway902/russian-cadcraft/actions/runs/44897897118","ubuntu_24_04":"success","windows_latest":"success","macos_latest":"failure at Gate; exact logs inaccessible without GitHub read token; browser relay connection unavailable"},
+  "limits":["Ignored tests are not passed scenarios","i18n success does not mean full Russian translation","Remote platform results cover the specified earlier revision, not the latest worktree","No Alpha release or full GOST-conformance certification"]
+}

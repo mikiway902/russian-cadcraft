@@ -167,12 +167,17 @@ fn end_thread_uses_three_quarter_thin_circle_and_visible_length() {
 fn annotation_scaling_does_not_scale_physical_thread_diameter_or_length() {
     let mut s = session();
     super::super::profile::install(&mut s, &json!({"scale":5})).unwrap();
+    let before = s.doc().unwrap().clone();
+    let error = thread(&mut s, &json!({"at":[0,0],"nominal":10,"pitch":1.5,"length":20})).unwrap_err().to_string();
+    assert!(error.contains("Enlarge the view"));
+    assert_eq!(s.doc().unwrap(), &before);
+    super::super::profile::install(&mut s, &json!({"scale":0.5})).unwrap();
     let r = thread(&mut s, &json!({"at":[0,0],"nominal":10,"pitch":1.5,"length":20})).unwrap();
     let b = block(&s, handle(&r));
     assert!(b.entities.iter().any(|e| matches!(&e.kind, EntityKind::Line(l) if l.a.y == 5.0 && l.b.y == 5.0 && l.b.x == 20.0)));
-    assert!(b.entities.iter().any(|e| matches!(&e.kind, EntityKind::Text(t) if t.height == 17.5)));
+    assert!(b.entities.iter().any(|e| matches!(&e.kind, EntityKind::Text(t) if t.height == 1.75)));
     let model = roughness(&mut s, &json!({"at":[0,0],"value":1.6})).unwrap();
-    assert_eq!(model["parameters"]["scale"], 5.0);
+    assert_eq!(model["parameters"]["scale"], 0.5);
     let paper_name = s.doc().unwrap().layouts.first().unwrap().name.clone();
     s.state_mut().unwrap().space = Space::Paper(paper_name);
     let paper = roughness(&mut s, &json!({"at":[0,0],"value":1.6})).unwrap();
@@ -445,4 +450,98 @@ fn cross_document_paste_keeps_symbol_geometry_even_for_legacy_named_blocks() {
         s.execute(EDIT, &json!({"handle":copied.hex(),"patch":{"value":3.2}})).unwrap();
         assert_eq!(kinds(&block(&s, other)), other_geometry);
     }
+}
+
+#[test]
+fn thread_spacing_rejects_infeasible_creation_and_edit_without_clamping_physical_values() {
+    let mut s = session();
+    for side in ["external", "internal"] {
+        for view in ["longitudinal", "end"] {
+            let before = s.doc().unwrap().clone();
+            let undo = s.state().unwrap().undo.len();
+            let p = json!({"at":[0,0],"nominal":10,"pitch":1,"length":20,"side":side,"view":view});
+            let error = thread(&mut s, &p).unwrap_err().to_string();
+            assert!(error.contains("paper mm") && error.contains("scale <="));
+            assert_eq!(s.doc().unwrap(), &before, "preflight must not allocate handles or install a block");
+            assert_eq!(s.state().unwrap().undo.len(), undo);
+            let enlarged = thread(&mut s, &json!({"at":[0,0],"nominal":10,"pitch":1,"length":20,"side":side,"view":view,"scale":0.5})).unwrap();
+            let h = handle(&enlarged);
+            let b = block(&s, h);
+            let (thick, thin) = if view == "end" {
+                let thick = b.entities.iter().find_map(|e| if let EntityKind::Circle(c) = &e.kind { Some(c.radius) } else { None }).unwrap();
+                let thin = b.entities.iter().find_map(|e| if let EntityKind::Arc(a) = &e.kind { Some(a.radius) } else { None }).unwrap();
+                (thick, thin)
+            } else {
+                let radius = |layer: &str| {
+                    b.entities
+                        .iter()
+                        .find_map(|e| match &e.kind {
+                            EntityKind::Line(l) if e.common.layer == layer && l.a.x == 0.0 && l.b.x == 20.0 => Some(l.a.y.abs()),
+                            _ => None,
+                        })
+                        .unwrap()
+                };
+                (radius("GOST-OUTLINE"), radius("GOST-THIN"))
+            };
+            let physical_minor = (10.0 - if side == "external" { 1.226869 } else { 1.082532 }) * 0.5;
+            let (major, minor) = if side == "external" { (thick, thin) } else { (thin, thick) };
+            assert!((major - 5.0).abs() < 1e-12);
+            assert!((minor - physical_minor).abs() < 1e-12, "root geometry must not be clamped to satisfy paper spacing");
+            let paper_gap = (major - minor) / 0.5;
+            assert!((0.8..=2.0).contains(&paper_gap));
+            let before = s.doc().unwrap().clone();
+            assert!(edit(&mut s, &json!({"handle":h.hex(),"patch":{"scale":2}})).is_err());
+            assert_eq!(s.doc().unwrap(), &before, "infeasible edit must preserve payload, cached block and allocator");
+            assert_eq!(inspect(&mut s, &json!({"handle":h.hex()})).unwrap()["parameters"]["nominal"], 10.0);
+        }
+    }
+}
+
+#[test]
+fn enlarged_thread_retains_physical_metadata_and_spacing_after_dxf_and_undo_redo() {
+    let mut s = session();
+    let r = s.execute("gost.thread", &json!({"at":[0,0],"nominal":10,"pitch":1,"length":20,"scale":0.5,"view":"both"})).unwrap();
+    let h = handle(&r);
+    let reopened = cadcraft_io::read_dxf(cadcraft_io::write_dxf(s.doc().unwrap()).as_bytes()).unwrap();
+    s.open_drawing(reopened, "enlarged thread", None);
+    assert_eq!(inspect(&mut s, &json!({"handle":h.hex()})).unwrap()["parameters"], r["parameters"]);
+    let original = kinds(&block(&s, h));
+    s.execute(EDIT, &json!({"handle":h.hex(),"patch":{"length":30}})).unwrap();
+    let changed = kinds(&block(&s, h));
+    assert_ne!(original, changed);
+    s.execute("undo", &json!({})).unwrap();
+    assert_eq!(kinds(&block(&s, h)), original);
+    s.execute("redo", &json!({})).unwrap();
+    assert_eq!(kinds(&block(&s, h)), changed);
+    assert_eq!(inspect(&mut s, &json!({"handle":h.hex()})).unwrap()["parameters"]["pitch"], 1.0);
+}
+
+#[test]
+fn paper_thread_cannot_fake_spacing_by_changing_only_annotation_scale() {
+    let mut s = session();
+    let layout = s.doc().unwrap().layouts.first().unwrap().name.clone();
+    s.state_mut().unwrap().space = Space::Paper(layout);
+    for scale in [0.5, 1.0] {
+        let before = s.doc().unwrap().clone();
+        assert!(thread(&mut s, &json!({"at":[0,0],"nominal":10,"pitch":1,"length":20,"scale":scale})).is_err());
+        assert_eq!(s.doc().unwrap(), &before);
+    }
+    thread(&mut s, &json!({"at":[0,0],"nominal":10,"pitch":1.5,"length":20})).unwrap();
+}
+
+#[test]
+fn legacy_unreadable_thread_inspection_warns_without_silent_repair() {
+    let mut s = session();
+    let r = thread(&mut s, &json!({"at":[0,0],"nominal":10,"pitch":1.5,"length":20})).unwrap();
+    let h = handle(&r);
+    let mut common = s.doc().unwrap().entity(h).unwrap().common.clone();
+    let mut symbol: Symbol = super::super::data::load(&common, META).unwrap().unwrap();
+    let Symbol::Thread(q) = &mut symbol else { panic!() };
+    q.scale = 5.0;
+    super::super::data::save(&mut common, META, &symbol).unwrap();
+    s.doc_mut().unwrap().modify_entity(h, |e| e.common = common).unwrap();
+    let before = s.doc().unwrap().clone();
+    let report = inspect(&mut s, &json!({"handle":h.hex()})).unwrap();
+    assert!(report["reviewWarnings"].as_array().unwrap().iter().any(|w| w.as_str().unwrap().contains("Enlarge the view")));
+    assert_eq!(s.doc().unwrap(), &before);
 }

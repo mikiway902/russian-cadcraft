@@ -20,6 +20,7 @@ const TOL: &str = "gost.tolerance";
 const LIMITS: &[&str] = &[
     "Native 2D drafting geometry, not manufacturing verification or an associative attachment to a part.",
     "Thread geometry is a conventional symbolic representation, never a modeled 3D helix; basic metric profile only, without fits or runout.",
+    "Physical-root-based thread symbols require an enlarged view when the radial line spacing would be below the selected paper minimum; roots and nominal/pitch metadata are never clamped. Source edge/centerline measurement interpretation and printed strokes require manual review.",
     "Weld notation includes a joint standard/code and optional process; the selected joint, materials and inspection requirements still require engineering verification against that standard.",
 ];
 
@@ -35,7 +36,7 @@ pub(super) fn specs() -> Vec<CommandSpec> {
             .interactive(|_| Ok(Box::new(CreateM::new("gost.weld", "GOST.WELD")))),
         CommandSpec::new("gost.thread", "GOST Symbolic Thread", thread)
             .menu(&["Format", "GOST", "GOST Symbolic Thread"])
-            .params("{at:[x,y]: axis origin, nominal:metric diameter mm, pitch:positive mm, length:mm >= pitch, side?:external|internal, view?:longitudinal|end|both, rotation?:axis degrees, scale?:annotation-only model units/paper mm, textHeight?:paper mm} → 2D conventional lines/circles/label, NOT a modeled 3D thread; physical diameter/length are not annotation-scaled")
+            .params("{at:[x,y]: axis origin, nominal:metric diameter mm, pitch:positive mm, length:mm >= pitch, side?:external|internal, view?:longitudinal|end|both, rotation?:axis degrees, scale?:annotation-only model units/paper mm, textHeight?:paper mm} → 2D physical-root-based conventional symbol, NOT a modeled 3D thread; diameter/length are not annotation-scaled. Rejects unreadable thin-line spacing before mutation; use the reported enlarged-view scale.")
             .interactive(|_| Ok(Box::new(CreateM::new("gost.thread", "GOST.THREAD")))),
         CommandSpec::new(EDIT, "Edit GOST Engineering Symbol", edit)
             .menu(&["Format", "GOST", "Edit GOST Engineering Symbol"])
@@ -205,6 +206,39 @@ struct Thread {
     scale: f64,
     #[serde(default = "height")]
     text_height: f64,
+}
+
+impl Thread {
+    fn check_spacing(&self, d: &Drawing, paper_space: bool) -> Result<()> {
+        if paper_space && self.scale != 1.0 {
+            return Err(bad(
+                "gost.thread",
+                "paper-space thread symbols use scale=1; a fine pitch requires an enlarged model-space view/viewport, not annotation-only scaling of paper geometry",
+            ));
+        }
+        let minimum = super::standards::drafting(d)?.thread_minimum_separation_mm;
+        // Keep basic physical diameters: reject an unreadable representation
+        // instead of moving its root line or falsifying nominal/pitch metadata.
+        let radial = (if self.side == ThreadSide::External { 0.6134345 } else { 0.541266 }) * self.pitch;
+        let paper = radial / self.scale;
+        let represented_pitch = self.pitch / self.scale;
+        if paper + 1e-12 < minimum || paper > represented_pitch + 1e-12 {
+            return Err(bad(
+                "gost.thread",
+                format!(
+                    "this physical-root-based symbol cannot meet the selected thread line spacing: {paper:.4} paper mm, required >= {minimum} and <= represented pitch {represented_pitch:.4}. Enlarge the view: use scale <= {:.6} model units/paper mm (current {}); nominal diameter, pitch and length were not changed. {}",
+                    (radial / minimum * 1e6).floor() / 1e6,
+                    self.scale,
+                    if paper_space {
+                        "In paper space keep scale=1 and create an enlarged model-space view/viewport instead."
+                    } else {
+                        "The actual plotted model view must use that same annotation scale."
+                    }
+                ),
+            ));
+        }
+        Ok(())
+    }
 }
 
 /// Bound structural work before cloning JSON or calling the native frame parser.
@@ -625,7 +659,10 @@ impl Geometry {
             }
         }
     }
-    fn build(s: &Session, symbol: &Symbol) -> Result<Self> {
+    fn build(s: &Session, symbol: &Symbol, paper_space: bool) -> Result<Self> {
+        if let Symbol::Thread(q) = symbol {
+            q.check_spacing(s.doc()?, paper_space)?;
+        }
         let mut g = Self::new(s)?;
         match symbol {
             Symbol::Roughness(q) => g.roughness(q),
@@ -694,7 +731,7 @@ fn create(s: &mut Session, p: &Value, kind: &str) -> Result<Value> {
     defaults(s, &mut object)?;
     object.insert("kind".into(), json!(kind));
     let symbol = decode(Value::Object(object), &cmd)?;
-    let geometry = Geometry::build(s, &symbol)?;
+    let geometry = Geometry::build(s, &symbol, s.space().is_paper())?;
     let labels = geometry.labels.clone();
     let name = block_name(s.doc()?)?;
     let mut common = Common { layer: "GOST-DIM".into(), ..Common::default() };
@@ -760,7 +797,14 @@ fn edit(s: &mut Session, p: &Value) -> Result<Value> {
         fields.insert(k.clone(), v.clone());
     }
     let symbol = decode(value, EDIT)?;
-    let geometry = Geometry::build(s, &symbol)?;
+    if matches!(symbol, Symbol::Thread(_)) && ((insert.scale.x.abs() - 1.0).abs() > 1e-9 || (insert.scale.y.abs() - 1.0).abs() > 1e-9) {
+        return Err(bad(
+            EDIT,
+            "thread symbols require unit-magnitude INSERT scaling; restore it and edit nominal/pitch/scale explicitly so paper line spacing can be checked",
+        ));
+    }
+    let paper_space = s.doc()?.space_of(h).is_some_and(|space| space.is_paper());
+    let geometry = Geometry::build(s, &symbol, paper_space)?;
     let labels = geometry.labels.clone();
     super::data::save(&mut common, META, &symbol)?;
     let can_reuse = insert.block.starts_with("GOST-MARK-") && !referenced_elsewhere(s.doc()?, h, &insert.block);
@@ -783,11 +827,21 @@ fn inspect(s: &mut Session, p: &Value) -> Result<Value> {
     bounded(p, INSPECT, 0)?;
     let h = selected(s, p, INSPECT)?;
     let (_, insert, symbol) = load(s, h, INSPECT)?;
+    let mut review_warnings = Vec::new();
+    if let Symbol::Thread(q) = &symbol {
+        let paper_space = s.doc()?.space_of(h).is_some_and(|space| space.is_paper());
+        if let Err(error) = q.check_spacing(s.doc()?, paper_space) {
+            review_warnings.push(error.to_string());
+        }
+        if (insert.scale.x.abs() - 1.0).abs() > 1e-9 || (insert.scale.y.abs() - 1.0).abs() > 1e-9 {
+            review_warnings.push("Thread INSERT scaling changes its physical drawing and paper spacing; restore unit-magnitude scaling and edit nominal/pitch/scale explicitly.".into());
+        }
+    }
     let block = s.doc()?.block(&insert.block).ok_or_else(|| bad(INSPECT, "symbol block missing"))?;
     let labels: Vec<&str> =
         block.entities.iter().filter_map(|e| if let EntityKind::Text(t) = &e.kind { Some(t.value.as_str()) } else { None }).collect();
     Ok(
-        json!({"handle":h.hex(),"block":insert.block,"kind":symbol.kind(),"parameters":symbol.parameters()?,"transform":{"at":[insert.insert.x,insert.insert.y,insert.insert.z],"rotation":insert.rotation.to_degrees(),"scale":[insert.scale.x,insert.scale.y,insert.scale.z],"rows":insert.rows,"cols":insert.cols},"geometryCount":block.entities.len(),"labels":labels,"representation":"native-2d-symbol","limitations":LIMITS}),
+        json!({"handle":h.hex(),"block":insert.block,"kind":symbol.kind(),"parameters":symbol.parameters()?,"transform":{"at":[insert.insert.x,insert.insert.y,insert.insert.z],"rotation":insert.rotation.to_degrees(),"scale":[insert.scale.x,insert.scale.y,insert.scale.z],"rows":insert.rows,"cols":insert.cols},"geometryCount":block.entities.len(),"labels":labels,"representation":"native-2d-symbol","reviewWarnings":review_warnings,"limitations":LIMITS}),
     )
 }
 

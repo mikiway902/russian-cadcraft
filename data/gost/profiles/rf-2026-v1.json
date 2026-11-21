@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "id": "rf-2026-v1",
+  "name": "РФ — действующие редакции ЕСКД (2026)",
+  "version": 1,
+  "jurisdiction": "RF",
+  "as_of": "2026-11-19",
+  "catalog_version": "2026-11-19.1",
+  "standards": [
+    {"id":"gost-r-2-104","designation":"ГОСТ Р 2.104-2023","edition":"2023"},
+    {"id":"gost-r-2-106","designation":"ГОСТ Р 2.106-2019","edition":"2019"},
+    {"id":"gost-r-2-109","designation":"ГОСТ Р 2.109-2023","edition":"2023"},
+    {"id":"gost-2-301","designation":"ГОСТ 2.301-68","edition":"1968"},
+    {"id":"gost-2-302","designation":"ГОСТ 2.302-68","edition":"1968"},
+    {"id":"gost-2-303","designation":"ГОСТ 2.303-68","edition":"1968"},
+    {"id":"gost-2-304","designation":"ГОСТ 2.304-81","edition":"1981"},
+    {"id":"gost-2-305","designation":"ГОСТ 2.305-2008","edition":"2008"},
+    {"id":"gost-2-306","designation":"ГОСТ 2.306-68","edition":"1968"},
+    {"id":"gost-2-307","designation":"ГОСТ 2.307-2011","edition":"2011"},
+    {"id":"gost-2-308","designation":"ГОСТ Р 2.308-2023","edition":"2023"},
+    {"id":"gost-2-309","designation":"ГОСТ 2.309-73","edition":"1973"},
+    {"id":"gost-2-311","designation":"ГОСТ 2.311-68","edition":"1968"},
+    {"id":"gost-2-312","designation":"ГОСТ 2.312-72","edition":"1972"},
+    {"id":"gost-2-313","designation":"ГОСТ 2.313-82","edition":"1982"},
+    {"id":"gost-2-316","designation":"ГОСТ Р 2.316-2023","edition":"2023"},
+    {"id":"gost-2-320","designation":"ГОСТ 2.320-82","edition":"1982"},
+    {"id":"gost-2-503","designation":"ГОСТ Р 2.503-2023","edition":"2023"}
+  ],
+  "drafting": {
+    "font": "OpenGost Type B",
+    "annotation_scale": 1.0,
+    "outline_width_mm100": 70,
+    "thin_width_mm100": 25,
+    "dimension_text_mm": 3.5,
+    "dimension_arrow_mm": 3.5,
+    "extension_protrusion_mm": 2.0,
+    "text_gap_mm": 1.0,
+    "baseline_spacing_mm": 7.0,
+    "designation_height_factor": 2.0,
+    "designation_alphabet": "cyrillic",
+    "thread_minimum_separation_mm": 0.8
+  },
+  "consumed_rules": [
+    "gost-2-316.designation-alphabets",
+    "gost-2-316.designation-letter-size",
+    "gost-2-311.symbolic-line-separation"
+  ],
+  "limits": [
+    "Drafting sizes and the factor 2 designation height are working selections, not universal exact normative values. The cited ratio is approximate.",
+    "Use generally one designation alphabet within a graphical document. Latin is an explicit when-necessary choice. Changing the document alphabet never migrates existing lettering; legacy annotations must be reviewed before issue.",
+    "Selected editions are identities, not evidence that every clause is implemented. All catalog rule assessments and manual-review requirements remain applicable.",
+    "Rules were checked against cited secondary text; authoritative full text and amendment substance still require authorized normative review.",
+    "The thread spacing check uses paper-space line centerline separation and represented pitch. The cited prose does not resolve the measurement basis; inspect printed strokes manually.",
+    "Future RF 2026 editions effective 2027-10-01 are not silently adopted. No cross-edition transfer of legacy rules is implied."
+  ]
+}
