@@ -1,4 +1,5 @@
 //! Model metadata follows the actual clipboard graph, never a destination-local ID match.
+use super::projections::projection_parent;
 use super::{
     Arc, Common, Drawing, Entity, EntityKind, Handle, MAX_MODELS, MAX_VIEWS, PIECE, Result, Store, VIEW, Value, ViewLink, data, digest, entities,
     err, json, load, save, text,
@@ -277,6 +278,7 @@ fn install(d: &mut Drawing, defs: &Drawing, pairs: &[CopyPair], renames: &BTreeM
         ids.insert(model.id.clone(), id);
     }
     let mut view_handles = BTreeMap::new();
+    let first_copied_view = destination.views.len();
     for view in &source.views {
         if destination.views.len() >= MAX_VIEWS {
             return Err(err("destination saved-view count limit exceeded"));
@@ -298,7 +300,11 @@ fn install(d: &mut Drawing, defs: &Drawing, pairs: &[CopyPair], renames: &BTreeM
         let Some(old) = reverse.get(&e.handle) else { return Ok(None) };
         if let Some(mut link) = data::load::<ViewLink>(&e.common, VIEW)? {
             let saved = source.views.iter().find(|v| v.handle == link.view).ok_or_else(|| err("clipboard view metadata missing"))?;
-            if link.view != old.hex() || saved.model_id != link.model_id || saved.revision != link.revision {
+            if !matches!(e.kind, EntityKind::Insert(_))
+                || link.view != old.hex()
+                || saved.model_id != link.model_id
+                || saved.revision != link.revision
+            {
                 return Err(err("clipboard view identity does not match the adopted entity"));
             }
             seen_views.insert(link.view.clone());
@@ -353,6 +359,29 @@ fn install(d: &mut Drawing, defs: &Drawing, pairs: &[CopyPair], renames: &BTreeM
         || source.views.iter().any(|v| Handle::parse_hex(&v.handle).is_some_and(|h| forward.contains_key(&h)) && !seen_views.contains(&v.handle))
     {
         return Err(err("clipboard entity or saved view mapping is incomplete"));
+    }
+    // Reserved handles for snapshot-only records are not transferred INSERTs. Resolve only
+    // after every adopted entity has been checked, so selection order cannot break chains.
+    let active_views: BTreeMap<_, _> = source
+        .views
+        .iter()
+        .filter(|v| seen_views.contains(&v.handle))
+        .map(|v| {
+            Handle::parse_hex(&v.handle).map(|handle| (handle, v.handle.as_str())).ok_or_else(|| err("invalid transferred projection view handle"))
+        })
+        .collect::<Result<_>>()?;
+    for (original, view) in source.views.iter().zip(&mut destination.views[first_copied_view..]) {
+        if let Some(parent) = projection_parent(view)? {
+            let new_parent =
+                seen_views.contains(&original.handle).then(|| active_views.get(&parent).and_then(|old| view_handles.get(*old))).flatten();
+            let link = &mut view.provenance["projection_link"];
+            if let Some(parent) = new_parent {
+                link["parent"] = json!(parent);
+            } else {
+                link["parent"] = Value::Null;
+                link["status"] = json!("missing_parent");
+            }
+        }
     }
     for space in std::iter::once(&mut d.model).chain(d.layouts.iter_mut().map(|l| &mut l.entities)) {
         apply_updates(space, &mut updates);

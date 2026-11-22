@@ -19,6 +19,7 @@ use std::{
 
 mod clipboard;
 pub mod dimensions;
+pub mod projections;
 pub mod sections;
 
 const RECORD: &str = "CADCRAFT_GOST_LINKED_MODELS";
@@ -36,6 +37,7 @@ pub(super) const EXTENSION: super::Extension = super::Extension {
     commands: specs,
     drawing_preset: None,
     document_changed: |s, e| {
+        projections::after_command(s, e.before, e.uid)?;
         sections::after_command(s, e.before, e.uid)?;
         dimensions::after_command(s, e.before, e.uid)
     },
@@ -237,7 +239,7 @@ fn validate_store(store: &Store) -> Result<()> {
         }
         validate_basis(&v.basis)?;
     }
-    Ok(())
+    projections::validate_store_links(store)
 }
 fn tag(code: i32, value: impl Into<String>) -> RawTag {
     RawTag { code, value: value.into() }
@@ -333,6 +335,7 @@ fn specs() -> Vec<CommandSpec> {
     ];
     commands.extend(dimensions::specs());
     commands.extend(sections::specs());
+    commands.extend(projections::specs());
     commands
 }
 pub(super) fn dimension_factor(d: &Drawing, e: &Entity) -> Option<f64> {

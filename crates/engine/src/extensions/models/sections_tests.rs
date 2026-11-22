@@ -147,7 +147,15 @@ fn native_hatch_preserves_bore_and_paper_spacing_and_roundtrips() {
     let original = hatch.clone();
     let reopened = cadcraft_io::read_dxf(cadcraft_io::write_dxf(s.doc().unwrap()).as_bytes()).unwrap();
     s.open_drawing(reopened, "section DXF roundtrip", None);
-    assert_eq!(self::hatch(&s, h), &original);
+    let mut reopened_hatch = self::hatch(&s, h).clone();
+    assert_eq!(reopened_hatch.pattern_lines.len(), original.pattern_lines.len());
+    for (actual, expected) in reopened_hatch.pattern_lines.iter_mut().zip(&original.pattern_lines) {
+        // DXF stores a rotated world offset; inverse trigonometry can differ by an ULP.
+        assert!((actual.delta.0 - expected.delta.0).abs() < 1e-12);
+        assert!((actual.delta.1 - expected.delta.1).abs() < 1e-12);
+        actual.delta = expected.delta;
+    }
+    assert_eq!(reopened_hatch, original);
     assert_eq!(style(&s.doc().unwrap().entity(h).unwrap().common).unwrap(), Some(0.5));
 }
 

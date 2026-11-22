@@ -1034,10 +1034,10 @@ impl CadApp {
     /// Frame-only work, run from the first real UI pass (never from a hidden logic tick).
     fn ui_frame_begin(&mut self, ui: &mut egui::Ui) {
         let ctx = ui.ctx().clone();
-        #[cfg(feature = "gost")]
-        extensions::models::tick(self, &ctx);
-        let ctx = &ctx;
         let language = self.language();
+        #[cfg(feature = "gost")]
+        i18n::with_language(language, || extensions::models::tick(self, &ctx));
+        let ctx = &ctx;
         if self.fonts_language != Some(language) {
             theme::install_fonts(ctx, language);
             self.fonts_language = Some(language);

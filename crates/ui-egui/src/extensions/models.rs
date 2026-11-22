@@ -21,7 +21,11 @@ use crate::{
 
 mod dimensions;
 mod preview;
+mod projections;
 mod sections;
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod completion_tests;
 
 pub(super) const DESCRIPTOR: ExtensionDescriptor = ExtensionDescriptor {
     id: "models",
@@ -96,6 +100,7 @@ enum Kind {
     Refresh,
     View,
     Section,
+    ProjectedView,
     Preview,
     Status,
     References,
@@ -108,6 +113,7 @@ impl Kind {
             Self::Refresh => crate::tl!("Refreshing model source…"),
             Self::View => crate::tl!("Projecting exact model…"),
             Self::Section => crate::tl!("Computing exact section…"),
+            Self::ProjectedView => crate::tl!("Projecting linked exact view…"),
             Self::Preview => crate::tl!("Loading 3D preview…"),
             Self::Status => crate::tl!("Checking model source…"),
             Self::References => crate::tl!("Loading exact model edges…"),
@@ -119,6 +125,7 @@ enum Outcome {
     Loaded(Value),
     View { projection: Box<Projection>, params: Value },
     Section { section: Box<Section>, params: Value },
+    ProjectedView { projection: Box<Projection>, params: Value },
     Preview(Box<preview::Scene>),
     Status(Value),
     References(Value),
@@ -141,6 +148,7 @@ enum Act {
     Status,
     View,
     Section,
+    ProjectedView,
     Remove,
     ReloadList,
     References,
@@ -165,6 +173,7 @@ pub(crate) struct State {
     accept_incomplete: bool,
     dimensions: dimensions::State,
     sections: sections::State,
+    projections: projections::State,
 }
 impl Default for State {
     fn default() -> Self {
@@ -186,6 +195,7 @@ impl Default for State {
             accept_incomplete: false,
             dimensions: dimensions::State::default(),
             sections: sections::State::default(),
+            projections: projections::State::default(),
         }
     }
 }
@@ -199,6 +209,7 @@ impl State {
         self.status = None;
         self.dimensions = dimensions::State::default();
         self.sections = sections::State::default();
+        self.projections = projections::State::default();
     }
     fn update(&mut self, app: &mut CadApp) -> Result<(), String> {
         let key = app.session.state().map(|s| (s.uid, s.revision)).map_err(|e| e.to_string())?;
@@ -242,8 +253,8 @@ impl State {
         }
         let state = app.session.state().map_err(|e| e.to_string())?;
         let uid = state.uid;
-        let document_revision = matches!(kind, Kind::View | Kind::Section | Kind::Dimension).then_some(state.revision);
-        let space = matches!(kind, Kind::View | Kind::Section | Kind::Dimension).then(|| (state.space.clone(), state.mspace));
+        let document_revision = matches!(kind, Kind::View | Kind::Section | Kind::ProjectedView | Kind::Dimension).then_some(state.revision);
+        let space = matches!(kind, Kind::View | Kind::Section | Kind::ProjectedView | Kind::Dimension).then(|| (state.space.clone(), state.mspace));
         #[cfg(not(target_arch = "wasm32"))]
         {
             let (tx, rx) = channel();
@@ -312,6 +323,20 @@ impl State {
                 let captured = guard.clone();
                 self.start(app, Kind::Section, Some(guard), move || {
                     (hooks.section)(&captured.path, &captured.sha256, &request).map(|section| Outcome::Section { section: Box::new(section), params })
+                })
+            }
+            Act::ProjectedView => {
+                let guard = self.selected_guard()?;
+                let params = self.projections.params(self.hidden, self.accept_incomplete)?;
+                let canonical = models::projections::prepare(&app.session, &params).map_err(|e| e.to_string())?;
+                if canonical["id"] != guard.id {
+                    return Err("Projection parent belongs to another linked model".into());
+                }
+                let (direction, up) = models::view_vectors(&canonical).map_err(|e| e.to_string())?;
+                let captured = guard.clone();
+                self.start(app, Kind::ProjectedView, Some(guard), move || {
+                    (hooks.view)(&captured.path, &captured.sha256, direction, up)
+                        .map(|projection| Outcome::ProjectedView { projection: Box::new(projection), params })
                 })
             }
             Act::References => {
@@ -401,6 +426,11 @@ pub(crate) fn tick(app: &mut CadApp, ctx: &egui::Context) {
                         Some("created") => crate::tl!("Exact section created."),
                         _ => return Err("Invalid exact section completion status".into()),
                     });
+                    state.cache = None;
+                }
+                Outcome::ProjectedView { projection, params } => {
+                    models::projections::apply(&mut app.session, &params, *projection).map_err(|e| e.to_string())?;
+                    app.set_status(crate::tl!("Linked projected view created."));
                     state.cache = None;
                 }
                 Outcome::Preview(scene) => {
@@ -595,6 +625,9 @@ fn dialog(app: &mut CadApp, ctx: &egui::Context, _: &str, open: &mut bool) -> Ac
                         action = Some(Act::View);
                     }
                     if let Some(model) = state.rows.iter().find(|m| m.id == state.selected) {
+                        if let Some(projection_action) = state.projections.show(ui, model) {
+                            action = Some(projection_action);
+                        }
                         if let Some(section_action) = state.sections.show(ui, model) {
                             action = Some(section_action);
                         }

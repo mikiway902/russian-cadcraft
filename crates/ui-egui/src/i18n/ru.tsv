@@ -1412,3 +1412,15 @@
 	Section removes every selected body; no view was created.	Разрез удаляет все выбранные тела; вид не создан.
 	No body interior intersects the plane; no view was created.	Плоскость не пересекает внутренность тела; вид не создан.
 	Exact section created.	Точный разрез создан.
+	Projection-linked view	Проекционно-связанный вид
+	Parent exact view	Исходный точный вид
+	Top view — below parent	Сверху — под исходным видом
+	Bottom view — above parent	Снизу — над исходным видом
+	Left view — right of parent	Слева — справа от исходного вида
+	Right view — left of parent	Справа — слева от исходного вида
+	Paper gap, mm	Промежуток на листе, мм
+	Inherits the parent scale and sheet; first-angle projection.	Наследует масштаб и лист исходного вида; проецирование по первому углу.
+	Create linked projected view	Создать проекционно-связанный вид
+	Create Linked Projected View	Создать проекционно-связанный вид
+	Projecting linked exact view…	Построение проекционно-связанного вида…
+	Linked projected view created.	Проекционно-связанный вид создан.

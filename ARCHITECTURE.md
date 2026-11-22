@@ -129,6 +129,21 @@ scale. Малый отдельный style marker переживает clipboard
 Source-anchor validation отвергает удалённые/исключённые тела и точки вне kept side.
 GUI section completion использует тот же UID/revision/space/source guard, что и вид.
 
+`models::projections` хранит first-angle DAG в `SavedView.provenance.projection_link`
+(version 1). Активная ссылка — `parent`; `original_parent` остаётся только audit.
+Метаданные проверяются при загрузке/сохранении Store: source identity, отсутствие
+циклов и допустимая глубина. Создание и document events проверяют бумажные INSERT
+transforms. Малый handle-free XDATA marker позволяет пропустить несвязанные правки
+без декодирования Store.
+MOVE родителя транзакционно переносит потомки; MOVE потомка ограничен свободной
+осью. Scale/rotate/mirror/layout/nested transformations активной семьи отклоняются,
+не подменяя сохранённые exact curves. Удалённый родитель даёт явный missing_parent.
+Clipboard remap использует общую grammar и только подтверждённую карту реально
+перенесённых видов; placeholder handles и audit никогда не становятся связями.
+GUI вычисляет новую проекцию в прежнем bounded worker и применяет прежние
+UID/revision/space/source guards. Frame completion исполняется в locale scope
+выбранного интерфейса, включая закрытый менеджер.
+
 ## Инварианты перехода
 
 1. Работающие команды и сохранённые DXF не удаляются до равноценной проверенной замены.

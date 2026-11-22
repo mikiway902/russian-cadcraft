@@ -1,0 +1,90 @@
+{
+  "status": "runtime_verified_projection_links_not_complete_gost_acceptance",
+  "date": "2026-11-22",
+  "platform": "Linux x86_64",
+  "source": {
+    "fixture": "target/model-worker-smoke/cylinder.sc",
+    "sha256": "ed9d9e33ddf2b97c5528b61c5a02d77e2f318b698cc9d7fd651080e8dc798dab",
+    "bytes": 787,
+    "geometry": "native cylinder radius 5 mm, height 20 mm",
+    "source_sha_unchanged_after_scenario": true
+  },
+  "surface": {
+    "application": "actual debug desktop GUI with supervised native worker",
+    "control_port": 18062,
+    "first_child_creation": "real manager button click, not engine.execute substitute",
+    "screenshots_read": [
+      "target/coexistence/proof/projection-family-creating.png",
+      "target/coexistence/proof/projection-family-first-angle.png"
+    ],
+    "exit_code": 0
+  },
+  "views": {
+    "layout": "GOST1",
+    "scale": "1:1",
+    "front": {"handle": "184", "at_mm": [80, 160]},
+    "top": {
+      "handle": "18D",
+      "initial_at_mm": [80, 135],
+      "direction": [0, 0, -1],
+      "creation": "GUI button",
+      "minimum_native_curve_gap_mm": 20
+    },
+    "right": {
+      "handle": "192",
+      "at_mm": [50, 160],
+      "direction": [-1, 0, 0],
+      "creation": "engine.execute gost.model.projected_view",
+      "minimum_native_curve_gap_mm": 20
+    },
+    "quality": "raw analytic_complete:false retained; 2 uncertain front/right pieces covered by upstream contract; accept_incomplete:false; no uncovered suppression"
+  },
+  "runtime_checks": {
+    "parent_move_delta_mm": [10, 15],
+    "all_three_native_inserts_moved": true,
+    "undo_restored_complete_insert_geometry": true,
+    "top_free_axis_move_mm": [0, -5],
+    "top_constrained_axis_move_mm_refused": [3, 0],
+    "parent_uniform_scale_2_refused": true,
+    "both_refusals_preserved_entities_undo_and_dirty": true,
+    "parent_erase": "children retain exact geometry, parent:null/status:missing_parent",
+    "undo_erase": "geometry and both active parent links restored",
+    "child_only_copyclip_pasteclip": {
+      "handle": "19F",
+      "model_id": "2",
+      "parent": null,
+      "original_parent": "184",
+      "status": "missing_parent",
+      "destination_existing_parent_was_not_rebound": true
+    },
+    "dxf": {
+      "path": "target/coexistence/proof/projection-family.dxf",
+      "bytes": 116028,
+      "gui_reopen": "complete gost.model.list object equality",
+      "cli_reopen": "exit 0; complete object equals GUI state including full provenance and orphan audit"
+    }
+  },
+  "regression_scope": [
+    "all four directions and basis alignment",
+    "nonzero native block bases and conservative spline placement",
+    "analytic rational conic bounds including zero and legal negative middle weights",
+    "movement chains, Undo and atomic illegal-transform refusal",
+    "malformed graphs, cycles, source identity and missing parents",
+    "clipboard pair/chain remapping, child-only orphaning and colliding destination handles"
+  ],
+  "corrected_locale_surface": {
+    "control_port": 18063,
+    "actual_button_created_new_child_after_dxf_reopen": true,
+    "screenshot_read": "target/coexistence/proof/projection-family-russian-completion.png",
+    "observed_status": "Проекционно-связанный вид создан.",
+    "actual_creation_undo_redo_preserved_complete_model_list": true
+  },
+  "limits": [
+    "Frozen exact-source geometry; no automatic source-change rebuild",
+    "Parent section views are refused; uncut source is never substituted for cut parent",
+    "Generic scale, rotation, mirror, layout moves and nested transforms of active families are refused",
+    "Cylinder placement evidence does not replace canonical stepped-shaft HLR acceptance",
+    "The stepped-shaft ordinary Front still has four uncovered uncertain fragments",
+    "No claim of complete KOMPAS parity or full GOST conformity"
+  ]
+}

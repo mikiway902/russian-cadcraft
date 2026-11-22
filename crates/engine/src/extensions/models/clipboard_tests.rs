@@ -113,6 +113,280 @@ fn assert_snapshot(original: &SavedView, copied: &SavedView) {
     assert_eq!(json!(normalized), json!(original), "raw quality, source metadata and frozen provenance must not change");
 }
 
+fn projection_child(s: &mut Session, id: &str, parent: Handle) -> Handle {
+    let store = load(s.doc().unwrap()).unwrap();
+    let saved = store.views.iter().find(|v| v.handle == parent.hex()).unwrap();
+    let vector = |key: &str| std::array::from_fn(|i| saved.basis[key][i].as_f64().unwrap());
+    let y: [f64; 3] = vector("y");
+    let direction = y.map(|n| -n);
+    let up = vector("direction");
+    let mut projected = projection('a');
+    projected.basis = Basis { x: vector("x"), y: up, direction };
+    let at = insert(s.doc().unwrap(), parent).insert;
+    let result = apply_view(
+        s,
+        id,
+        &"a".repeat(64),
+        &json!({"id":id,"layout":"GOST1","at":[at.x,at.y-30.],"scale":2,"direction":direction,"up":up}),
+        projected,
+    )
+    .unwrap();
+    let child = Handle::parse_hex(result["handle"].as_str().unwrap()).unwrap();
+    let d = s.doc_mut().unwrap();
+    let mut store = load(d).unwrap();
+    // Documented v1 records, independent of the projected-view command implementation.
+    store.views.iter_mut().find(|v| v.handle == child.hex()).unwrap().provenance["projection_link"] =
+        json!({"version":1,"parent":parent.hex(),"original_parent":parent.hex(),"direction":"top","status":"linked"});
+    save(d, &store).unwrap();
+    let mut common = d.entity(child).unwrap().common.clone();
+    common.xdata.extend([tag(1001, "CADCRAFTGOST_PROJECTION_LINK"), tag(1070, "1")]);
+    d.modify_entity(child, |e| e.common = common).unwrap();
+    child
+}
+
+fn projection_fixture() -> (Session, String, Handle, Handle) {
+    let mut s = crate::extensions::new_session();
+    let (id, parent) = add_model(&mut s, 'a');
+    let child = projection_child(&mut s, &id, parent);
+    s.state_mut().unwrap().space = Space::Paper("GOST1".into());
+    (s, id, parent, child)
+}
+
+fn assert_projection_snapshot(original: &SavedView, copied: &SavedView, parent: Option<Handle>) {
+    let link = &copied.provenance["projection_link"];
+    assert_eq!(link["parent"], parent.map_or(Value::Null, |h| json!(h.hex())));
+    assert_eq!(link["status"], if parent.is_some() { "linked" } else { "missing_parent" });
+    assert_eq!(link["original_parent"], original.provenance["projection_link"]["original_parent"]);
+    let mut normalized = copied.clone();
+    normalized.provenance["projection_link"] = original.provenance["projection_link"].clone();
+    assert_snapshot(original, &normalized);
+}
+
+#[test]
+fn projection_pair_native_copy_remaps_only_the_new_pair_and_preserves_source_records() {
+    let (mut s, _, parent, child) = projection_fixture();
+    let before = load(s.doc().unwrap()).unwrap();
+    let marker = [tag(1001, "CADCRAFTGOST_PROJECTION_LINK"), tag(1070, "1")];
+    let result = s.execute("copy", &json!({"handles":[child.hex(),parent.hex()],"delta":[80,0]})).unwrap();
+    let copied_child = Handle::parse_hex(result["handles"][0].as_str().unwrap()).unwrap();
+    let copied_parent = Handle::parse_hex(result["handles"][1].as_str().unwrap()).unwrap();
+    let after = load(s.doc().unwrap()).unwrap();
+    assert_eq!((after.models.len(), after.views.len()), (1, 4));
+    for original in &before.views {
+        assert_eq!(json!(after.views.iter().find(|v| v.handle == original.handle).unwrap()), json!(original));
+    }
+    assert_snapshot(&before.views[0], after.views.iter().find(|v| v.handle == copied_parent.hex()).unwrap());
+    assert_projection_snapshot(&before.views[1], after.views.iter().find(|v| v.handle == copied_child.hex()).unwrap(), Some(copied_parent));
+    assert!(s.doc().unwrap().entity(copied_child).unwrap().common.xdata.windows(2).any(|tags| tags == marker));
+}
+
+#[test]
+fn child_only_copy_and_clipboard_paste_freeze_missing_parent_without_capturing_it() {
+    for clipboard in [false, true] {
+        let (mut s, _, parent, child) = projection_fixture();
+        let before = load(s.doc().unwrap()).unwrap();
+        let parent_entity = s.doc().unwrap().entity(parent).unwrap().clone();
+        let copied = if clipboard {
+            s.execute("copyclip", &json!({"handles":[child.hex()]})).unwrap();
+            let captured = load(&s.clipboard_source.as_ref().unwrap().defs).unwrap();
+            assert_eq!(captured.views.len(), 1);
+            assert_eq!(captured.views[0].handle, child.hex());
+            result_handle(&s.execute("pasteclip", &json!({"at":[100,100]})).unwrap())
+        } else {
+            result_handle(&s.execute("copy", &json!({"handles":[child.hex()],"delta":[100,0]})).unwrap())
+        };
+        let after = load(s.doc().unwrap()).unwrap();
+        assert_eq!(after.views.len(), 3);
+        assert_projection_snapshot(&before.views[1], after.views.iter().find(|v| v.handle == copied.hex()).unwrap(), None);
+        assert_eq!(s.doc().unwrap().entity(parent).unwrap(), &parent_entity);
+        for original in &before.views {
+            assert_eq!(json!(after.views.iter().find(|v| v.handle == original.handle).unwrap()), json!(original));
+        }
+        let listed = s.execute("gost.model.inspect", &json!({"id":after.views.last().unwrap().model_id})).unwrap();
+        let visible = listed["views"].as_array().unwrap().iter().find(|v| v["handle"] == copied.hex()).unwrap();
+        assert_eq!(visible["provenance"]["projection_link"]["status"], "missing_parent");
+    }
+}
+
+#[test]
+fn cross_document_projection_paste_never_binds_colliding_destination_parents() {
+    for include_parent in [false, true] {
+        let (mut source, id, parent, child) = projection_fixture();
+        let (mut destination, other_id, other_parent, other_child) = projection_fixture();
+        assert_eq!((id, parent, child), (other_id, other_parent, other_child));
+        let original_source = source.doc().unwrap().clone();
+        let untouched = load(destination.doc().unwrap()).unwrap();
+        let handles = if include_parent { vec![child.hex(), parent.hex()] } else { vec![child.hex()] };
+        source.execute("copybase", &json!({"handles":handles,"base":[0,0]})).unwrap();
+        transfer(&source, &mut destination);
+        let result = destination.execute("pasteclip", &json!({"at":[100,200]})).unwrap();
+        let copied_child = result_handle(&result);
+        let copied_parent = include_parent.then(|| Handle::parse_hex(result["handles"][1].as_str().unwrap()).unwrap());
+        let after = load(destination.doc().unwrap()).unwrap();
+        let copied = after.views.iter().find(|v| v.handle == copied_child.hex()).unwrap();
+        assert_ne!(copied.model_id, untouched.models[0].id);
+        assert_projection_snapshot(&untouched.views[1], copied, copied_parent);
+        for original in &untouched.views {
+            assert_eq!(json!(after.views.iter().find(|v| v.handle == original.handle).unwrap()), json!(original));
+        }
+        assert_eq!(source.doc().unwrap(), &original_source);
+    }
+}
+
+#[test]
+fn projection_ancestor_chain_survives_repeated_native_copy_with_immutable_audit_handles() {
+    let (mut s, id, root, child) = projection_fixture();
+    let leaf = projection_child(&mut s, &id, child);
+    let before = load(s.doc().unwrap()).unwrap();
+    let mut handles = vec![leaf.hex(), child.hex(), root.hex()];
+    for _ in 0..2 {
+        let result = s.execute("copy", &json!({"handles":handles,"delta":[80,0]})).unwrap();
+        handles = result["handles"].as_array().unwrap().iter().map(|v| v.as_str().unwrap().to_owned()).collect();
+        let leaf = Handle::parse_hex(&handles[0]).unwrap();
+        let child = Handle::parse_hex(&handles[1]).unwrap();
+        let root = Handle::parse_hex(&handles[2]).unwrap();
+        let after = load(s.doc().unwrap()).unwrap();
+        assert_projection_snapshot(&before.views[2], after.views.iter().find(|v| v.handle == leaf.hex()).unwrap(), Some(child));
+        assert_projection_snapshot(&before.views[1], after.views.iter().find(|v| v.handle == child.hex()).unwrap(), Some(root));
+        assert_snapshot(&before.views[0], after.views.iter().find(|v| v.handle == root.hex()).unwrap());
+        for original in &before.views {
+            assert_eq!(json!(after.views.iter().find(|v| v.handle == original.handle).unwrap()), json!(original));
+        }
+    }
+}
+
+#[test]
+fn projection_missing_parent_never_revives_when_the_audited_parent_is_copied_too() {
+    let (mut s, _, parent, child) = projection_fixture();
+    let d = s.doc_mut().unwrap();
+    let mut store = load(d).unwrap();
+    store.views[1].provenance["projection_link"]["parent"] = Value::Null;
+    store.views[1].provenance["projection_link"]["status"] = json!("missing_parent");
+    save(d, &store).unwrap();
+    let result = s.execute("copy", &json!({"handles":[child.hex(),parent.hex()],"delta":[80,0]})).unwrap();
+    let copied = result_handle(&result);
+    let after = load(s.doc().unwrap()).unwrap();
+    assert_projection_snapshot(&store.views[1], after.views.iter().find(|v| v.handle == copied.hex()).unwrap(), None);
+}
+
+#[test]
+fn projection_snapshot_placeholder_is_not_a_transferred_parent_insert() {
+    let (mut source, id, parent, child) = projection_fixture();
+    let curve = source.doc().unwrap().block(&insert(source.doc().unwrap(), parent).block).unwrap().entities.iter().next().unwrap().clone();
+    let detached = source.doc_mut().unwrap().add(&Space::Model, curve.common.clone(), curve.kind.clone()).unwrap();
+    apply_loaded(&mut source, metadata('b'), Some((&id, &"a".repeat(64)))).unwrap();
+    let before = load(source.doc().unwrap()).unwrap();
+    source.execute("copyclip", &json!({"handles":[child.hex(),detached.hex()]})).unwrap();
+    let captured = load(&source.clipboard_source.as_ref().unwrap().defs).unwrap();
+    assert_eq!(captured.views.len(), 2, "old curve requires both matching snapshot records, not their INSERTs");
+    let mut destination = crate::extensions::new_session();
+    transfer(&source, &mut destination);
+    let result = destination.execute("pasteclip", &json!({"at":[100,200]})).unwrap();
+    let copied = result_handle(&result);
+    let after = load(destination.doc().unwrap()).unwrap();
+    assert_projection_snapshot(&before.views[1], after.views.iter().find(|v| v.handle == copied.hex()).unwrap(), None);
+    let snapshot = after.views.iter().find(|v| v.handle != copied.hex()).unwrap();
+    assert!(destination.doc().unwrap().entity(Handle::parse_hex(&snapshot.handle).unwrap()).is_none());
+    assert_snapshot(&before.views[0], snapshot);
+    let detached = Handle::parse_hex(result["handles"][1].as_str().unwrap()).unwrap();
+    let piece: Value = data::load(&destination.doc().unwrap().entity(detached).unwrap().common, PIECE).unwrap().unwrap();
+    assert_eq!(piece["source_sha256"], "a".repeat(64));
+    assert_eq!(piece["model_id"], snapshot.model_id);
+}
+
+fn corrupt_projection(store: &mut Store, malformed: usize) {
+    let parent = store.views[0].handle.clone();
+    let child = store.views[1].handle.clone();
+    let link = &mut store.views[1].provenance["projection_link"];
+    match malformed {
+        0 => link["version"] = json!(2),
+        1 => link["direction"] = json!("front"),
+        2 => link["parent"] = json!(42),
+        3 => link["parent"] = Value::Null,
+        4 => link["status"] = json!("missing_parent"),
+        5 => link["original_parent"] = json!("not-a-handle"),
+        6 => link["status"] = json!("unknown"),
+        7 => link["extra"] = json!(true),
+        8 => link["parent"] = json!(child),
+        9 => {
+            store.views[0].provenance["projection_link"] =
+                json!({"version":1,"parent":child,"original_parent":child,"direction":"bottom","status":"linked"});
+        }
+        _ => panic!("unexpected malformed projection fixture"),
+    }
+    assert_eq!(store.views[0].handle, parent);
+}
+
+fn save_corrupt_projection(d: &mut cadcraft_doc::Drawing, store: &Store) {
+    // Model a hostile serialized input, not an invalid write through the validating production API.
+    let text = serde_json::to_string(store).unwrap();
+    let foreign = Arc::make_mut(&mut d.foreign);
+    let handle = foreign.dictionary.iter().find(|(name, _)| name == RECORD).unwrap().1;
+    let object = foreign.objects.iter_mut().find(|o| o.handle == handle).unwrap();
+    object.tags.retain(|t| t.code != 1);
+    let mut start = 0;
+    while start < text.len() {
+        let mut end = (start + 255).min(text.len());
+        while !text.is_char_boundary(end) {
+            end -= 1;
+        }
+        object.tags.push(tag(1, &text[start..end]));
+        start = end;
+    }
+}
+
+#[test]
+fn malformed_projection_copy_and_cut_fail_without_touching_source_or_clipboard() {
+    for malformed in 0..10 {
+        for command in ["copy", "copyclip", "cutclip"] {
+            let (mut s, _, parent, child) = projection_fixture();
+            s.execute("copyclip", &json!({"handles":[parent.hex()]})).unwrap();
+            let previous_clipboard = s.clipboard.clone();
+            let previous_serial = s.clipboard_source.as_ref().unwrap().serial;
+            let d = s.doc_mut().unwrap();
+            let mut store = load(d).unwrap();
+            corrupt_projection(&mut store, malformed);
+            save_corrupt_projection(d, &store);
+            s.set_selection(vec![parent]);
+            let before = s.doc().unwrap().clone();
+            let undo = s.state().unwrap().undo.len();
+            let revision = s.state().unwrap().revision;
+            assert!(s.execute(command, &json!({"handles":[child.hex(),parent.hex()],"delta":[80,0]})).is_err(), "{command}: {malformed}");
+            assert_eq!(s.doc().unwrap(), &before);
+            assert_eq!(s.clipboard, previous_clipboard);
+            assert_eq!(s.clipboard_source.as_ref().unwrap().serial, previous_serial);
+            assert_eq!(s.state().unwrap().selection, vec![parent]);
+            assert_eq!(s.state().unwrap().undo.len(), undo);
+            assert_eq!(s.state().unwrap().revision, revision);
+        }
+    }
+}
+
+#[test]
+fn malformed_projection_paste_rolls_back_actual_adopted_entities_and_metadata() {
+    for malformed in 0..10 {
+        for command in ["pasteclip", "pasteblock"] {
+            let (mut source, _, parent, child) = projection_fixture();
+            source.execute("copyclip", &json!({"handles":[parent.hex(),child.hex()]})).unwrap();
+            let defs = Arc::make_mut(&mut source.clipboard_source.as_mut().unwrap().defs);
+            let mut store = load(defs).unwrap();
+            corrupt_projection(&mut store, malformed);
+            save_corrupt_projection(defs, &store);
+            let (mut destination, _, existing, _) = projection_fixture();
+            transfer(&source, &mut destination);
+            destination.set_selection(vec![existing]);
+            let before = destination.doc().unwrap().clone();
+            let undo = destination.state().unwrap().undo.len();
+            let revision = destination.state().unwrap().revision;
+            assert!(destination.execute(command, &json!({"at":[100,200]})).is_err(), "{command}: {malformed}");
+            assert_eq!(destination.doc().unwrap(), &before);
+            assert_eq!(destination.state().unwrap().selection, vec![existing]);
+            assert_eq!(destination.state().unwrap().undo.len(), undo);
+            assert_eq!(destination.state().unwrap().revision, revision);
+        }
+    }
+}
+
 #[test]
 fn cross_document_commands_never_bind_colliding_model_or_view_ids() {
     let mut source = crate::extensions::new_session();

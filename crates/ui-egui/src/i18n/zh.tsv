@@ -1580,3 +1580,15 @@ menu	View	视图
 	Section removes every selected body; no view was created.	剖切移除了全部所选实体；未创建视图。
 	No body interior intersects the plane; no view was created.	平面未穿过实体内部；未创建视图。
 	Exact section created.	精确剖视图已创建。
+	Projection-linked view	投影关联视图
+	Parent exact view	父精确视图
+	Top view — below parent	顶视图 — 位于父视图下方
+	Bottom view — above parent	底视图 — 位于父视图上方
+	Left view — right of parent	左视图 — 位于父视图右侧
+	Right view — left of parent	右视图 — 位于父视图左侧
+	Paper gap, mm	图纸间距，毫米
+	Inherits the parent scale and sheet; first-angle projection.	继承父视图比例和图纸；采用第一角投影。
+	Create linked projected view	创建投影关联视图
+	Create Linked Projected View	创建投影关联视图
+	Projecting linked exact view…	正在生成精确投影关联视图…
+	Linked projected view created.	投影关联视图已创建。
