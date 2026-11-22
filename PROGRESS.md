@@ -725,4 +725,47 @@
   этим не приняты. Canonical shaft Front остаётся **20 uncertain / 4 uncovered**.
   Весь пункт сечений открыт: **60/172**, открыто **112**.
 
+## Координаты наложенного сечения переменного профиля — 22.11.2026
+
+- Исправлена обнаруженная при проверке формулы ошибка: наложение не должно
+  совмещать вдоль следа центры bbox общего вида и локального сечения.
+  Fold сохраняет модельную координату вдоль следа; центрирование применяется
+  только поперёк. Удалено больше не нужное поле `SourceTrace.bounds`.
+  Сохранённые frozen constraints не перепозиционируются самовольно.
+- Новая consumer regression проверяет off-centre cap, actual source scales
+  **0,25/2/10**, нулевой и ненулевой base, физические paper coordinates,
+  DXF, common selection MOVE и Undo. **91 model case прошёл**.
+  Первоначально исправлены test-only compile error (`EntityStore` не имеет
+  `iter_mut`) и Clippy deny `unreachable!`; финальные engine/UI Clippy и
+  desktop/CLI build прошли.
+- Финальный `cargo xtask ci`: **9/9 gates**, **422,46 с**.
+- Реальная fixture `tests/fixtures/models/off-centre-step.sc`:
+  native SolidCraft/63, единый B-Rep из wide base 100×20×10 и neck
+  [30;0;9]..[50;20;30]. SHA256
+  `cffca7f172879e4bd64cfffde7df33e32e95dd5d019f01e9c8f7b3eb3391cb80`.
+  Front source `184`, at [50;130], scale 1:1; raw 16 uncertain,
+  analytic_complete=false, существующий covered-piece контракт.
+- Настоящий GUI 18074: imposed, source selector, plane Z=20/+Z, requested
+  [200;200], scale 1. Кнопка создала `18D` в **[50;160]** и обновила поля.
+  EXPLODE измерил **[80;140]..[100;160]**, 4 GOST-THIN LINE + HATCH
+  с шагом **3 мм**. Это соответствует world X=30..50, а не центру общего вида.
+  Raw section quality: 8 uncertain, analytic_complete=false;
+  accept_incomplete=false, без mesh fallback или подавления качества.
+- EXPLODE/Undo, common source+target MOVE/Undo, GUI DXF reopen и настоящий
+  CLI сохранили полные paper entity lists и metadata. Source MOVE после CLI
+  reopen перенёс section в [55;167]; Undo точный. DXF **95109 bytes**.
+  Прочитаны completed GUI fields и final native reopened sheet;
+  GUI завершился **0**. Сценарий проверяет координаты, не принимает симметрию.
+- Отдельный реальный probe сохранён как
+  `tests/fixtures/models/off-centre-inclined-cylinder.sc`:
+  radius 5, height 100, axis [0,6;0;0,8], plane Z=20.
+  Front создан без accept-incomplete (raw 4 uncertain), но section worker
+  отказал **RPC -32005**: cap face 2 / edge 0 — multi-span spline,
+  exact hatch boundary unavailable, no fitting. Нового view нет.
+  Отказ прочитан в GUI; повторного запуска для подтверждения не было.
+  Это **открытое ограничение**, не успешное эллиптическое сечение.
+- Симметрия §7.3, §7.9 и B-Rep rebuild §7.11 остаются открытыми;
+  canonical shaft Front остаётся **20 uncertain / 4 uncovered**.
+  Полный пункт сечений не принят: **60/172**, открыто **112**.
+
 Ни один из этих результатов не закрывает полный новый roadmap. Точные B-Rep-проекции, сборки, нормативные профили, полная русификация, кроссплатформенные установки и выпуск остаются в активном плане.

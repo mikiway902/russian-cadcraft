@@ -460,6 +460,75 @@
       "Whole section roadmap item stays open; 60/172 accepted, 112 open"
     ]
   },
+  "imposed_world_trace_coordinates": {
+    "date": "2026-11-22",
+    "fix": "Preserve source-world coordinates along the cutting trace; bbox centering applies only perpendicular to the trace",
+    "existing_frozen_constraints": "No silent repositioning or rebinding",
+    "native_model_group_cases": 91,
+    "new_regression": "Off-centre cap, actual scales 0.25/2/10, zero/nonzero source base, physical paper coordinates, DXF and common MOVE/Undo",
+    "checks": "Final engine/UI Clippy and native desktop/CLI build PASS; initial test-only EntityStore iter_mut and denied unreachable macro errors corrected",
+    "full_ci": "cargo xtask ci: all 9 gates PASS, 422.46 seconds",
+    "actual_source": {
+      "fixture": "tests/fixtures/models/off-centre-step.sc",
+      "runtime_path": "target/model-worker-smoke/off-centre-step.sc",
+      "bytes": 721,
+      "sha256": "cffca7f172879e4bd64cfffde7df33e32e95dd5d019f01e9c8f7b3eb3391cb80",
+      "geometry": "Single joined native solid: base [0,0,0]..[100,20,10], neck [30,0,9]..[50,20,30]",
+      "source_handle": "184",
+      "source_at": [50,130],
+      "scale": 1,
+      "raw_analytic_complete": false,
+      "raw_uncertain": 16
+    },
+    "actual_gui_creation": {
+      "port": 18074,
+      "method": "Actual imposed/source selector/plane/scale fields and Create exact cross-section button",
+      "target_handle": "18D",
+      "plane_origin": [0,0,20],
+      "direction": [0,0,1],
+      "requested_at": [200,200],
+      "actual_at": [50,160],
+      "visible_fields_updated": true,
+      "paper_bbox_mm": [[80,140],[100,160]],
+      "measured_native_geometry": {"Line":4,"Hatch":1},
+      "contour_layer": "GOST-THIN",
+      "hatch_spacing_mm": 3,
+      "raw_analytic_complete": false,
+      "raw_uncertain": 8,
+      "accept_incomplete": false,
+      "quality_policy": "Existing covered-piece contract, raw quality retained, no uncovered suppression or mesh fallback"
+    },
+    "persistence": {
+      "dxf": "target/coexistence/proof/off-centre-step-imposed.dxf",
+      "bytes": 95109,
+      "gui": "Full paper entities and metadata equal after EXPLODE/Undo, common selection MOVE/Undo and DXF reopen",
+      "cli": "Exit 0; complete paper entities and metadata equal GUI; source MOVE carries target to [55,167], Undo exact",
+      "gui_exit": 0
+    },
+    "failed_inclined_cylinder_probe": {
+      "fixture": "tests/fixtures/models/off-centre-inclined-cylinder.sc",
+      "runtime_path": "target/model-worker-smoke/off-centre-imposed.sc",
+      "bytes": 597,
+      "sha256": "86f3f5bdaaf9a1f5e953bd7400cb884a79f730bf839843bb209dd2f0277bea83",
+      "axis": [0.6,0,0.8],
+      "radius": 5,
+      "height": 100,
+      "plane_z": 20,
+      "front_raw_uncertain": 4,
+      "front_raw_analytic_complete": false,
+      "result": "Actual GUI worker RPC -32005: source body 0 cap face 2, cap edge 0 is a multi-span spline; exact hatch boundary unavailable (no fitting)",
+      "new_view_created": false,
+      "status": "Open geometry limitation; no approximation fallback and no repeat run to confirm"
+    },
+    "screenshots_read": [
+      "target/coexistence/proof/off-centre-imposed-result.png",
+      "target/coexistence/proof/off-centre-step-ready.png",
+      "target/coexistence/proof/off-centre-step-completed-fields.png",
+      "target/coexistence/proof/off-centre-step-native-sheet.png",
+      "target/coexistence/proof/off-centre-step-final-reopened.png"
+    ],
+    "limits": "Symmetry 7.3, axial-hole/recess convention 7.9 and B-Rep rebuild 7.11 remain open; canonical shaft Front stays 20 uncertain / 4 uncovered; 60/172 accepted, 112 open"
+  },
   "checks": {
     "io_section_cases": 9,
     "io_projection_cases": 3,

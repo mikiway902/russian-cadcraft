@@ -339,7 +339,7 @@ pub(super) fn prepare(d: &Drawing, store: &Store, p: &Value, request: &SectionRe
             projection: None,
         },
         marks,
-        trace: super::section_projection::SourceTrace { origin, bounds, point: on, axis: tangent },
+        trace: super::section_projection::SourceTrace { origin, point: on, axis: tangent },
         projection_enabled: super::flag(p, "projection_link", true)?,
         imposed,
     }))

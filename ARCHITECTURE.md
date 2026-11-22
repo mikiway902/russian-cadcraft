@@ -192,8 +192,10 @@ source-bound запросы включают его по умолчанию; я�
 сохраняет независимое положение. v1 notation при bounded decode мигрирует в v2
 именно с independent placement, без движения native geometry и без перепривязки.
 `sections::prepare_request` до worker I/O складывает frame вокруг следа секущей
-плоскости в source basis; installer совмещает bbox точной геометрии со следом,
-а для наложения — с центром исходного вида и его фактическим масштабом.
+плоскости в source basis; installer совмещает bbox точной геометрии со следом.
+Наложение сохраняет исходную модельную координату вдоль следа и фактический
+масштаб источника; центрируется только поперёк следа. Общий bbox источника не
+задаёт продольную координату сечения детали переменного профиля.
 Канонический `at` возвращается в UI и сохранённые parameters.
 Event order: ordinary projection family → section style → section projection
 translation → source notation cleanup → exact dimensions. Так MOVE предка

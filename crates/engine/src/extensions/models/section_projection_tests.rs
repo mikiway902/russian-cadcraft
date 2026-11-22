@@ -160,7 +160,7 @@ fn detached_and_cutaway_allow_along_trace_but_refuse_perpendicular_and_native_tr
 }
 
 #[test]
-fn imposed_uses_source_center_and_scale_and_cannot_move_independently() {
+fn imposed_preserves_source_coordinates_and_scale_and_cannot_move_independently() {
     let (mut s, id, source) = setup("top");
     let (section, out) = add(&mut s, &id, &parameters(&id, source, "imposed"));
     near(insert(&s, section).insert.xy(), Vec2::new(100., 98.));
@@ -181,6 +181,58 @@ fn imposed_uses_source_center_and_scale_and_cannot_move_independently() {
     section.plane.origin = [0., 6., 0.];
     assert!(sections::apply(&mut s, &id, &"a".repeat(64), &wrong_scale, section).is_err());
     assert_eq!(s.doc().unwrap(), &before);
+}
+
+#[test]
+fn off_center_imposed_cap_preserves_world_trace_coordinates_at_actual_scale_and_block_base() {
+    for scale in [0.25, 2., 10.] {
+        for base in [Vec2::ZERO, Vec2::new(7., -3.)] {
+            let (mut s, id, source) = setup("top");
+            let block = insert(&s, source).block.clone();
+            let d = s.doc_mut().unwrap();
+            d.modify_entity(source, |e| {
+                let EntityKind::Insert(i) = &mut e.kind else { panic!("source fixture requires INSERT") };
+                i.scale = Vec3::new(1. / scale, 1. / scale, 1. / scale);
+            })
+            .unwrap();
+            let block = Arc::make_mut(d.blocks.get_mut(&block).unwrap());
+            block.base = base.to3(0.);
+            // Source spans X=0..100, while the cut region spans X=30..50.
+            // Their bbox centres must not determine the imposed X coordinate.
+            for h in block.entities.handles() {
+                block.entities.modify(h, |entity| {
+                    let EntityKind::Line(line) = &mut entity.kind else { panic!("source fixture requires LINE boundary") };
+                    line.a.x *= 5.;
+                    line.b.x *= 5.;
+                });
+            }
+            let source_origin = Vec2::new(100., 100.) - base * (1. / scale);
+            let mut p = parameters(&id, source, "imposed");
+            p["scale"] = json!(scale);
+            let mut section = sections::tests::fixture();
+            section.plane.origin = [0., 6., 0.];
+            for ring in &mut section.caps[0].loops {
+                ring.transform(&Mat3::translate(Vec2::new(30., 0.)));
+            }
+            let out = sections::apply(&mut s, &id, &"a".repeat(64), &p, section).unwrap();
+            let target = handle(out["handle"].as_str().unwrap()).unwrap();
+            let at = insert(&s, target).insert.xy();
+            near(at, source_origin + Vec2::new(0., -4. / scale));
+            // Each cap X maps to the same paper X as the source-world point.
+            for x in [30., 40., 50.] {
+                let target_paper = at + Vec2::new(x, 10.) * (1. / scale);
+                let source_paper = source_origin + Vec2::new(x, 6.) * (1. / scale);
+                near(target_paper, source_paper);
+            }
+            let reopened = cadcraft_io::read_dxf(cadcraft_io::write_dxf(s.doc().unwrap()).as_bytes()).unwrap();
+            s.open_drawing(reopened, "off-centre imposed DXF", None);
+            let before = s.doc().unwrap().clone();
+            s.execute("move", &json!({"handles":[source.hex(),target.hex()],"delta":[13,17]})).unwrap();
+            near(insert(&s, target).insert.xy(), at + Vec2::new(13., 17.));
+            s.undo().unwrap();
+            assert_eq!(s.doc().unwrap(), &before);
+        }
+    }
 }
 
 #[test]

@@ -22,7 +22,6 @@ pub(super) struct Constraint {
 
 pub(super) struct SourceTrace {
     pub(super) origin: Vec2,
-    pub(super) bounds: Bounds2,
     pub(super) point: Vec2,
     pub(super) axis: Vec2,
 }
@@ -54,7 +53,7 @@ fn center(bounds: Bounds2) -> Result<Vec2> {
 }
 
 pub(super) fn place(source: &SourceTrace, source_scale: f64, target_bounds: Bounds2, opts: &mut Options, imposed: bool) -> Result<Constraint> {
-    let SourceTrace { origin: source_origin, bounds: source_bounds, point: trace_point, axis } = *source;
+    let SourceTrace { origin: source_origin, point: trace_point, axis } = *source;
     let mut constraint =
         Constraint { version: 1, mode: if imposed { Mode::Fixed } else { Mode::AlongTrace }, axis: [axis.x, axis.y], offset: [0., 0.] };
     validate(&constraint)?;
@@ -66,16 +65,16 @@ pub(super) fn place(source: &SourceTrace, source_scale: f64, target_bounds: Boun
     if imposed && (opts.scale * source_scale - 1.).abs() > 1e-10 {
         return Err(err("imposed section projection requires the actual source scale"));
     }
-    let source_center = center(source_bounds)?;
     let native_center = center(target_bounds)?;
-    let target_center = opts.at + native_center * (1. / opts.scale);
     let normal = axis.perp();
-    let aligned = if imposed {
-        trace_point + axis * (source_center - trace_point).dot(axis)
+    let at = if imposed {
+        // Folding preserves model coordinates along the source trace. Centering
+        // both bboxes would slide a narrow/off-centre cap along a wider source.
+        source_origin + normal * (trace_point - source_origin - native_center * (1. / opts.scale)).dot(normal)
     } else {
-        target_center + normal * (trace_point - target_center).dot(normal)
+        let target_center = opts.at + native_center * (1. / opts.scale);
+        opts.at + normal * (trace_point - target_center).dot(normal)
     };
-    let at = aligned - native_center * (1. / opts.scale);
     bounded(at)?;
     let offset = at - source_origin;
     constraint.offset = [offset.x, offset.y];
