@@ -228,6 +228,34 @@
       "Does not close complete B-Rep section source notation, symmetry, axial-hole convention or source rebuild."
     ]
   },
+  "actual_view_scale_captions": {
+    "date": "2026-11-22",
+    "norm": "ГОСТ Р 2.316-2023 5.11",
+    "source": "https://files.stroyinf.ru/Data/816/81673.pdf",
+    "gui_port": 18069,
+    "source_box_mm": [40,20,30],
+    "actual_gui_creation_caption": "А12—А12 (1:2), editable native MTEXT with lower indices",
+    "actual_gui_scale_edit": "2 -> 0.4 model mm per paper mm; caption А12—А12 (2,5:1)",
+    "paper_rectangle_mm": [100,50],
+    "independent_title_scale_change": "1:5; view geometry and 2,5:1 caption unchanged",
+    "source_box_resize_mm": [48,20,30],
+    "rebuilt_paper_rectangle_mm": [120,50],
+    "native_caption_height_mm": 7,
+    "explode_undo": "complete paper entity equality",
+    "saved_dxf_bytes": 70140,
+    "gui_and_cli_reopen": "complete reopened paper entity lists and canonical legacy-view metadata equal; lowered native MTEXT scale caption retained",
+    "first_dxf_read_limit": "Regenerated title attributes normalize props and baseline insert with unchanged alignPt; no claim of bitwise pre-read entity equality.",
+    "gui_exit": 0,
+    "screenshots_read": [
+      "target/coexistence/proof/view-scale-caption-reduction.png",
+      "target/coexistence/proof/view-scale-caption-enlargement.png",
+      "target/coexistence/proof/view-scale-caption-title-change.png"
+    ],
+    "narrow_checks": "11 legacy drawing, 74 GOST cases, engine Clippy and desktop/CLI build PASS",
+    "full_ci": "cargo xtask ci: all 9 gates PASS, 426.40 seconds; existing four WASM dead-code warnings retained",
+    "policy": "Explicit actual ratio is printed even at 1:1; no dependency on title-block text or extra source projection.",
+    "limits": "Legacy polyhedral labelled views only; full B-Rep source notation and section roadmap acceptance remain open."
+  },
   "checks": {
     "io_section_cases": 9,
     "io_projection_cases": 3,

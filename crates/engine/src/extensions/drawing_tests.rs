@@ -260,7 +260,8 @@ fn paper_projection_caption_and_dimension_keep_paper_heights_across_model_and_vi
     let mut s = crate::extensions::new_session();
     s.execute("gost.setup", &json!({"scale":8})).unwrap();
     let source = model(&mut s);
-    for scale in [0.25, 2.0, 10.0] {
+    s.execute("gost.sheet.set", &json!({"layout":"GOST1","fields":{"SCALE":"1:5"}})).unwrap();
+    for (scale, scale_text) in [(0.25, "4:1"), (0.4, "2,5:1"), (1.0, "1:1"), (2.0, "1:2"), (10.0, "1:10")] {
         let h = created(&mut s, "gost.projection", json!({"sources":[source.hex()],"direction":"top","label":"Б","scale":scale}));
         let dimension = created(
             &mut s,
@@ -281,6 +282,7 @@ fn paper_projection_caption_and_dimension_keep_paper_heights_across_model_and_vi
         assert_eq!(numbers.value, "40", "displayed measurement must retain the true model length through the projection factor");
         assert_eq!(numbers.text_height, 3.5, "paper dimensions must not inherit model DIMSCALE=8");
         assert_eq!(caption.height, numbers.text_height * 2.0);
+        assert_eq!(caption.value, format!("Б ({scale_text})"), "caption must state the actual image scale, not model annotation DIMSCALE");
         assert!(caption.insert.y >= top + 8.0 - 1e-9, "caption clearance must account for both ends of every projected edge");
     }
 }
