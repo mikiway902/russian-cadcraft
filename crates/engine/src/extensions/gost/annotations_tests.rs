@@ -94,7 +94,7 @@ fn dashed_axes_intersect_and_end_on_strokes_despite_global_linetype_scale() {
 #[test]
 fn designation_alphabet_rejects_every_excluded_letter_before_any_mutation() {
     let mut s = session();
-    for label in ["Ё", "З", "Й", "О", "Х", "Ч", "Ъ", "Ы", "Ь", "A", "АБ", "АA"] {
+    for label in ["Ё", "З", "Й", "О", "Х", "Ч", "Ъ", "Ы", "Ь", "A", "АБ", "АA", "А-1", "А1Б", "А1.2", "А4294967296"] {
         for (command, params) in [("gost.section", json!({"p1":[0,0],"p2":[100,0],"label":label})), ("gost.view", json!({"at":[0,0],"label":label}))]
         {
             let before = s.doc().unwrap().clone();
@@ -166,4 +166,98 @@ fn designation_uses_actual_dimension_style_height_and_keeps_clear_of_source_arro
         assert_eq!(label.height, 10.0, "designation must follow the actual 5 mm dimension numbers, not a hardcoded 5/7 mm caption");
         assert!(label.insert.y + label.height <= -13.0, "lettering must stay at least 3 mm below the arrow shaft starting at y=-10");
     }
+}
+
+fn created_view_letter<'a>(s: &'a Session, out: &serde_json::Value) -> std::borrow::Cow<'a, str> {
+    let handle = cadcraft_doc::Handle::parse_hex(out["handle"].as_str().unwrap()).unwrap();
+    match &s.doc().unwrap().entity(handle).unwrap().kind {
+        EntityKind::Text(text) => text.value.as_str().into(),
+        EntityKind::MText(text) => cadcraft_fonts::plain_mtext(&text.contents).into(),
+        _ => panic!("designation text required"),
+    }
+}
+
+#[test]
+fn automatic_letters_share_native_designations_and_formatted_mtext_across_dxf_and_undo() {
+    let mut s = session();
+    let section = s.execute("gost.section", &json!({"p1":[0,0],"p2":[100,0],"caption":[50,-25]})).unwrap();
+    assert_eq!(section["designation"], "А—А");
+    let view = s.execute("gost.view", &json!({"at":[50,50]})).unwrap();
+    assert_eq!(created_view_letter(&s, &view), "Б");
+    s.execute("mtext", &json!({"at":[0,70],"text":"{\\C1;В — В (1:2)}\\PГ"})).unwrap();
+    s.state_mut().unwrap().space = cadcraft_doc::Space::Paper("GOST1".into());
+    s.execute("gost.view", &json!({"at":[50,50],"label":"Е"})).unwrap();
+    s.state_mut().unwrap().space = cadcraft_doc::Space::Model;
+    let reopened = cadcraft_io::read_dxf(cadcraft_io::write_dxf(s.doc().unwrap()).as_bytes()).unwrap();
+    s.open_drawing(reopened, "designation DXF", None);
+    let next = s.execute("gost.view", &json!({"at":[80,50]})).unwrap();
+    assert_eq!(created_view_letter(&s, &next), "Д");
+    s.execute("undo", &json!({})).unwrap();
+    let reused_free = s.execute("gost.view", &json!({"at":[90,50]})).unwrap();
+    assert_eq!(created_view_letter(&s, &reused_free), "Д");
+    let across_sheets = s.execute("gost.view", &json!({"at":[100,50]})).unwrap();
+    assert_eq!(created_view_letter(&s, &across_sheets), "Ж", "existing designations on other sheets reserve the same document alphabet");
+    let explicit = s.execute("gost.view", &json!({"at":[100,50],"label":"А"})).unwrap();
+    assert_eq!(created_view_letter(&s, &explicit), "А");
+}
+
+#[test]
+fn automatic_letters_skip_profile_exclusions_and_continue_with_lowered_indices_without_reuse() {
+    for (alphabet, expected) in [("cyrillic", "АБВГДЕЖИКЛМНПРСТУФЦШЩЭЮЯ"), ("latin", "ABCDEFGHJKLMNPQRSTUWYZ")] {
+        let mut s = session();
+        s.execute("gost.profile", &json!({"action":"set","id":"rf-2026-v1","alphabet":alphabet})).unwrap();
+        for (index, letter) in expected.chars().enumerate() {
+            let out = s.execute("gost.view", &json!({"at":[index as f64 *10.,50]})).unwrap();
+            assert_eq!(created_view_letter(&s, &out), letter.to_string());
+        }
+        let first = expected.chars().next().unwrap();
+        let section = s.execute("gost.section", &json!({"p1":[0,0],"p2":[100,0],"caption":[50,-25]})).unwrap();
+        assert_eq!(section["designation"], format!("{first}1—{first}1"));
+        let caption = cadcraft_doc::Handle::parse_hex(section["handles"].as_array().unwrap().last().unwrap().as_str().unwrap()).unwrap();
+        let EntityKind::MText(text) = &s.doc().unwrap().entity(caption).unwrap().kind else { panic!("lowered numeric indices require native MTEXT") };
+        assert_eq!(cadcraft_fonts::plain_mtext(&text.contents), format!("{first}1—{first}1"));
+        for (index, letter) in expected.chars().skip(1).enumerate() {
+            let out = s.execute("gost.view", &json!({"at":[index as f64 *10.,80]})).unwrap();
+            assert_eq!(created_view_letter(&s, &out), format!("{letter}1"));
+        }
+        let reopened = cadcraft_io::read_dxf(cadcraft_io::write_dxf(s.doc().unwrap()).as_bytes()).unwrap();
+        s.open_drawing(reopened, "indexed designation DXF", None);
+        let next = s.execute("gost.view", &json!({"at":[0,100]})).unwrap();
+        assert_eq!(created_view_letter(&s, &next), format!("{first}2"));
+        s.execute("undo", &json!({})).unwrap();
+        let next = s.execute("gost.view", &json!({"at":[0,100]})).unwrap();
+        assert_eq!(created_view_letter(&s, &next), format!("{first}2"));
+        let reuse = expected.chars().next().unwrap().to_string();
+        let out = s.execute("gost.view", &json!({"at":[0,80],"label":reuse})).unwrap();
+        assert_eq!(created_view_letter(&s, &out), reuse);
+    }
+}
+
+#[test]
+fn designation_scan_budget_refuses_without_marks_and_explicit_letter_remains_available() {
+    let mut s = session();
+    s.doc_mut()
+        .unwrap()
+        .add(
+            &cadcraft_doc::Space::Model,
+            cadcraft_doc::Common::default(),
+            EntityKind::MText(cadcraft_doc::MText {
+                insert: cadcraft_geom::Vec3::ZERO,
+                height: 3.5,
+                width: 0.,
+                attach: 1,
+                rotation: 0.,
+                style: "GOST".into(),
+                contents: "x".repeat(8 * 1024 * 1024 + 1),
+                line_spacing: 1.,
+                line_spacing_exact: false,
+                columns: None,
+            }),
+        )
+        .unwrap();
+    let before = s.doc().unwrap().clone();
+    assert!(s.execute("gost.section", &json!({"p1":[0,0],"p2":[100,0]})).is_err());
+    assert_eq!(s.doc().unwrap(), &before);
+    let explicit = s.execute("gost.view", &json!({"at":[50,50],"label":"А"})).unwrap();
+    assert_eq!(created_view_letter(&s, &explicit), "А");
 }

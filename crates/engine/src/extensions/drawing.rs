@@ -83,7 +83,7 @@ struct Dimension {
 pub(super) fn specs() -> Vec<CommandSpec> {
     vec![
     CommandSpec::new("gost.solid","GOST Polyhedral Solid",solid).menu(&["Format","GOST","GOST Polyhedral Solid"]).params("{handle?: edit existing mesh, box?:{min:[x,y,z],max:[x,y,z]} | profile?:[[x,y]],z0?,z1? | vertices?:[[x,y,z]],faces?:[[1-based indices]]; ids?:[stable positive vertex IDs]}; closed planar convex faces (triangulate nonconvex faces), native DXF polyface, no curved-surface approximation"),
-    CommandSpec::new("gost.projection","GOST Associative View",view).menu(&["Format","GOST","GOST Associative View"]).params("{handle?: edit view, sources?:[solid handles],layout?:paper tab,at?:[x,y],direction?:front|rear|top|bottom|left|right|isometric|[x,y,z],up?:[x,y,z],scale?:model units per paper mm,hidden?:bool,label?:capital in selected document alphabet|null}; actual multi-body hidden-line removal"),
+    CommandSpec::new("gost.projection","GOST Associative View",view).menu(&["Format","GOST","GOST Associative View"]).params("{handle?: edit view, sources?:[solid handles],layout?:paper tab,at?:[x,y],direction?:front|rear|top|bottom|left|right|isometric|[x,y,z],up?:[x,y,z],scale?:model units per paper mm,hidden?:bool,label?:selected-alphabet capital with optional decimal index|null}; actual multi-body hidden-line removal"),
     CommandSpec::new("gost.section.view","GOST Associative Section",section).menu(&["Format","GOST","GOST Associative Section"]).params("projection parameters plus plane:{normal:[x,y,z],offset:number}; keeps normal·point<=offset, view direction follows normal, true closed intersection loops and 3mm hatching"),
     CommandSpec::new("gost.projection.inspect","Inspect Associative View",inspect).params("{handle}; persistent sources, stable vertex IDs, view parameters, unresolved links").noundo(),
     CommandSpec::new("gost.projection.dimension","GOST View Dimension",dimension).menu(&["Format","GOST","GOST View Dimension"]).params("{handle?:edit existing dimension,view?:hex,a?:{source:hex,vertex:stable ID}|{source:hex,edge:[ID,ID]},b?:same,kind?:horizontal|vertical|aligned,offset?:paper mm}; new dimensions require view/a/b; aligned dimensions measure true source 3D length, not foreshortened isometric length"),
@@ -414,21 +414,7 @@ fn prepared(d: &Drawing, r: &View) -> Result<Vec<(Common, EntityKind)>> {
             }
         }
         let at = bounds.map_or(Vec2::new(0.0, 8.0), |b| Vec2::new((b.min.x + b.max.x) * 0.5, b.max.y + 8.0));
-        kinds.push((
-            Common { layer: "GOST-TEXT".into(), ..Default::default() },
-            EntityKind::Text(cadcraft_doc::Text {
-                insert: at.to3(0.0),
-                align_pt: Some(at.to3(0.0)),
-                height,
-                value: name,
-                rotation: 0.0,
-                width_factor: 1.0,
-                oblique: 0.0,
-                style: "GOST".into(),
-                halign: cadcraft_doc::HAlign::Center,
-                valign: cadcraft_doc::VAlign::Bottom,
-            }),
-        ));
+        kinds.push((Common { layer: "GOST-TEXT".into(), ..Default::default() }, super::gost::annotations::designation_text(at, name, height)));
     }
     Ok(kinds)
 }
@@ -491,15 +477,18 @@ fn view_inner(s: &mut Session, p: &Value, is_section: bool) -> Result<Value> {
     if is_section && cut.is_none() {
         return Err(err("section plane required"));
     }
-    let default_label = super::gost::standards::default_letter(s.doc()?)?;
     let label = match p.get("label") {
         Some(Value::Null) => None,
         Some(Value::String(label)) => {
             super::gost::standards::validate_letter(s.doc()?, label, "gost.projection")?;
             Some(label.clone())
         }
-        None => old.as_ref().and_then(|r| r.label.clone()).or_else(|| is_section.then(|| default_label.into())),
-        _ => return Err(err("label must be one capital in the selected document alphabet or null")),
+        None => match old.as_ref() {
+            Some(previous) => previous.label.clone(),
+            None if is_section => Some(super::gost::standards::next_letter(s.doc()?, "gost.projection")?),
+            None => None,
+        },
+        _ => return Err(err("label must be a selected-alphabet capital with an optional decimal index, or null")),
     };
     let r = View {
         sources,

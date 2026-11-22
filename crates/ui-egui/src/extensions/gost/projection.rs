@@ -370,7 +370,7 @@ fn view(app: &mut CadApp, ctx: &egui::Context, name: &str, open: &mut bool) -> A
         hidden: true,
         section: name == "gostsectionview",
         offset: 15.0,
-        label: if name == "gostsectionview" { "А" } else { "" }.into(),
+        label: String::new(),
         error: None,
         result: None,
     });
@@ -447,7 +447,10 @@ fn view(app: &mut CadApp, ctx: &egui::Context, name: &str, open: &mut bool) -> A
                         ui.add(egui::DragValue::new(&mut st.offset));
                     });
                 }
-                text(ui, crate::tl!("View or section letter (optional)"), &mut st.label);
+                text(ui, crate::tl!("View or section designation (optional)"), &mut st.label);
+                if st.section && st.handle.trim().is_empty() {
+                    ui.small(crate::tl!("Leave blank to choose the next unused section designation."));
+                }
                 if ui.add_enabled(!editor.conflict, egui::Button::new(crate::tl!("Apply drawing view"))).clicked() {
                     apply = true;
                 }
@@ -465,7 +468,12 @@ fn view(app: &mut CadApp, ctx: &egui::Context, name: &str, open: &mut bool) -> A
         editor.accept(app.session.state().map_or(0, |s| s.revision), &st);
     }
     if apply {
-        let mut p = json!({"sources":st.sources.split_whitespace().collect::<Vec<_>>(),"scale":st.scale,"hidden":st.hidden,"label":if st.label.trim().is_empty(){Value::Null}else{json!(st.label.trim())}});
+        let mut p = json!({"sources":st.sources.split_whitespace().collect::<Vec<_>>(),"scale":st.scale,"hidden":st.hidden});
+        if !st.label.trim().is_empty() {
+            p["label"] = json!(st.label.trim());
+        } else if !st.section || !st.handle.trim().is_empty() {
+            p["label"] = Value::Null;
+        }
         if !st.handle.trim().is_empty() {
             p["handle"] = json!(st.handle.trim());
         } else {
@@ -494,6 +502,7 @@ fn view(app: &mut CadApp, ctx: &egui::Context, name: &str, open: &mut bool) -> A
         match app.run(if st.section { "gost.section.view" } else { "gost.projection" }, p) {
             Ok(v) => {
                 st.handle = v["handle"].as_str().unwrap_or("").into();
+                st.label = v["parameters"]["label"].as_str().unwrap_or("").into();
                 st.error = None;
                 st.result = Some(v);
                 editor.accept(app.session.state().map_or(0, |s| s.revision), &st);

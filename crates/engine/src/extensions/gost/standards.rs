@@ -1,5 +1,6 @@
 //! Versioned normative identities and selected drafting policy. The evidence catalog
 //! is a reference inventory, never a claim that its rules are all implemented.
+use std::collections::BTreeMap;
 use std::sync::{Arc, LazyLock};
 
 use cadcraft_doc::{Drawing, Handle, RawTag, foreign::ForeignObject};
@@ -200,11 +201,7 @@ fn p_alphabet(value: Option<&Value>) -> Result<Option<&str>> {
     }
 }
 
-pub(in crate::extensions) fn default_letter(d: &Drawing) -> Result<&'static str> {
-    Ok(if selection(d)?.is_some_and(|s| s.alphabet == "latin") { "A" } else { "А" })
-}
-
-pub(in crate::extensions) fn validate_letter(d: &Drawing, label: &str, cmd: &str) -> Result<()> {
+fn letter_policy(d: &Drawing, cmd: &str) -> Result<(bool, &'static [Value])> {
     let latin = selection(d)?.is_some_and(|s| s.alphabet == "latin");
     let rule = catalog()?["standards"]
         .as_array()
@@ -218,22 +215,129 @@ pub(in crate::extensions) fn validate_letter(d: &Drawing, label: &str, cmd: &str
         .as_array()
         .filter(|values| values.iter().all(|v| v.as_str().is_some_and(|s| s.chars().count() == 1)))
         .ok_or_else(|| bad(cmd, "bundled designation alphabet exclusions must be an array of single letters"))?;
-    let valid = label.chars().count() == 1
-        && label.chars().all(|c| {
-            (if latin { c.is_ascii_uppercase() } else { ('А'..='Я').contains(&c) })
-                && !excluded.iter().any(|v| v.as_str().is_some_and(|v| v.starts_with(c)))
-        });
+    Ok((latin, excluded))
+}
+
+pub(in crate::extensions) fn validate_letter(d: &Drawing, label: &str, cmd: &str) -> Result<()> {
+    let (latin, excluded) = letter_policy(d, cmd)?;
+    let valid = designation_prefix(label).is_some_and(|((c, _), rest)| {
+        rest.is_empty()
+            && (if latin { c.is_ascii_uppercase() } else { ('А'..='Я').contains(&c) })
+            && !excluded.iter().any(|v| v.as_str().is_some_and(|v| v.starts_with(c)))
+    });
     if !valid {
         return Err(bad(
             cmd,
             if latin {
-                "use one Latin capital excluding I, O, V, X; the document uses the explicitly selected Latin alphabet"
+                "use one Latin capital excluding I, O, V, X, optionally followed by a decimal index; the document uses the explicitly selected Latin alphabet"
             } else {
-                "use one Russian capital excluding Ё, З, Й, О, Х, Ч, Ъ, Ы, Ь; select the Latin document alphabet explicitly when necessary"
+                "use one Russian capital excluding Ё, З, Й, О, Х, Ч, Ъ, Ы, Ь, optionally followed by a decimal index; select the Latin document alphabet explicitly when necessary"
             },
         ));
     }
     Ok(())
+}
+
+fn designation_prefix(text: &str) -> Option<((char, Option<u32>), &str)> {
+    let mut chars = text.chars();
+    let first = chars.next()?;
+    let rest = chars.as_str();
+    let digits = rest.bytes().take_while(u8::is_ascii_digit).count();
+    if digits > 10 {
+        return None;
+    }
+    let (digits, rest) = rest.split_at(digits);
+    let index = if digits.is_empty() { None } else { Some(digits.parse().ok()?) };
+    Some(((first, index), rest))
+}
+
+fn designation_initial(text: &str) -> Option<(char, Option<u32>)> {
+    let (first, rest) = designation_prefix(text.trim())?;
+    let rest = rest.trim_start();
+    if rest.is_empty() || (rest.starts_with('(') && rest.ends_with(')')) {
+        return Some(first);
+    }
+    let rest = rest.strip_prefix(['—', '–', '-'])?.trim_start();
+    let (second, rest) = designation_prefix(rest)?;
+    let rest = rest.trim_start();
+    (first == second && (rest.is_empty() || (rest.starts_with('(') && rest.ends_with(')')))).then_some(first)
+}
+
+/// Choose a free designation from the selected document alphabet, then indexed
+/// alphabets (А1, Б1, …, А2, …), per ГОСТ Р 2.316-2023 §5.9. Scan only at creation.
+/// Each encountered index uses one letter bitset, not one allocation per label.
+pub(in crate::extensions) fn next_letter(d: &Drawing, cmd: &str) -> Result<String> {
+    let (latin, excluded) = letter_policy(d, cmd)?;
+    let (first, last) = if latin { ('A', 'Z') } else { ('А', 'Я') };
+    let allowed = (first..=last)
+        .filter(|letter| !excluded.iter().any(|value| value.as_str().is_some_and(|value| value.starts_with(*letter))))
+        .fold(0_u32, |mask, letter| mask | (1_u32 << (u32::from(letter) - u32::from(first))));
+    if allowed == 0 {
+        return Err(bad(cmd, "selected designation alphabet has no permitted letters"));
+    }
+    let mut unindexed = 0_u32;
+    let mut used = BTreeMap::<u32, u32>::new();
+    let mut visited = 0_usize;
+    let mut bytes = 0_usize;
+    for entity in d
+        .model
+        .iter()
+        .chain(d.layouts.iter().flat_map(|layout| layout.entities.iter()))
+        .chain(d.blocks.values().flat_map(|block| block.entities.iter()))
+    {
+        visited += 1;
+        if visited > 100_000 {
+            return Err(bad(cmd, "automatic designation scan exceeds 100000 entities; specify a letter explicitly"));
+        }
+        let text = match &entity.kind {
+            cadcraft_doc::EntityKind::Text(text) => text.value.as_str(),
+            cadcraft_doc::EntityKind::MText(text) => text.contents.as_str(),
+            _ => continue,
+        };
+        bytes = bytes
+            .checked_add(text.len())
+            .filter(|n| *n <= 8 * 1024 * 1024)
+            .ok_or_else(|| bad(cmd, "automatic designation text scan exceeds 8 MiB; specify a letter explicitly"))?;
+        let decoded;
+        let displayed = if text.contains(['\\', '{', '}', '%']) {
+            decoded = cadcraft_fonts::plain_mtext(text);
+            decoded.as_str()
+        } else {
+            text
+        };
+        for line in displayed.lines() {
+            if let Some((letter, index)) = designation_initial(line)
+                && (first..=last).contains(&letter)
+            {
+                let bit = 1_u32 << (u32::from(letter) - u32::from(first));
+                if bit & allowed != 0 {
+                    match index {
+                        None => unindexed |= bit,
+                        Some(index) => *used.entry(index).or_default() |= bit,
+                    }
+                }
+            }
+        }
+    }
+    // Try the unindexed alphabet first, then len+1 indexed groups: at least one
+    // indexed group is absent from a map of len groups (pigeonhole principle).
+    // The 8 MiB text budget bounds the number of groups well below u32::MAX.
+    for index in 0..=used.len() + 1 {
+        let index = (index != 0).then_some(index as u32);
+        let occupied = index.map_or(unindexed, |index| used.get(&index).copied().unwrap_or(0));
+        let available = allowed & !occupied;
+        if available != 0 {
+            let letter =
+                char::from_u32(u32::from(first) + available.trailing_zeros()).ok_or_else(|| bad(cmd, "invalid designation alphabet codepoint"))?;
+            let mut buffer = [0_u8; 4];
+            let letter = letter.encode_utf8(&mut buffer);
+            return Ok(match index {
+                None => letter.to_owned(),
+                Some(index) => format!("{letter}{index}"),
+            });
+        }
+    }
+    Err(bad(cmd, "automatic designation allocation exceeded its bounded alphabet groups"))
 }
 
 /// Paper lettering follows the actual GOST dimension-number height, including

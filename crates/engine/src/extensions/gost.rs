@@ -1,6 +1,6 @@
 //! Explicit ESKD presets and drawing tools. This is not a conformity certificate.
 
-mod annotations;
+pub(super) mod annotations;
 pub(super) mod axes;
 pub(super) mod book;
 mod marks;

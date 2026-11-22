@@ -146,6 +146,19 @@ Cross-section dimensions дополнительно ограничены рас�
 Standalone axes сохраняют `extension_auto` и пересчитывают его после изменения
 радиуса; cap axes остаются frozen в управляемом блоке вида.
 
+`gost::standards::next_letter` вычисляет свободное обозначение по native TEXT/MTEXT
+модели, всех layouts и block definitions, включая неиспользуемые. Один битовый
+набор обслуживает весь неиндексированный алфавит без heap allocations на подпись;
+`BTreeMap<u32,u32>` выделяет узел только для встреченного цифрового индекса.
+Лимиты — 100000 сущностей и 8 МиБ исходного текста, отказ без fallback «А».
+Сканирование запускается только при создании, не из `Interactive::prompt`.
+Общий MTEXT decoder сохраняет отображаемый текст нижних индексов без
+ложного `/`; общий caption builder сохраняет обычный TEXT для букв и native MTEXT
+для цифровых индексов. Static annotations и legacy polyhedral view используют
+один builder, а редактор принимает вычисленное обозначение из canonical response.
+Счётчика/нового XRECORD для букв нет; Undo и DXF не требуют синхронизации кэша.
+Это ещё не система связанных обозначений и не перенумерация при смене порядка.
+
 `models::projections` хранит first-angle DAG в `SavedView.provenance.projection_link`
 (version 1). Активная ссылка — `parent`; `original_parent` остаётся только audit.
 Метаданные проверяются при загрузке/сохранении Store: source identity, отсутствие

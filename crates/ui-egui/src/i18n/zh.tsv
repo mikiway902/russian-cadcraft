@@ -1601,3 +1601,7 @@ menu	View	视图
 	Detached cross-section created.	移出断面已创建。
 	Imposed cross-section created.	重合断面已创建。
 	Create exact cross-section	创建精确断面
+	Enter section designation, or press Enter for the next unused designation	输入断面标记，或按 Enter 使用下一个未用标记
+	Enter view designation, or press Enter for the next unused designation	输入视图标记，或按 Enter 使用下一个未用标记
+	Leave blank to choose the next unused section designation.	留空以选择下一个未使用的断面标记。
+	View or section designation (optional)	视图或断面标记（可选）

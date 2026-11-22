@@ -19,6 +19,8 @@ pub fn plain_mtext(s: &str) -> String {
             Token::Control('~') => out.push(' '),
             Token::Control(c @ ('\\' | '{' | '}')) => out.push(c),
             Token::Stack(raw) => {
+                // An empty upper tolerance is a subscript, not a leading slash.
+                let raw = raw.strip_prefix('^').unwrap_or(raw);
                 let stack: String = raw.chars().map(|c| if matches!(c, '^' | '#') { '/' } else { c }).collect();
                 if out.chars().last().is_some_and(|c| c.is_ascii_digit()) && stack.starts_with(|c: char| c.is_ascii_digit()) {
                     out.push(' ');
@@ -501,6 +503,8 @@ fn seg_shape(seg: &Seg, format: &Fmt, origin_x: f64) -> Shaped {
 fn seg_plain(seg: &Seg) -> String {
     match seg {
         Seg::Text(t) => t.replace('\u{a0}', " "),
+        Seg::Stack(a, b, '^') if a.is_empty() => b.clone(),
+        Seg::Stack(a, b, '^') if b.is_empty() => a.clone(),
         Seg::Stack(a, b, _) => format!("{a}/{b}"),
     }
 }
@@ -962,6 +966,20 @@ mod tests {
         assert!(max > 0.0 && min < -1.0, "{min}..{max}");
         // Narrower than the two digits side by side at full size.
         assert!(l.bounds.width() < crate::line_width("12", 1.0, 1.0));
+    }
+
+    #[test]
+    fn subscript_index_keeps_plain_text_and_is_rendered_smaller_below_the_capital() {
+        let indexed = "A{\\A1;\\S^12;}";
+        assert_eq!(plain_mtext(indexed), "A12");
+        let shaped = lay(indexed, 0.0);
+        assert_eq!(shaped.lines, ["A12"]);
+        let baseline = lay("A12", 0.0);
+        // Layout bounds describe the nominal paragraph cell; inspect printed strokes.
+        let printed = Bounds2::from_points(shaped.strokes.iter().flatten().copied());
+        let ordinary = Bounds2::from_points(baseline.strokes.iter().flatten().copied());
+        assert!(printed.min.y < ordinary.min.y);
+        assert!(printed.width() < ordinary.width());
     }
 
     #[test]

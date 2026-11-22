@@ -190,6 +190,44 @@
       "Cap axes remain frozen with the view; source B-Rep rebuild and general section notation remain open."
     ]
   },
+  "automatic_designations": {
+    "date": "2026-11-22",
+    "norm": "ГОСТ Р 2.316-2023, February 2025 edition with ИУС 9-2024, 5.9; scanned printed page 4 read visually",
+    "norm_source": "https://files.stroyinf.ru/Data/816/81673.pdf",
+    "gui_ports": [18067, 18068],
+    "actual_interactive_menu_then_enter": ["gost.section -> А", "gost.view -> Б"],
+    "formatted_mtext_reservations": "В — В (1:2), paragraph Г; next designation Д, also after Undo",
+    "permitted_alphabet_lengths_tested": {"cyrillic":24,"latin":22},
+    "automatic_after_exhaustion": "А1—А1 using native MTEXT lowered indices",
+    "legacy_actual_gui_source": {"kind":"native polyhedral box","dimensions_mm":[40,20,30]},
+    "legacy_gui_blank_label_default": "Б1—Б1",
+    "rebuilt_gui_canonical_label": "В1 returned into editor; next GUI Apply with plane Z15 -> Z20 retains В1",
+    "explicit_null_edit": "removal survives subsequent plane change; isolated two-step Undo restores complete canonical view metadata",
+    "unrelated_original_native_entities_unchanged": true,
+    "dxf_bytes": 80729,
+    "first_dxf_roundtrip": "Aligned TEXT insert is normalized by DXF, with alignPt and all other fields unchanged; MTEXT equality is exact.",
+    "final_dxf_roundtrip": "GUI and real CLI complete paper entity lists and canonical metadata of both legacy views equal",
+    "next_designation_after_gui_and_cli_reopen": "Г1",
+    "next_creation_undo": "restores complete paper entities",
+    "gui_exit_codes": [0,0],
+    "screenshots_read": [
+      "target/coexistence/proof/automatic-designation-prompt.png",
+      "target/coexistence/proof/automatic-designation-editor.png",
+      "target/coexistence/proof/automatic-designation-editor-created.png",
+      "target/coexistence/proof/automatic-designation-canonical-editor.png",
+      "target/coexistence/proof/automatic-designation-reapply.png",
+      "target/coexistence/proof/automatic-designations-final-reopen.png"
+    ],
+    "narrow_checks": "74 engine GOST, 11 legacy drawing, 11 GOST UI cases and printed subscript geometry regression PASS; Clippy, i18n, desktop/CLI build PASS",
+    "full_ci": "cargo xtask ci: all 9 gates PASS, 488.61 seconds; existing four WASM dead-code warnings retained",
+    "limits": [
+      "No automatic renumbering, type-priority sorting or linked designation-reference group.",
+      "Explicit repeated labels remain available for intentionally identical sections.",
+      "Scan bounded to 100000 entities and 8 MiB text; no repeated-letter fallback.",
+      "Unused block definitions reserve letters conservatively.",
+      "Does not close complete B-Rep section source notation, symmetry, axial-hole convention or source rebuild."
+    ]
+  },
   "checks": {
     "io_section_cases": 9,
     "io_projection_cases": 3,

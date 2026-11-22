@@ -62,8 +62,20 @@ fn real_section_has_closed_hatch_and_intersection_dimension_follows_plane() {
         json!({"view":view.hex(),"a":{"source":source.hex(),"edge":[1,5]},"b":{"source":source.hex(),"edge":[2,6]}}),
     );
     assert_eq!(shown(&s, dim), "40");
+    s.execute("gost.section.view", &json!({"handle":view.hex(),"label":null})).unwrap();
     s.execute("gost.section.view", &json!({"handle":view.hex(),"plane":{"normal":[0,0,1],"offset":20}})).unwrap();
     assert_eq!(shown(&s, dim), "40");
+    let EntityKind::Insert(insert) = &s.doc().unwrap().entity(view).unwrap().kind else { panic!() };
+    assert!(
+        !s.doc()
+            .unwrap()
+            .block(&insert.block)
+            .unwrap()
+            .entities
+            .iter()
+            .any(|entity| matches!(entity.kind, EntityKind::Text(_) | EntityKind::MText(_))),
+        "editing the plane must preserve an intentionally removed designation"
+    );
     let before = s.doc().unwrap().clone();
     assert!(s.execute("gost.section.view", &json!({"handle":view.hex(),"plane":{"normal":[0,0,1],"offset":50}})).is_err());
     assert_eq!(s.doc().unwrap(), &before);
