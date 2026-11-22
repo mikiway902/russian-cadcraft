@@ -18,7 +18,7 @@ pub(super) fn specs() -> Vec<CommandSpec> {
             .interactive(|_| Ok(Box::new(SelectRun::new("gost.center", "GOST.CENTER")))),
         CommandSpec::new("gost.section", "GOST Cutting Plane", section)
             .menu(&["Format", "GOST", "GOST Cutting Plane"])
-            .params("{p1:[x,y], p2:[x,y]: outer stroke ends, label?: selected-alphabet capital with optional decimal index (next unused designation when omitted), reverse?: bool, scale?: model units per paper mm (paper space: 1), caption?:[x,y]} → static cutting-plane marks, not model section geometry")
+            .params("{p1:[x,y], p2:[x,y]: outer stroke ends, label?: selected-alphabet capital with optional decimal index (omitted: next unused; null: arrows without letters, ГОСТ 2.305-2008 7.5), reverse?: bool, scale?: model units per paper mm (paper space: 1), caption?:[x,y] (requires letters)} → static cutting-plane marks, not model section geometry")
             .interactive(|_| Ok(Box::new(SectionM::default()))),
         CommandSpec::new("gost.view", "GOST View Designation", view)
             .menu(&["Format", "GOST", "GOST View Designation"])
@@ -179,21 +179,73 @@ pub(super) fn center(s: &mut Session, p: &Value) -> Result<Value> {
 }
 
 /// 15-degree included angle and a 5 mm head (ГОСТ 2.305 fig.14).
-fn arrow(s: &mut Session, tip: Vec2, direction: Vec2, k: f64) -> Result<Vec<String>> {
+fn arrow(emit: &mut impl FnMut(EntityKind, &'static str) -> Result<()>, tip: Vec2, direction: Vec2, k: f64) -> Result<()> {
     let base = tip - direction * (5.0 * k);
     let half_width = 5.0 * k * (7.5_f64.to_radians()).tan();
     let normal = Vec2::new(-direction.y, direction.x);
     let a = base + normal * half_width;
     let b = base - normal * half_width;
     let solid = EntityKind::Solid(Solid { corners: [tip.to3(0.0), a.to3(0.0), b.to3(0.0), b.to3(0.0)] });
-    Ok(vec![add(s, line(tip - direction * (10.0 * k), tip), "GOST-THIN", k)?.hex(), add(s, solid, "GOST-THIN", k)?.hex()])
+    emit(line(tip - direction * (10.0 * k), tip), "GOST-THIN")?;
+    emit(solid, "GOST-THIN")
+}
+
+/// Paper-space cutting-plane notation, without document mutation or model I/O.
+/// Callers validate the optional designation against the selected document alphabet.
+pub(in crate::extensions) struct CuttingPlane<'a> {
+    pub first: Vec2,
+    pub last: Vec2,
+    pub lettering: Option<(&'a str, f64)>,
+    pub scale: f64,
+    pub reverse: bool,
+}
+
+/// Emit directly into a drawing or the caller's existing native-entity buffer:
+/// no temporary geometry/arrow vectors and no intermediate handle strings.
+pub(in crate::extensions) fn cutting_plane(mark: CuttingPlane<'_>, emit: &mut impl FnMut(EntityKind, &'static str) -> Result<()>) -> Result<()> {
+    let CuttingPlane { first: a, last: b, lettering, scale: k, reverse } = mark;
+    if !a.is_finite()
+        || !b.is_finite()
+        || [a.x, a.y, b.x, b.y].iter().any(|v| v.abs() > 1e9)
+        || !k.is_finite()
+        || k <= 0.0
+        || k > 10_000.0
+        || lettering.is_some_and(|(_, height)| !height.is_finite() || height <= 0.0 || height > 10_000.0)
+    {
+        return Err(bad("gost.section", "finite cutting-plane coordinates within +/-1e9 and positive paper scale/height within 10000 required"));
+    }
+    if a.dist(b) < 25.0 * k {
+        return Err(bad("gost.section", "stroke ends must be at least 25 paper mm apart"));
+    }
+    let dir = (b - a).normalized();
+    let mut normal = Vec2::new(-dir.y, dir.x);
+    if reverse {
+        normal = -normal;
+    }
+    // Two open 10 mm strokes, never a solid line through the object.
+    emit(line(a, a + dir * (10.0 * k)), "GOST-SECTION")?;
+    emit(line(b - dir * (10.0 * k), b), "GOST-SECTION")?;
+    let lettering = lettering.map(|(label, height)| {
+        let extent = height * if label.chars().nth(1).is_some_and(|c| c.is_ascii_digit()) { 1.25 } else { 1.0 };
+        (label, height, extent)
+    });
+    for at in [a + dir * (2.5 * k), b - dir * (2.5 * k)] {
+        arrow(emit, at, normal, k)?;
+        if let Some((label, height, extent)) = lettering {
+            emit(designation_text(at - normal * ((13.0 + extent) * k), label.into(), height * k), "GOST-TEXT")?;
+        }
+    }
+    Ok(())
 }
 
 fn section(s: &mut Session, p: &Value) -> Result<Value> {
     let cmd = "gost.section";
+    let unlettered = p.get("label").is_some_and(Value::is_null);
     ready(s, cmd, "GOST-SECTION")?;
     ready(s, cmd, "GOST-THIN")?;
-    ready(s, cmd, "GOST-TEXT")?;
+    if !unlettered {
+        ready(s, cmd, "GOST-TEXT")?;
+    }
     let k = annotation_scale(s, p, cmd)?;
     let a = point(p, "p1", cmd)?;
     let b = point(p, "p2", cmd)?;
@@ -201,25 +253,25 @@ fn section(s: &mut Session, p: &Value) -> Result<Value> {
         return Err(bad(cmd, "stroke ends must be at least 25 paper mm apart"));
     }
     let mut generated = String::new();
-    let label = letter(s, p, &mut generated, cmd)?;
-    let height = super::standards::designation_height(s.doc()?)?;
+    let lettering = if unlettered { None } else { Some((letter(s, p, &mut generated, cmd)?, super::standards::designation_height(s.doc()?)?)) };
     let reverse = flag(p, "reverse", cmd)?;
     let caption = if p.get("caption").is_some() { Some(point(p, "caption", cmd)?) } else { None };
-    let dir = (b - a).normalized();
-    let mut normal = Vec2::new(-dir.y, dir.x);
-    if reverse {
-        normal = -normal;
+    if lettering.is_none() && caption.is_some() {
+        return Err(bad(cmd, "caption requires a lettered cutting plane; label:null is the unlettered imposed-section convention"));
     }
-    // Two open 10 mm strokes, never a solid line through the object.
-    let mut hs =
-        vec![add(s, line(a, a + dir * (10.0 * k)), "GOST-SECTION", k)?.hex(), add(s, line(b - dir * (10.0 * k), b), "GOST-SECTION", k)?.hex()];
-    let extent = height * if label.chars().nth(1).is_some_and(|c| c.is_ascii_digit()) { 1.25 } else { 1.0 };
-    for at in [a + dir * (2.5 * k), b - dir * (2.5 * k)] {
-        hs.extend(arrow(s, at, normal, k)?);
-        hs.push(add(s, designation_text(at - normal * ((13.0 + extent) * k), label.into(), height * k), "GOST-TEXT", k)?.hex());
-    }
-    let value = format!("{label}—{label}");
-    if let Some(at) = caption {
+    let mut hs = Vec::with_capacity(if caption.is_some() {
+        9
+    } else if lettering.is_some() {
+        8
+    } else {
+        6
+    });
+    cutting_plane(CuttingPlane { first: a, last: b, lettering, scale: k, reverse }, &mut |kind, layer| {
+        hs.push(add(s, kind, layer, k)?.hex());
+        Ok(())
+    })?;
+    let value = lettering.map(|(label, _)| format!("{label}—{label}"));
+    if let (Some(at), Some((_, height)), Some(value)) = (caption, lettering, value.as_ref()) {
         hs.push(add(s, designation_text(at, value.clone(), height * k), "GOST-TEXT", k)?.hex());
     }
     Ok(json!({"handles": hs, "designation": value, "associative": false,
@@ -264,7 +316,15 @@ fn view(s: &mut Session, p: &Value) -> Result<Value> {
     let mut handles = vec![h.hex()];
     if let Some((from, to)) = source {
         let dir = (to - from).normalized();
-        handles.extend(arrow(s, to, dir, k)?);
+        arrow(
+            &mut |kind, layer| {
+                handles.push(add(s, kind, layer, k)?.hex());
+                Ok(())
+            },
+            to,
+            dir,
+            k,
+        )?;
         if from.dist(to) > 10.0 * k {
             handles.push(add(s, line(from, to - dir * (10.0 * k)), "GOST-THIN", k)?.hex());
         }
@@ -330,7 +390,7 @@ impl Interactive for SectionM {
         match (self.first, self.second) {
             (None, _) => Prompt::new("Specify first outer cutting-plane stroke end", Accept::POINT),
             (Some(p), None) => Prompt::new("Specify last outer cutting-plane stroke end", Accept::POINT).base_opt(Some(p)),
-            _ => Prompt::new("Enter section designation, or press Enter for the next unused designation", Accept::TEXT),
+            _ => Prompt::new("Enter section designation, NoLetters for arrows only, or press Enter for the next unused designation", Accept::TEXT),
         }
     }
     fn input(&mut self, s: &mut Session, i: Input) -> Result<Step> {
@@ -340,6 +400,8 @@ impl Interactive for SectionM {
             (Some(a), Some(b), Input::Text(t)) => {
                 let params = if t.trim().is_empty() {
                     json!({"p1":[a.x,a.y], "p2":[b.x,b.y]})
+                } else if t.trim().eq_ignore_ascii_case("NoLetters") {
+                    json!({"p1":[a.x,a.y], "p2":[b.x,b.y], "label":null})
                 } else {
                     json!({"p1":[a.x,a.y], "p2":[b.x,b.y], "label":t.trim()})
                 };

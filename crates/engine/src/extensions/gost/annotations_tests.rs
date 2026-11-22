@@ -61,6 +61,32 @@ fn section_is_open_and_arrow_tips_are_offset_from_external_ends() {
 }
 
 #[test]
+fn unlettered_imposed_section_keeps_direction_arrows_and_does_not_reserve_a_designation() {
+    let mut s = session();
+    s.doc_mut().unwrap().layer_mut("GOST-TEXT").unwrap().locked = true;
+    let result = s.execute("gost.section", &json!({"p1":[0,0],"p2":[100,0],"label":null})).unwrap();
+    assert!(result["designation"].is_null());
+    assert!(s.doc().unwrap().model.iter().all(|e| !matches!(e.kind, EntityKind::Text(_) | EntityKind::MText(_))));
+    let tips: Vec<_> =
+        s.doc().unwrap().model.iter().filter_map(|e| if let EntityKind::Solid(v) = &e.kind { Some(v.corners[0].xy()) } else { None }).collect();
+    assert_eq!(tips, [Vec2::new(2.5, 0.0), Vec2::new(97.5, 0.0)]);
+    for (first, last) in [(0.0, 10.0), (90.0, 100.0)] {
+        assert!(s.doc().unwrap().model.iter().any(|e| {
+            e.common.layer == "GOST-SECTION"
+                && matches!(&e.kind, EntityKind::Line(line) if line.a.xy()==Vec2::new(first,0.0) && line.b.xy()==Vec2::new(last,0.0))
+        }));
+    }
+    let before = s.doc().unwrap().clone();
+    let undo = s.state().unwrap().undo.len();
+    assert!(s.execute("gost.section", &json!({"p1":[0,50],"p2":[100,50],"label":null,"caption":[50,20]})).is_err());
+    assert_eq!(s.doc().unwrap(), &before);
+    assert_eq!(s.state().unwrap().undo.len(), undo);
+    s.doc_mut().unwrap().layer_mut("GOST-TEXT").unwrap().locked = false;
+    let next = s.execute("gost.view", &json!({"at":[50,50]})).unwrap();
+    assert_eq!(created_view_letter(&s, &next), "А");
+}
+
+#[test]
 fn metal_hatch_has_actual_millimetre_spacing_and_tracks_its_boundary() {
     let mut s = session();
     let r = s.execute("rectang", &json!({"p1":[0,0], "p2":[40,20]})).unwrap();

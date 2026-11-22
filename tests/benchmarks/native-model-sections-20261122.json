@@ -256,6 +256,32 @@
     "policy": "Explicit actual ratio is printed even at 1:1; no dependency on title-block text or extra source projection.",
     "limits": "Legacy polyhedral labelled views only; full B-Rep source notation and section roadmap acceptance remain open."
   },
+  "unlettered_cutting_planes": {
+    "date": "2026-11-22",
+    "norm": "ГОСТ 2.305-2008 7.5, non-symmetric imposed sections or sections in a break",
+    "source": "https://docs.guap.ru/regdocs/stands/gost_2-305-2008_ver-2020.pdf",
+    "gui_port": 18070,
+    "actual_menu_input": "gost.section, (40,180), (140,180), nOlEtTeRs",
+    "native_unlettered_group": {"Line":4,"Solid":2,"Text":0,"MText":0},
+    "terminal_strokes_mm": 10,
+    "arrow_tip_positions_mm": [[42.5,180],[137.5,180]],
+    "arrow_head_mm": 5,
+    "included_arrow_angle_degrees": 15,
+    "invalid_caption_refusal": "native entities, undo and dirty unchanged",
+    "next_letter_after_unlettered_marks": "А, Undo restores complete native entities",
+    "json_reverse_with_locked_GOST_TEXT": "PASS, reverse arrow bases at y125 for tips at y120",
+    "saved_dxf_bytes": 66216,
+    "gui_and_cli_complete_entity_equality_after_reopen": true,
+    "gui_exit": 0,
+    "screenshots_read": [
+      "target/coexistence/proof/unlettered-cutting-plane-prompt.png",
+      "target/coexistence/proof/unlettered-cutting-plane-sheet.png",
+      "target/coexistence/proof/unlettered-cutting-plane-zoom.png"
+    ],
+    "narrow_checks": "75 GOST, 11 legacy drawing cases; explicit locked-text-layer regression; engine/UI Clippy, i18n and native debug build PASS",
+    "full_ci": "cargo xtask ci: all 9 gates PASS, 412.90 seconds; existing four WASM dead-code warnings retained",
+    "limits": "Static cutting-plane notation only; no automatic symmetry inference or parent-view relationship. Symmetric section convention 7.3 does not use these arrows."
+  },
   "checks": {
     "io_section_cases": 9,
     "io_projection_cases": 3,

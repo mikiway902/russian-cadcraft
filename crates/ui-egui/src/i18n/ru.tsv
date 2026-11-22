@@ -1433,6 +1433,6 @@
 	Detached cross-section created.	Вынесенное сечение создано.
 	Imposed cross-section created.	Наложенное сечение создано.
 	Create exact cross-section	Создать точное сечение
-	Enter section designation, or press Enter for the next unused designation	Введите обозначение сечения или нажмите Enter для следующего свободного обозначения
+	Enter section designation, NoLetters for arrows only, or press Enter for the next unused designation	Введите обозначение; NoLetters — только стрелки; Enter — следующее свободное обозначение
 	Enter view designation, or press Enter for the next unused designation	Введите обозначение вида или нажмите Enter для следующего свободного обозначения
 	Leave blank to choose the next unused section designation.	Оставьте поле пустым для выбора следующего свободного обозначения сечения.

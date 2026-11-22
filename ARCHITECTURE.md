@@ -164,6 +164,13 @@ Legacy polyhedral caption вычисляет печатное отношение
 или отдельного обновления при смене реквизитов нет. Decimal point заменяется
 на запятую в той же строке, без второго выделения памяти. Геометрия вида,
 размерные измерения и бумажные высоты этим форматированием не изменяются.
+`gost::annotations::CuttingPlane` и `cutting_plane` задают одну проверенную
+геометрию разомкнутых штрихов/стрелок с optional lettering; объекты выдаются
+через monomorphized callback сразу в документ или существующий буфер.
+Временных arrow vectors и промежуточных handle strings нет.
+`gost.section label:null` и интерактивный `NoLetters` обходят сканирование
+алфавита, вычисление высоты букв и guard неиспользуемого слоя GOST-TEXT.
+Назначение — §7.5; геометрическая симметрия и parent-view связь не подразумеваются.
 
 `models::projections` хранит first-angle DAG в `SavedView.provenance.projection_link`
 (version 1). Активная ссылка — `parent`; `original_parent` остаётся только audit.
