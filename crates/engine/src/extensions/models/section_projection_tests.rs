@@ -51,6 +51,14 @@ fn parameters(id: &str, source: Handle, presentation: &str) -> Value {
 fn add(s: &mut Session, id: &str, p: &Value) -> (Handle, Value) {
     let mut section = sections::tests::fixture();
     section.plane.origin = [0., 6., 0.];
+    let canonical = sections::prepare_request(s, p).unwrap();
+    let request = sections::request(&canonical).unwrap();
+    section.symmetry = request.symmetry_axis.map(|axis| cadcraft_doc::model_section::SectionSymmetry {
+        axis,
+        center: [10., 10.],
+        symmetric: true,
+        tolerance_mm: 1e-9,
+    });
     let out = sections::apply(s, id, &"a".repeat(64), p, section).unwrap();
     (handle(out["handle"].as_str().unwrap()).unwrap(), out)
 }
@@ -103,7 +111,7 @@ fn translated(before: &[EntityKind], after: &[EntityKind], delta: Vec2) {
 }
 
 #[test]
-fn default_detached_snaps_exact_native_center_and_source_move_carries_caption_once() {
+fn default_detached_snaps_exact_native_center_and_source_move_carries_axis_once() {
     let (mut s, id, source) = setup("top");
     let (section, out) = add(&mut s, &id, &parameters(&id, source, "detached"));
     near(insert(&s, section).insert.xy(), Vec2::new(160., 98.));
@@ -114,7 +122,8 @@ fn default_detached_snaps_exact_native_center_and_source_move_carries_caption_on
     let original = s.doc().unwrap().clone();
     let source_geometry = native(&s, source);
     let section_geometry = native(&s, section);
-    assert!(section_geometry.iter().any(|e| matches!(e, EntityKind::Text(_) | EntityKind::MText(_))));
+    assert!(!section_geometry.iter().any(|e| matches!(e, EntityKind::Text(_) | EntityKind::MText(_))));
+    assert_eq!(relation(&s, section).kind, section_notation::Kind::SymmetryAxis);
     let section_block = s.doc().unwrap().block(&insert(&s, section).block).unwrap().clone();
     s.execute("move", &json!({"handles":[source.hex()],"delta":[13,17]})).unwrap();
     near(insert(&s, section).insert.xy(), Vec2::new(173., 115.));
@@ -214,6 +223,13 @@ fn off_center_imposed_cap_preserves_world_trace_coordinates_at_actual_scale_and_
             for ring in &mut section.caps[0].loops {
                 ring.transform(&Mat3::translate(Vec2::new(30., 0.)));
             }
+            let canonical = sections::prepare_request(&s, &p).unwrap();
+            section.symmetry = sections::request(&canonical).unwrap().symmetry_axis.map(|axis| cadcraft_doc::model_section::SectionSymmetry {
+                axis,
+                center: [40., 10.],
+                symmetric: true,
+                tolerance_mm: 1e-9,
+            });
             let out = sections::apply(&mut s, &id, &"a".repeat(64), &p, section).unwrap();
             let target = handle(out["handle"].as_str().unwrap()).unwrap();
             let at = insert(&s, target).insert.xy();
@@ -421,9 +437,13 @@ fn legacy_v1_records_remain_independent_after_dxf_migration_and_native_move() {
     let mut value = json!(load(s.doc().unwrap()).unwrap());
     let view = value["views"].as_array_mut().unwrap().iter_mut().find(|v| v["handle"] == section.hex()).unwrap();
     view["parameters"].as_object_mut().unwrap().remove("projection_link");
+    view["parameters"].as_object_mut().unwrap().remove("symmetry_axis");
+    view["provenance"]["section"].as_object_mut().unwrap().remove("symmetry");
     let notation = view["provenance"]["section"]["notation"].as_object_mut().unwrap();
     notation.insert("version".into(), json!(1));
     notation.remove("projection");
+    notation.remove("kind");
+    notation.remove("source_marks");
     let record = super::super::record(s.doc().unwrap()).unwrap().unwrap().handle;
     let object = Arc::make_mut(&mut s.doc_mut().unwrap().foreign).objects.iter_mut().find(|o| o.handle == record).unwrap();
     object.tags.retain(|t| t.code != 1);
@@ -435,11 +455,167 @@ fn legacy_v1_records_remain_independent_after_dxf_migration_and_native_move() {
     s.open_drawing(reopened, "legacy independent section DXF", None);
     let geometry = native(&s, section);
     let migrated = relation(&s, section);
-    assert_eq!(migrated.version, 2);
+    assert_eq!(migrated.version, 3);
+    assert_eq!(migrated.kind, section_notation::Kind::CuttingPlane);
     assert!(migrated.projection.is_none());
     assert_eq!(saved(&s, section).parameters["projection_link"], false);
     s.execute("move", &json!({"handles":[source.hex()],"delta":[5,7]})).unwrap();
     assert_eq!(native(&s, section), geometry);
     s.execute("move", &json!({"handles":[section.hex()],"delta":[2,3]})).unwrap();
     translated(&geometry, &native(&s, section), Vec2::new(2., 3.));
+}
+
+#[test]
+fn verified_axis_needs_no_unused_letter_or_cutting_line_layers() {
+    let (mut s, id, source) = setup("top");
+    for name in ["GOST-TEXT", "GOST-SECTION"] {
+        s.execute("layer.set", &json!({"name":name,"locked":true})).unwrap();
+    }
+    let (section, _) = add(&mut s, &id, &parameters(&id, source, "imposed"));
+    let link = relation(&s, section);
+    assert_eq!(link.kind, section_notation::Kind::SymmetryAxis);
+    assert_eq!(link.source_marks, 0);
+    assert!(link.label.is_none());
+    assert!(native(&s, section).iter().all(|e| !matches!(e, EntityKind::Text(_) | EntityKind::MText(_))));
+    assert_eq!(crate::extensions::gost::standards::next_letter(s.doc().unwrap(), "test").unwrap(), "А");
+}
+
+#[test]
+fn asymmetric_bore_keeps_lettered_notation_instead_of_using_outer_bbox_symmetry() {
+    let (mut s, id, source) = setup("top");
+    let p = parameters(&id, source, "detached");
+    let canonical = sections::prepare_request(&s, &p).unwrap();
+    let axis = sections::request(&canonical).unwrap().symmetry_axis.unwrap();
+    let mut section = sections::tests::fixture();
+    section.plane.origin = [0., 6., 0.];
+    let cadcraft_doc::HatchEdge::Segment(cadcraft_geom::Segment::Arc { arc, .. }) = &mut section.caps[0].loops[1].edges[0] else {
+        panic!("fixture circular bore required");
+    };
+    arc.center.y += 2.;
+    section.symmetry = Some(cadcraft_doc::model_section::SectionSymmetry { axis, center: [10., 10.], symmetric: false, tolerance_mm: 1e-9 });
+    let out = sections::apply(&mut s, &id, &"a".repeat(64), &p, section).unwrap();
+    let target = handle(out["handle"].as_str().unwrap()).unwrap();
+    let link = relation(&s, target);
+    assert_eq!(link.kind, section_notation::Kind::CuttingPlane);
+    assert_eq!(link.label.as_deref(), Some("А"));
+    assert_eq!(link.source_marks, 8);
+    assert!(native(&s, target).iter().any(|e| matches!(e, EntityKind::Text(_) | EntityKind::MText(_))));
+}
+
+#[test]
+fn explicit_designation_or_different_scale_preserves_cutting_plane_style() {
+    for explicit in [false, true] {
+        let (mut s, id, source) = setup("top");
+        let mut p = parameters(&id, source, "detached");
+        if explicit {
+            p["label"] = json!("Б");
+        } else {
+            p["scale"] = json!(4);
+        }
+        let (section, _) = add(&mut s, &id, &p);
+        let link = relation(&s, section);
+        assert_eq!(link.kind, section_notation::Kind::CuttingPlane);
+        assert_eq!(link.label.as_deref(), Some(if explicit { "Б" } else { "А" }));
+        assert!(saved(&s, section).parameters["symmetry_axis"].is_null());
+        assert!(native(&s, section).iter().any(|e| matches!(e, EntityKind::Text(_) | EntityKind::MText(_))));
+    }
+}
+
+#[test]
+fn editing_verified_native_geometry_refuses_atomically_until_exploded() {
+    let (mut s, id, source) = setup("top");
+    let (section, _) = add(&mut s, &id, &parameters(&id, source, "imposed"));
+    let block = insert(&s, section).block.clone();
+    let before = s.doc().unwrap().clone();
+    let result = s.execute_prepared("gost.model.section", &json!({}), |s| {
+        let b = Arc::make_mut(s.doc_mut()?.blocks.get_mut(&block).unwrap());
+        let h = b.entities.iter().find(|e| matches!(e.kind, EntityKind::Line(_))).unwrap().handle;
+        b.entities.modify(h, |e| {
+            let EntityKind::Line(line) = &mut e.kind else { panic!("native contour required") };
+            line.a.x += 1.;
+        });
+        Ok(json!(null))
+    });
+    assert!(result.is_err());
+    assert_eq!(s.doc().unwrap(), &before);
+    s.execute("explode", &json!({"handles":[section.hex()]})).unwrap();
+    let e = super::super::entities(s.doc().unwrap()).find(|e| matches!(e.kind, EntityKind::Line(_))).unwrap();
+    let EntityKind::Line(line) = &e.kind else { panic!("exposed native line required") };
+    let (handle, a) = (e.handle, line.a);
+    s.execute("move", &json!({"handles":[handle.hex()],"delta":[1,0]})).unwrap();
+    let EntityKind::Line(line) = &s.doc().unwrap().entity(handle).unwrap().kind else { panic!("native line remains editable") };
+    near(line.a.xy(), a.xy() + Vec2::X);
+}
+
+#[test]
+fn legacy_v2_link_keeps_projection_without_reclassifying_old_lettered_geometry() {
+    let (mut s, id, source) = setup("top");
+    let mut p = parameters(&id, source, "detached");
+    p["label"] = json!("А");
+    let (section, _) = add(&mut s, &id, &p);
+    let before = native(&s, section);
+    let mut value = json!(load(s.doc().unwrap()).unwrap());
+    let view = value["views"].as_array_mut().unwrap().iter_mut().find(|v| v["handle"] == section.hex()).unwrap();
+    view["parameters"].as_object_mut().unwrap().remove("symmetry_axis");
+    view["provenance"]["section"].as_object_mut().unwrap().remove("symmetry");
+    let relation = view["provenance"]["section"]["notation"].as_object_mut().unwrap();
+    relation.insert("version".into(), json!(2));
+    relation.remove("kind");
+    relation.remove("source_marks");
+    let record = super::super::record(s.doc().unwrap()).unwrap().unwrap().handle;
+    let object = Arc::make_mut(&mut s.doc_mut().unwrap().foreign).objects.iter_mut().find(|o| o.handle == record).unwrap();
+    object.tags.retain(|t| t.code != 1);
+    let text = serde_json::to_string(&value).unwrap();
+    for chunk in text.as_bytes().chunks(240) {
+        object.tags.push(super::super::tag(1, std::str::from_utf8(chunk).unwrap()));
+    }
+    let reopened = cadcraft_io::read_dxf(cadcraft_io::write_dxf(s.doc().unwrap()).as_bytes()).unwrap();
+    s.open_drawing(reopened, "legacy projected section DXF", None);
+    let migrated = super::section_notation::link(&saved(&s, section)).unwrap().unwrap();
+    assert_eq!(migrated.version, 3);
+    assert_eq!(migrated.kind, section_notation::Kind::CuttingPlane);
+    assert_eq!(migrated.label.as_deref(), Some("А"));
+    assert!(migrated.projection.is_some());
+    assert_eq!(native(&s, section), before);
+    s.execute("move", &json!({"handles":[source.hex()],"delta":[5,7]})).unwrap();
+    translated(&before, &native(&s, section), Vec2::new(5., 7.));
+}
+
+#[test]
+fn oblique_small_circular_section_keeps_thin_cross_without_duplicate_main_axis() {
+    let (mut s, id, source) = setup("top");
+    let mut p = parameters(&id, source, "imposed");
+    p["plane"]["normal"] = json!([1, 1, 0]);
+    let canonical = sections::prepare_request(&s, &p).unwrap();
+    let request = sections::request(&canonical).unwrap();
+    let mut section = sections::tests::fixture();
+    section.plane = request.plane;
+    let d = Vec3::new(request.direction[0], request.direction[1], request.direction[2]);
+    let up = Vec3::new(request.up[0], request.up[1], request.up[2]);
+    let x = d.cross(up).normalized();
+    let y = x.cross(d);
+    section.projection.basis = Basis { x: [x.x, x.y, x.z], y: [y.x, y.y, y.z], direction: request.direction };
+    section.caps[0].loops[0].edges = vec![cadcraft_doc::HatchEdge::Segment(cadcraft_geom::Segment::Arc {
+        arc: cadcraft_geom::Arc { center: Vec2::new(10., 10.), radius: 9., start: 0., end: 0. },
+        ccw: true,
+    })];
+    section.symmetry = Some(cadcraft_doc::model_section::SectionSymmetry {
+        axis: request.symmetry_axis.unwrap(),
+        center: [10., 10.],
+        symmetric: true,
+        tolerance_mm: 1e-9,
+    });
+    let out = sections::apply(&mut s, &id, &"a".repeat(64), &p, section).unwrap();
+    let target = handle(out["handle"].as_str().unwrap()).unwrap();
+    let block = s.doc().unwrap().block(&insert(&s, target).block).unwrap();
+    let mut length = 0.;
+    for entity in block.entities.iter() {
+        if let EntityKind::Line(line) = &entity.kind {
+            assert_eq!(entity.common.layer, "GOST-THIN");
+            length += (line.b - line.a).len();
+        }
+    }
+    // Two 30-model-mm axes, regardless of whether their centre stroke is split.
+    assert!((length - 60.).abs() < 1e-8, "duplicated or incorrectly scaled centre cross: {length}");
+    assert_eq!(relation(&s, target).source_marks, 0);
 }

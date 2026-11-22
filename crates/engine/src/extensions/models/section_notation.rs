@@ -1,16 +1,16 @@
-//! Native source-plane marks: source MOVE carries its own block geometry; captions live
-//! in the section block. No model I/O, nearest-object rebinding or symmetry inference.
+//! Source-bound cutting-plane or symmetry-axis notation. Native geometry follows
+//! its owning INSERT; no model I/O or nearest-object rebinding in document events.
 use super::{
     Common, Drawing, Entity, EntityKind, Handle, Insert, Options, Result, SavedView, Session, Store, Value, Vec2, Vec3, data, err, json, load, model,
     projections, save, tag, vector,
 };
 use crate::extensions::gost::{
     annotations::{self, CuttingPlane},
-    standards,
+    axes, standards,
 };
 use cadcraft_doc::{
     Space,
-    model_section::{KeptSide, SectionRequest},
+    model_section::{KeptSide, Section, SectionRequest},
 };
 use cadcraft_geom::{Bounds2, Mat3};
 use serde::{Deserialize, Serialize};
@@ -18,6 +18,13 @@ use std::{collections::BTreeSet, sync::Arc};
 
 const MARKER: &str = "CADCRAFTGOST_SECTION_NOTATION";
 pub(super) const MARK: &str = "section-cutting-mark";
+
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub(super) enum Kind {
+    CuttingPlane,
+    SymmetryAxis,
+}
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -29,6 +36,8 @@ pub(super) struct Link {
     pub(super) label: Option<String>,
     pub(super) source_scale: f64,
     pub(super) projection: Option<super::section_projection::Constraint>,
+    pub(super) kind: Kind,
+    pub(super) source_marks: usize,
 }
 fn handle(text: &str) -> Result<Handle> {
     if text.is_empty() || text.len() > 16 || !text.bytes().all(|c| c.is_ascii_hexdigit()) {
@@ -39,11 +48,12 @@ fn handle(text: &str) -> Result<Handle> {
 pub(super) fn link(view: &SavedView) -> Result<Option<Link>> {
     let Some(value) = view.provenance.get("section").and_then(|s| s.get("notation")) else { return Ok(None) };
     let link = Link::deserialize(value).map_err(|e| err(format!("invalid section notation: {e}")))?;
-    if link.version != 2
+    if link.version != 3
         || !link.source_scale.is_finite()
         || !(1e-6..=1e6).contains(&link.source_scale)
         || !matches!((link.status.as_str(), link.source_view.as_deref()), ("linked", Some(_)) | ("missing_source", None))
         || link.label.as_ref().is_some_and(|s| s.is_empty() || s.len() > 14)
+        || link.source_marks > super::MAX_ENTITIES
     {
         return Err(err("invalid section notation version, scale, label or status"));
     }
@@ -71,6 +81,35 @@ pub(super) fn validate_store(store: &Store) -> Result<()> {
                 return Err(err("section projection constraint mode differs from its presentation"));
             }
         }
+        let imposed = section.provenance["section"]["presentation"] == "imposed";
+        match link.kind {
+            Kind::CuttingPlane if link.source_marks != if link.label.is_some() { 8 } else { 6 } => {
+                return Err(err("cutting-plane mark count differs from its lettering"));
+            }
+            Kind::SymmetryAxis => {
+                if !enabled
+                    || link.label.is_some()
+                    || (!imposed && section.provenance["section"]["presentation"] != "detached")
+                    || (imposed && link.source_marks != 0)
+                    || (!imposed && (link.source_marks < 2 || link.source_marks % 4 != 2))
+                {
+                    return Err(err("invalid source-bound symmetry-axis notation"));
+                }
+                let proof: cadcraft_doc::model_section::SectionSymmetry = serde_json::from_value(section.provenance["section"]["symmetry"].clone())
+                    .map_err(|e| err(format!("invalid saved section symmetry: {e}")))?;
+                let constraint = link.projection.as_ref().ok_or_else(|| err("symmetry-axis notation requires projection linkage"))?;
+                if !proof.symmetric
+                    || !crate::finite::is_finite(&proof)
+                    || !(1e-9..=1e-6).contains(&proof.tolerance_mm)
+                    || proof.center.iter().any(|v| v.abs() > 1e6)
+                    || proof.axis.iter().zip(constraint.axis).any(|(a, b)| (a - b).abs() > 1e-9)
+                    || !section.parameters["scale"].as_f64().is_some_and(|scale| (scale * link.source_scale - 1.).abs() <= 1e-10)
+                {
+                    return Err(err("saved symmetry-axis proof differs from its frozen source frame"));
+                }
+            }
+            Kind::CuttingPlane => {}
+        }
         if let Some(source) = link.source_view.as_deref() {
             if handle(source)? == handle(&section.handle)? {
                 return Err(err("section cannot reference itself as its source view"));
@@ -95,21 +134,29 @@ pub(super) fn validate_store(store: &Store) -> Result<()> {
     }
     Ok(())
 }
-/// Upgrade legacy free-placement relations without moving native geometry or
-/// implicitly enabling constraints. The next ordinary Store save persists v2.
+/// Migrate old cutting-plane styles without moving or reclassifying geometry.
+/// The next ordinary Store save persists the v3 notation record.
 pub(super) fn migrate(store: &mut Store) -> Result<()> {
     for view in &mut store.views {
         let Some(value) = view.provenance.get_mut("section").and_then(|s| s.get_mut("notation")) else { continue };
-        if value.get("version").and_then(Value::as_u64) != Some(1) {
+        let version = value.get("version").and_then(Value::as_u64);
+        if !matches!(version, Some(1 | 2)) {
             continue;
         }
-        let old = Link::deserialize(&*value).map_err(|e| err(format!("invalid legacy section notation: {e}")))?;
-        if old.projection.is_some() || view.parameters.get("projection_link").is_some() {
-            return Err(err("legacy section notation cannot carry projection constraints"));
+        if value.get("kind").is_some() || value.get("source_marks").is_some() {
+            return Err(err("legacy section notation cannot carry v3 style fields"));
         }
-        value["version"] = json!(2);
-        value["projection"] = Value::Null;
-        view.parameters["projection_link"] = json!(false);
+        if version == Some(1) {
+            if value.get("projection").is_some_and(|v| !v.is_null()) || view.parameters.get("projection_link").is_some() {
+                return Err(err("legacy section notation cannot carry projection constraints"));
+            }
+            value["projection"] = Value::Null;
+            view.parameters["projection_link"] = json!(false);
+        }
+        value["version"] = json!(3);
+        value["kind"] = json!("cutting_plane");
+        value["source_marks"] = json!(if value.get("label").is_some_and(|v| !v.is_null()) { 8 } else { 6 });
+        Link::deserialize(&*value).map_err(|e| err(format!("invalid legacy section notation: {e}")))?;
     }
     Ok(())
 }
@@ -167,32 +214,43 @@ fn unique_source<'a>(d: &'a Drawing, source: &SavedView) -> Result<(&'a Insert, 
     Ok((insert, origin))
 }
 
+struct SymmetryAxes {
+    center: Vec2,
+    axis: Vec2,
+    pattern: axes::AxisPattern,
+}
 pub(super) struct Prepared {
     source: Handle,
     block: String,
     link: Link,
     marks: Vec<(Common, EntityKind)>,
-    trace: super::section_projection::SourceTrace,
-    projection_enabled: bool,
-    imposed: bool,
+    symmetry: Option<SymmetryAxes>,
+    bounds: Bounds2,
+    scale: f64,
 }
 impl Prepared {
-    pub(super) fn align(&mut self, bounds: Bounds2, opts: &mut Options) -> Result<()> {
-        if self.projection_enabled {
-            self.link.projection = Some(super::section_projection::place(&self.trace, self.link.source_scale, bounds, opts, self.imposed)?);
-        }
-        Ok(())
-    }
     pub(super) fn audit(&self) -> Value {
         json!(self.link)
     }
-    pub(super) fn caption(&self, d: &Drawing, bounds: Bounds2, scale: f64) -> Result<Option<(Common, EntityKind)>> {
+    pub(super) fn axis_direction(&self) -> Option<Vec2> {
+        self.symmetry.as_ref().map(|s| s.axis)
+    }
+    pub(super) fn axis_count(&self) -> usize {
+        self.symmetry.as_ref().map_or(0, |s| s.pattern.count())
+    }
+    pub(super) fn append_axis(&self, target: &mut Vec<(Common, EntityKind)>) -> Result<()> {
+        if let Some(axis) = &self.symmetry {
+            axis.pattern.append(target, axis.center, axis.axis, self.scale)?;
+        }
+        Ok(())
+    }
+    pub(super) fn caption(&self, d: &Drawing) -> Result<Option<(Common, EntityKind)>> {
         let Some(label) = &self.link.label else { return Ok(None) };
-        let at = Vec2::new((bounds.min.x + bounds.max.x) * 0.5, bounds.max.y + 8.0 * scale);
-        let value = annotations::view_caption(label, true, scale);
+        let at = Vec2::new((self.bounds.min.x + self.bounds.max.x) * 0.5, self.bounds.max.y + 8.0 * self.scale);
+        let value = annotations::view_caption(label, true, self.scale);
         Ok(Some((
             Common { layer: "GOST-TEXT".into(), ..Common::default() },
-            annotations::designation_text(at, value, standards::designation_height(d)? * scale),
+            annotations::designation_text(at, value, standards::designation_height(d)? * self.scale),
         )))
     }
 }
@@ -233,6 +291,20 @@ impl Selected<'_> {
             Ok([up.x, up.y, up.z])
         }
     }
+    pub(super) fn symmetry_axis(&self, p: &Value, request: &SectionRequest, opts: &Options) -> Result<Option<[f64; 2]>> {
+        if (p["presentation"] != "detached" && !self.imposed)
+            || p.get("label").is_some_and(|v| !v.is_null())
+            || (opts.scale * self.insert.scale.x - 1.).abs() > 1e-10
+        {
+            return Ok(None);
+        }
+        let into = Vec2::new(self.normal.dot(self.x), self.normal.dot(self.y)) * if request.kept_side == KeptSide::Positive { 1. } else { -1. };
+        let length = into.len();
+        if !length.is_finite() || length <= 0. {
+            return Err(err("invalid source cutting trace for symmetry classification"));
+        }
+        Ok(Some([into.y / length, -into.x / length]))
+    }
 }
 pub(super) fn select<'a>(d: &'a Drawing, store: &'a Store, p: &Value, request: &SectionRequest, opts: &Options) -> Result<Option<Selected<'a>>> {
     let Some(source_value) = p.get("source_view") else {
@@ -258,9 +330,6 @@ pub(super) fn select<'a>(d: &'a Drawing, store: &'a Store, p: &Value, request: &
     if cadcraft_render::paper::page_unit_mm(d, &layout.page) != 1.0 {
         return Err(err("section notation requires millimetre paper units"));
     }
-    if d.text_style("GOST").is_none() {
-        return Err(err("GOST text style required; run gost.setup first"));
-    }
     let normal = Vec3::new(request.plane.normal[0], request.plane.normal[1], request.plane.normal[2]);
     let read = |key| -> Result<Vec3> {
         let [x, y, z] = vector(&source.basis[key])?;
@@ -282,67 +351,122 @@ pub(super) fn select<'a>(d: &'a Drawing, store: &'a Store, p: &Value, request: &
             "gost.model.section",
         )?;
     }
-    for layer in ["GOST-SECTION", "GOST-THIN"].into_iter().chain((!imposed).then_some("GOST-TEXT")) {
-        if !d.layer(layer).is_some_and(|l| !l.locked && l.visible() && l.plot) {
-            return Err(err(format!("{layer} must be unlocked, visible and printable")));
-        }
-    }
     Ok(Some(Selected { view: source, insert, origin, normal, x, y, sight, imposed }))
 }
 
-pub(super) fn prepare(d: &Drawing, store: &Store, p: &Value, request: &SectionRequest, opts: &Options) -> Result<Option<Prepared>> {
+pub(super) fn prepare(
+    d: &Drawing,
+    store: &Store,
+    p: &Value,
+    request: &SectionRequest,
+    opts: &mut Options,
+    section: &Section,
+    circle_radius: Option<f64>,
+) -> Result<Option<Prepared>> {
     let Some(Selected { view, insert, origin, normal, x, y, imposed, .. }) = select(d, store, p, request, opts)? else { return Ok(None) };
     let source_handle = handle(&view.handle)?;
-    let label = if imposed {
+    let projection_enabled = super::flag(p, "projection_link", true)?;
+    let symmetry = section.symmetry.as_ref().filter(|s| s.symmetric);
+    if symmetry.is_some() && (!projection_enabled || request.symmetry_axis.is_none()) {
+        return Err(err("symmetry-axis notation requires its canonical projection-linked source request"));
+    }
+    let kind = if symmetry.is_some() { Kind::SymmetryAxis } else { Kind::CuttingPlane };
+    if kind == Kind::CuttingPlane {
+        ready(d, "GOST-SECTION")?;
+        ready(d, "GOST-THIN")?;
+        if !imposed {
+            ready(d, "GOST-TEXT")?;
+            if d.text_style("GOST").is_none() {
+                return Err(err("GOST text style required; run gost.setup first"));
+            }
+        }
+    }
+    let label = if imposed || symmetry.is_some() {
         None
     } else {
-        let label = match p.get("label") {
+        Some(match p.get("label") {
             None => standards::next_letter(d, "gost.model.section")?,
             Some(Value::String(label)) => label.clone(),
             _ => return Err(err("detached/cutaway source notation requires a lettered designation")),
-        };
-        Some(label)
+        })
     };
-    let bounds = projections::view_bounds(d, insert)?;
+    let source_bounds = projections::view_bounds(d, insert)?;
+    let bounds = super::sections::bounds(section, p, opts.hidden)?;
     let plane_origin = Vec3::new(request.plane.origin[0], request.plane.origin[1], request.plane.origin[2]);
     let on = Vec2::new(plane_origin.dot(x), plane_origin.dot(y)) * insert.scale.x + origin;
-    let into = Vec2::new(normal.dot(x), normal.dot(y)) * if request.kept_side == KeptSide::Positive { 1.0 } else { -1.0 };
-    let tangent = Vec2::new(into.y, -into.x) * (1.0 / into.len());
-    let corners = [bounds.min, Vec2::new(bounds.min.x, bounds.max.y), bounds.max, Vec2::new(bounds.max.x, bounds.min.y)];
-    let (low, high) = corners.iter().fold((f64::INFINITY, f64::NEG_INFINITY), |(low, high), p| {
-        let t = (*p - on).dot(tangent);
-        (low.min(t), high.max(t))
-    });
-    let first = on + tangent * (low - 15.0);
-    let last = on + tangent * (high + 15.0);
-    let height = if label.is_some() { standards::designation_height(d)? } else { 1.0 };
-    let local = Mat3::translate(-origin).then(Mat3::scale(1.0 / insert.scale.x, 1.0 / insert.scale.x));
-    let mut marks = Vec::with_capacity(if label.is_some() { 8 } else { 6 });
-    annotations::cutting_plane(
-        CuttingPlane { first, last, lettering: label.as_deref().map(|label| (label, height)), scale: 1.0, reverse: false },
-        &mut |mut kind, layer| {
-            kind.transform(&local);
-            marks.push((Common { layer: layer.into(), ..Common::default() }, kind));
-            Ok(())
-        },
-    )?;
+    let into = Vec2::new(normal.dot(x), normal.dot(y)) * if request.kept_side == KeptSide::Positive { 1. } else { -1. };
+    let tangent = Vec2::new(into.y, -into.x) * (1. / into.len());
+    let trace = super::section_projection::SourceTrace { origin, point: on, axis: tangent };
+    let center = symmetry.map_or(bounds.center(), |s| Vec2::new(s.center[0], s.center[1]));
+    let projection = if projection_enabled { Some(super::section_projection::place(&trace, insert.scale.x, center, opts, imposed)?) } else { None };
+    let local = Mat3::translate(-origin).then(Mat3::scale(1. / insert.scale.x, 1. / insert.scale.x));
+    let mut marks = Vec::new();
+    let symmetry = if let Some(proof) = symmetry {
+        let axis = Vec2::new(proof.axis[0], proof.axis[1]);
+        let corners = [bounds.min, Vec2::new(bounds.min.x, bounds.max.y), bounds.max, Vec2::new(bounds.max.x, bounds.min.y)];
+        let radius = circle_radius.unwrap_or_else(|| corners.iter().fold(0_f64, |r, p| r.max((*p - center).dot(axis).abs())));
+        let extension = axes::default_extension(radius, opts.scale)?;
+        let pattern = axes::AxisPattern::new(radius, opts.scale, extension)?;
+        ready(d, if pattern.count() == 2 { "GOST-THIN" } else { "GOST-CENTER" })?;
+        if !imposed {
+            marks.reserve(pattern.count());
+            let source_center = on + tangent * (origin + center * insert.scale.x - on).dot(tangent);
+            pattern.append(&mut marks, source_center, tangent, 1.)?;
+        }
+        Some(SymmetryAxes { center, axis, pattern })
+    } else {
+        let corners = [
+            source_bounds.min,
+            Vec2::new(source_bounds.min.x, source_bounds.max.y),
+            source_bounds.max,
+            Vec2::new(source_bounds.max.x, source_bounds.min.y),
+        ];
+        let (low, high) = corners.iter().fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), p| {
+            let t = (*p - on).dot(tangent);
+            (lo.min(t), hi.max(t))
+        });
+        let first = on + tangent * (low - 15.);
+        let last = on + tangent * (high + 15.);
+        let height = if label.is_some() { standards::designation_height(d)? } else { 1. };
+        marks.reserve(if label.is_some() { 8 } else { 6 });
+        annotations::cutting_plane(
+            CuttingPlane { first, last, lettering: label.as_deref().map(|s| (s, height)), scale: 1., reverse: false },
+            &mut |kind, layer| {
+                marks.push((Common { layer: layer.into(), ..Common::default() }, kind));
+                Ok(())
+            },
+        )?;
+        None
+    };
+    for (_, geometry) in &mut marks {
+        geometry.transform(&local);
+    }
     Ok(Some(Prepared {
         source: source_handle,
         block: d.block(&insert.block).ok_or_else(|| err("section source block missing"))?.name.clone(),
         link: Link {
-            version: 2,
+            version: 3,
             source_view: Some(source_handle.hex()),
             original_source_view: source_handle.hex(),
             status: "linked".into(),
             label,
             source_scale: insert.scale.x,
-            projection: None,
+            projection,
+            kind,
+            source_marks: marks.len(),
         },
         marks,
-        trace: super::section_projection::SourceTrace { origin, point: on, axis: tangent },
-        projection_enabled: super::flag(p, "projection_link", true)?,
-        imposed,
+        symmetry,
+        bounds,
+        scale: opts.scale,
     }))
+}
+
+fn ready(d: &Drawing, layer: &str) -> Result<()> {
+    if !d.layer(layer).is_some_and(|l| !l.locked && l.visible() && l.plot) {
+        return Err(err(format!("{layer} must be unlocked, visible and printable")));
+    }
+    Ok(())
 }
 
 pub(super) fn install(d: &mut Drawing, section: Handle, prepared: Prepared) -> Result<()> {
@@ -352,13 +476,15 @@ pub(super) fn install(d: &mut Drawing, section: Handle, prepared: Prepared) -> R
         common.xdata.extend([tag(1001, MARKER), tag(1070, "1")]);
         added.push(Entity { handle: d.new_handle(), common, kind });
     }
-    let block = d.blocks.get_mut(&prepared.block).ok_or_else(|| err("source view block disappeared during section notation install"))?;
-    let block = Arc::make_mut(block);
-    if block.entities.len().checked_add(added.len()).is_none_or(|n| n > super::MAX_ENTITIES) {
-        return Err(err("source view section mark entity budget exceeded"));
-    }
-    for entity in added {
-        block.entities.push(entity);
+    if !added.is_empty() {
+        let block = d.blocks.get_mut(&prepared.block).ok_or_else(|| err("source view block disappeared during section notation install"))?;
+        let block = Arc::make_mut(block);
+        if block.entities.len().checked_add(added.len()).is_none_or(|n| n > super::MAX_ENTITIES) {
+            return Err(err("source view section mark entity budget exceeded"));
+        }
+        for entity in added {
+            block.entities.push(entity);
+        }
     }
     for target in [prepared.source, section] {
         let entity = d.entity(target).ok_or_else(|| err("section notation owner disappeared"))?;
@@ -458,6 +584,18 @@ pub(super) fn after_command(s: &mut Session, before: Option<&Arc<Drawing>>, uid:
             cleanup.insert(section_handle);
             continue;
         }
+        if relation.kind == Kind::SymmetryAxis
+            && let Some(previous) = store_source(&old, section_handle)
+            && before.entity(section_handle).is_some()
+        {
+            let (was, _, _) = projections::placement(before, previous)?;
+            let (now, _, _) = projections::placement(d, section)?;
+            let a = before.block(&was.block).ok_or_else(policy)?;
+            let b = d.block(&now.block).ok_or_else(policy)?;
+            if was.block != now.block || a.base != b.base || a.entities != b.entities {
+                return Err(err("symmetry-axis sections refuse edits of verified native geometry; explode the section to edit independently"));
+            }
+        }
         let Some(source_handle) = relation.source_view.as_deref().map(handle).transpose()? else { continue };
         let source = old.views.iter().find(|v| handle(&v.handle).ok() == Some(source_handle));
         if d.entity(source_handle).is_none() {
@@ -539,7 +677,7 @@ pub(super) fn after_command(s: &mut Session, before: Option<&Arc<Drawing>>, uid:
             .entities
             .iter()
             .try_fold(0_usize, |count, e| -> Result<usize> { Ok(count + usize::from(mark_owner(&e.common)? == Some(section_handle))) })?;
-        if marks != if relation.label.is_some() { 8 } else { 6 } {
+        if marks != relation.source_marks {
             return Err(err("source view cutting-plane marks are missing or duplicated"));
         }
     }

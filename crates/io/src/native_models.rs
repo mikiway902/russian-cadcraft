@@ -140,6 +140,7 @@ pub fn section(path: &str, expected_sha: &str, request: &SectionRequest) -> Resu
                 "source_sha256": expected_sha, "plane": request.plane,
                 "kept_side": request.kept_side, "direction": request.direction, "up": request.up,
                 "exclude_bodies": request.exclude_bodies, "require_analytic": false,
+                "symmetry_axis": request.symmetry_axis,
             }),
         )?;
         check_source(&value, &entry.source)?;

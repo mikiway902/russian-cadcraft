@@ -49,6 +49,7 @@ fn completed_section_status_uses_the_shown_language_before_render_scope() {
             status: SectionStatus::Empty,
             bodies: vec![BodyDisposition { source_body: 0, source_placement: 0, result_body: None, status: BodyStatus::Removed, topology: None }],
             caps: Vec::new(),
+            symmetry: None,
         };
         let state = app.session.state().unwrap();
         let (uid, revision) = (state.uid, state.revision);

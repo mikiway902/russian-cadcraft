@@ -106,6 +106,7 @@ pub(in crate::extensions::models) fn fixture() -> Section {
                 "curve_contract":"upstream_exact_native_planar_read_with_reported_recognition_tolerance_not_symbolic_certificate",
                 "topology_identity":"section_result_local_only"}),
         }],
+        symmetry: None,
     }
 }
 fn add(s: &mut Session, id: &str) -> (Handle, Value) {

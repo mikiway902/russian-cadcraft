@@ -8,6 +8,7 @@ fn request() -> SectionRequest {
         kept_side: KeptSide::Negative,
         direction: [0.0, 0.0, -3.0],
         up: [0.0, 1.0, 0.0],
+        symmetry_axis: None,
         exclude_bodies: Vec::new(),
     }
 }
@@ -19,7 +20,7 @@ fn line(a: [f64; 2], b: [f64; 2]) -> Value {
 }
 fn fixture() -> Value {
     json!({
-        "protocol":"cadcraft-section/1","source":{"sha256":SHA,"bytes":42},
+        "protocol":"cadcraft-section/2","source":{"sha256":SHA,"bytes":42},
         "units":{"length":"mm","area":"mm2","volume":"mm3","angle":"radian","coordinate_system":"right_handed_z_up"},
         "scale":1,"basis":{"x":[1,0,0],"y":[0,1,0],"direction":[0,0,-1]},
         "quality":{"unsupported_faces":0,"uncertain_pieces":0,"bounded_pieces":0,"sampled_pieces":0,
@@ -33,6 +34,7 @@ fn fixture() -> Value {
             "topology_identity":"section_result_local_only","cap_coordinates":"world_origin_screen_mm_same_basis_and_scale_as_drawing",
             "cap_contract":"outer_ccw_holes_cw_exact_segments_no_polygonization_no_paper_hatch_spacing",
             "atomicity":"all_selected_bodies_and_caps_or_error_source_snapshot_unchanged",
+            "symmetry":null,
             "bodies":[{"source_body":0,"source_placement":0,"result_body":0,"status":"cut",
                 "topology":{"faces":4,"edges":4,"vertices":4,"shells":1}}],
             "caps":[{"source_body":0,"source_placement":0,"result_body":0,"face":3,
@@ -130,7 +132,7 @@ fn tiny_lines_are_not_omitted_and_native_tolerance_is_not_a_repair() -> Result<(
 #[test]
 fn malformed_mapping_contract_and_winding_refuse_the_entire_result() {
     let mutations: &[(&str, Value)] = &[
-        ("/protocol", json!("cadcraft-section/2")),
+        ("/protocol", json!("cadcraft-section/1")),
         ("/source/bytes", json!(43)),
         ("/section/plane/normal", json!([0, 0, 2])),
         ("/basis/x", json!([-1, 0, 0])),
@@ -241,4 +243,198 @@ fn unrepresentable_tiny_arc_is_refused_instead_of_becoming_a_full_circle() {
     value["section"]["caps"][0]["region"]["outer"]["segs"] = json!([
         {"type":"arc","center":[0,0],"radius":5,"start":0,"sweep":1e-12}]);
     assert!(decode_fixture(&value).is_err());
+}
+
+fn symmetry_report(symmetric: bool) -> Value {
+    json!({"axis":[0,1],"center":[0,0],"symmetric":symmetric,"tolerance_mm":1e-9})
+}
+
+#[test]
+fn symmetry_classification_keeps_native_material_and_raw_hlr() -> Result<(), Error> {
+    let mut query = request();
+    query.symmetry_axis = Some([0.0, 1.0]);
+    for symmetric in [true, false] {
+        let mut value = fixture();
+        // A concentric annulus is symmetric about Y; moving only its hole in X is not.
+        // The consumer must keep the complete material boundary, not only the outer circle.
+        if !symmetric {
+            value["section"]["caps"][0]["region"]["holes"][0]["segs"][0]["center"] = json!([2, 0]);
+        }
+        value["section"]["symmetry"] = symmetry_report(symmetric);
+        value["quality"]["analytic_complete"] = json!(false);
+        value["quality"]["uncertain_pieces"] = json!(1);
+        value["drawing"]["lines"][0]["pieces"][0]["visibility"] = json!("uncertain");
+        value["drawing"]["lines"][0]["pieces"][0]["covered"] = json!(true);
+        let decoded = decode(&value, &query, SHA, 42, &[1])?;
+        assert_eq!(decoded.symmetry, Some(SectionSymmetry { axis: [0.0, 1.0], center: [0.0, 0.0], symmetric, tolerance_mm: 1e-9 }));
+        assert!(!decoded.projection.quality.analytic_complete);
+        assert_eq!(decoded.projection.quality.uncertain_pieces, 1);
+        assert_eq!(decoded.projection.entities.len(), 1);
+        let entity = &decoded.projection.entities[0];
+        assert_eq!(entity.visibility, cadcraft_doc::model_projection::Visibility::Uncertain);
+        assert!(entity.covered);
+        assert_eq!(decoded.projection.lines[0].source, SourceReference::Edge { edge: 3, tangent: false });
+        assert!(decoded.projection.lines[0].pieces[0].covered);
+        assert_eq!(decoded.caps[0].provenance, value["section"]["caps"][0]["provenance"]);
+        assert_eq!(decoded.caps[0].loops.len(), 2);
+        let HatchEdge::Segment(Segment::Arc { arc, ccw }) = &decoded.caps[0].loops[1].edges[0] else {
+            return Err(invalid("expected native symmetry hole"));
+        };
+        assert!(!*ccw);
+        assert_eq!(arc.center, Vec2::new(if symmetric { 0.0 } else { 2.0 }, 0.0));
+        assert_eq!(arc.radius, 1.0);
+        assert_eq!(arc.sweep(), TAU);
+    }
+    Ok(())
+}
+
+#[test]
+fn symmetry_reports_are_required_strict_and_request_bound() {
+    let mut query = request();
+    query.symmetry_axis = Some([0.0, 1.0]);
+    let mutations = [
+        ("/section/symmetry", Value::Null),
+        ("/section/symmetry", json!({})),
+        ("/section/symmetry/axis", json!([1, 0])),
+        ("/section/symmetry/axis", json!([0, -1])),
+        ("/section/symmetry/axis", json!([0, 2])),
+        ("/section/symmetry/axis", json!([null, 1])),
+        ("/section/symmetry/axis", json!([0, 1, 0])),
+        ("/section/symmetry/center", json!([null, 0])),
+        ("/section/symmetry/center", json!([0, 1e100])),
+        ("/section/symmetry/center", json!([1_000_001, 0])),
+        ("/section/symmetry/center", json!([5.001, 0])),
+        ("/section/symmetry/center", json!([0, -5.001])),
+        ("/section/symmetry/symmetric", json!("true")),
+        ("/section/symmetry/symmetric", Value::Null),
+        ("/section/symmetry/tolerance_mm", Value::Null),
+        ("/section/symmetry/tolerance_mm", json!(0)),
+        ("/section/symmetry/tolerance_mm", json!(1e-10)),
+        ("/section/symmetry/tolerance_mm", json!(1.001e-6)),
+        ("/section/symmetry/tolerance_mm", json!(1e100)),
+    ];
+    for (path, replacement) in mutations {
+        let mut value = fixture();
+        value["section"]["symmetry"] = symmetry_report(true);
+        *value.pointer_mut(path).expect("symmetry fixture path") = replacement;
+        assert!(decode(&value, &query, SHA, 42, &[1]).is_err(), "accepted malformed {path}");
+    }
+    let mut value = fixture();
+    value["section"].as_object_mut().expect("section object").remove("symmetry");
+    assert!(decode(&value, &query, SHA, 42, &[1]).is_err());
+    assert!(decode_fixture(&value).is_err());
+    for field in ["axis", "center", "symmetric", "tolerance_mm"] {
+        let mut value = fixture();
+        value["section"]["symmetry"] = symmetry_report(true);
+        value["section"]["symmetry"].as_object_mut().expect("report object").remove(field);
+        assert!(decode(&value, &query, SHA, 42, &[1]).is_err(), "accepted missing {field}");
+    }
+    let mut value = fixture();
+    value["section"]["symmetry"] = symmetry_report(true);
+    value["section"]["symmetry"]["extra"] = json!(true);
+    assert!(decode(&value, &query, SHA, 42, &[1]).is_err());
+    value["section"]["symmetry"] = symmetry_report(true);
+    assert!(decode_fixture(&value).is_err(), "accepted unrequested classification");
+}
+
+#[test]
+fn symmetry_is_null_for_no_intersection_empty_and_multiple_caps() -> Result<(), Error> {
+    let mut query = request();
+    query.symmetry_axis = Some([0.0, 1.0]);
+    for status in ["retained", "removed", "cut"] {
+        let mut value = fixture();
+        match status {
+            "retained" => {
+                value["section"]["bodies"][0]["status"] = json!("retained");
+                value["section"]["caps"] = json!([]);
+            }
+            "removed" => {
+                value["section"]["bodies"] = json!([{"source_body":0,"source_placement":0,"result_body":null,"status":"removed"}]);
+                value["section"]["status"] = json!("empty");
+                value["section"]["caps"] = json!([]);
+                value["prepare_reports"] = json!([]);
+                value["drawing"]["lines"] = json!([]);
+            }
+            _ => {
+                let mut second = value["section"]["caps"][0].clone();
+                second["face"] = json!(2);
+                value["section"]["caps"].as_array_mut().expect("caps array").push(second);
+            }
+        }
+        assert!(decode(&value, &query, SHA, 42, &[1])?.symmetry.is_none());
+        value["section"]["symmetry"] = symmetry_report(true);
+        assert!(decode(&value, &query, SHA, 42, &[1]).is_err(), "accepted spurious {status} report");
+    }
+    Ok(())
+}
+
+#[test]
+fn symmetry_axis_rejects_nonfinite_and_nonunit_before_serialization() -> Result<(), Error> {
+    let mut query = request();
+    for axis in
+        [[f64::NAN, 1.0], [0.0, f64::INFINITY], [f64::NEG_INFINITY, 0.0], [f64::MAX, f64::MAX], [0.0, 0.0], [0.0, 2.0], [1.0, 1.0], [0.0, 1.0 + 2e-9]]
+    {
+        query.symmetry_axis = Some(axis);
+        assert!(validate_request(&query).is_err(), "accepted unsafe axis {axis:?}");
+    }
+    query.symmetry_axis = Some([0.6, 0.8]);
+    validate_request(&query)?;
+    let mut value = fixture();
+    value["section"]["symmetry"] = json!({"axis":[0.6,0.8],"center":[0,0],"symmetric":true,"tolerance_mm":1e-6});
+    assert_eq!(decode(&value, &query, SHA, 42, &[1])?.symmetry.expect("requested report").axis, [0.6, 0.8]);
+    Ok(())
+}
+
+#[test]
+fn symmetry_center_uses_native_bounds_including_negative_weight_conics() -> Result<(), Error> {
+    let mut query = request();
+    query.symmetry_axis = Some([0.0, 1.0]);
+    let mut value = fixture();
+    // The negative-weight conic bows below its control hull. Its real outer-bounds
+    // center is (0,-0.5), not in the controls' Y interval [0,1].
+    value["section"]["caps"][0]["region"] = json!({"outer":{"segs":[
+        {"type":"conic","a":[-1,0],"apex":[0,1],"b":[1,0],"w":-0.5},
+        line([1.0,0.0],[-1.0,0.0])]},"holes":[]});
+    value["section"]["symmetry"] = json!({"axis":[0,1],"center":[0,-0.5],"symmetric":true,"tolerance_mm":1e-9});
+    let decoded = decode(&value, &query, SHA, 42, &[1])?;
+    assert_eq!(decoded.symmetry.expect("conic report").center, [0.0, -0.5]);
+    let HatchEdge::Spline(s) = &decoded.caps[0].loops[0].edges[0] else {
+        return Err(invalid("expected native conic"));
+    };
+    assert_eq!(s.weights, vec![1.0, -0.5, 1.0]);
+    assert_eq!(s.control, vec![Vec2::new(-1.0, 0.0), Vec2::new(0.0, 1.0), Vec2::new(1.0, 0.0)]);
+    value["section"]["symmetry"]["center"] = json!([0, -2]);
+    assert!(decode(&value, &query, SHA, 42, &[1]).is_err());
+    Ok(())
+}
+
+#[test]
+fn shared_cap_bounds_refuse_malformed_native_boundaries() -> Result<(), Error> {
+    let mut value = fixture();
+    value["section"]["caps"][0]["region"] = json!({"outer":{"segs":[
+        {"type":"conic","a":[-1,0],"apex":[0,1],"b":[1,0],"w":-0.5},
+        line([1.0,0.0],[-1.0,0.0])]},"holes":[]});
+    let mut decoded = decode_fixture(&value)?;
+    let cap = &mut decoded.caps[0];
+    let bounds = cap.conservative_bounds().expect("native conic bounds");
+    assert!(bounds.min.y <= -1.0 && bounds.max.y >= 0.0);
+    cap.loops[0].outer = false;
+    assert!(cap.conservative_bounds().is_none());
+    cap.loops[0].outer = true;
+    let HatchEdge::Spline(s) = &mut cap.loops[0].edges[0] else {
+        return Err(invalid("expected bounds conic"));
+    };
+    s.weights[1] = -1.0;
+    assert!(cap.conservative_bounds().is_none(), "polar conics have no finite hull");
+    let HatchEdge::Spline(s) = &mut cap.loops[0].edges[0] else {
+        return Err(invalid("expected bounds conic"));
+    };
+    s.weights[1] = -0.5;
+    s.weights[0] = 0.5;
+    assert!(cap.conservative_bounds().is_none(), "unsupported negative-weight spline");
+    cap.loops[0].edges.clear();
+    assert!(cap.conservative_bounds().is_none());
+    cap.loops.clear();
+    assert!(cap.conservative_bounds().is_none());
+    Ok(())
 }

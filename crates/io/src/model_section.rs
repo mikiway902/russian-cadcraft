@@ -4,7 +4,9 @@ use crate::model_projection::{self, Error, MAX_CONTROLS, MAX_SEGMENTS, add_count
 use cadcraft_doc::{
     EntityKind, HatchEdge, HatchLoop,
     model_projection::SourceReference,
-    model_section::{BodyDisposition, BodyStatus, KeptSide, Plane, Section, SectionCap, SectionRequest, SectionStatus, SectionTopology},
+    model_section::{
+        BodyDisposition, BodyStatus, KeptSide, Plane, Section, SectionCap, SectionRequest, SectionStatus, SectionSymmetry, SectionTopology,
+    },
 };
 use cadcraft_geom::{Arc, Line, Segment, Vec2};
 use serde::Deserialize;
@@ -62,6 +64,9 @@ fn unit(v: [f64; 3]) -> Result<[f64; 3], Error> {
 fn close3(a: [f64; 3], b: [f64; 3], tolerance: f64) -> bool {
     a.iter().zip(b).all(|(a, b)| (a - b).abs() <= tolerance)
 }
+fn unit_axis(axis: [f64; 2]) -> bool {
+    axis.iter().all(|n| n.is_finite()) && (axis[0].hypot(axis[1]) - 1.0).abs() <= 1e-9
+}
 
 /// Validate before JSON serialization (which otherwise turns nonfinite numbers into null).
 /// Body existence is checked separately against the selected immutable snapshot.
@@ -77,6 +82,9 @@ pub fn validate_request(request: &SectionRequest) -> Result<(), Error> {
     let perpendicular = cross(normal, direction);
     if dot(normal, direction) * sign <= 0.0 || dot(perpendicular, perpendicular).sqrt() > 1e-9 {
         return Err(invalid("section view must look normally into the kept side"));
+    }
+    if request.symmetry_axis.is_some_and(|axis| !unit_axis(axis)) {
+        return Err(invalid("section finite unit symmetry axis"));
     }
     if request.exclude_bodies.len() > 32 {
         return Err(Error::Limit("section exclusions"));
@@ -98,7 +106,7 @@ pub fn decode(result: &Value, request: &SectionRequest, sha: &str, bytes: u64, s
         return Err(invalid("section original body count/exclusions"));
     }
     let (drawing_segments, mut controls) = model_projection::preflight(result)?;
-    constant(result, "protocol", "cadcraft-section/1")?;
+    constant(result, "protocol", "cadcraft-section/2")?;
     constant(result, "source_mapping", SOURCE_MAPPING)?;
     constant(result, "visibility_contract", "raw_uncertain_and_covered_preserved_no_mesh_fallback")?;
     if result.pointer("/source/sha256").and_then(Value::as_str) != Some(sha) || result.pointer("/source/bytes").and_then(Value::as_u64) != Some(bytes)
@@ -253,7 +261,30 @@ pub fn decode(result: &Value, request: &SectionRequest, sha: &str, bytes: u64, s
     if result_count == 0 && (!projection.lines.is_empty() || !projection.unsupported.is_empty() || !caps.is_empty()) {
         return Err(invalid("section empty geometry consistency"));
     }
-    Ok(Section { projection, plane, kept_side, status, bodies, caps })
+    let symmetry = decode_symmetry(field(section, "symmetry")?, request.symmetry_axis, &caps)?;
+    Ok(Section { projection, plane, kept_side, status, bodies, caps, symmetry })
+}
+
+fn decode_symmetry(value: &Value, requested: Option<[f64; 2]>, caps: &[SectionCap]) -> Result<Option<SectionSymmetry>, Error> {
+    let Some(axis) = requested.filter(|_| caps.len() == 1) else {
+        return if value.is_null() { Ok(None) } else { Err(invalid("spurious section symmetry")) };
+    };
+    let report: SectionSymmetry = typed(value)?;
+    if !unit_axis(report.axis) || report.axis.iter().zip(axis).any(|(a, b)| (a - b).abs() > 1e-9) {
+        return Err(invalid("section symmetry axis mismatch"));
+    }
+    if report.center.iter().any(|n| !n.is_finite() || n.abs() > MAX_COORD)
+        || !report.tolerance_mm.is_finite()
+        || !(1e-9..=1e-6).contains(&report.tolerance_mm)
+    {
+        return Err(invalid("section symmetry center/tolerance"));
+    }
+    let bounds = caps[0].conservative_bounds().ok_or(invalid("section symmetry cap boundary"))?;
+    let [x, y] = report.center;
+    if x < bounds.min.x || x > bounds.max.x || y < bounds.min.y || y > bounds.max.y {
+        return Err(invalid("section symmetry center outside cap"));
+    }
+    Ok(Some(report))
 }
 
 fn provenance_check(v: &Value, source_faces: usize) -> Result<f64, Error> {

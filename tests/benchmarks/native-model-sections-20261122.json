@@ -597,6 +597,75 @@
     ],
     "acceptance_limits": "Not general freeform acceptance, automatic symmetry 7.3, hole/recess convention 7.9 or B-Rep rebuild 7.11; canonical shaft Front stays 20 uncertain / 4 uncovered; 60/172 accepted, 112 open"
   },
+  "automatic_section_symmetry": {
+    "date": "2026-11-22",
+    "wire": "cadcraft-section/2; mandatory null/object report; analysis only for requested single cap",
+    "predicate": "Native reflected complete material Region2, including holes; empty directed planar difference; tolerance 1e-9..1e-6 mm; no sampling, fitting, polygonization or area-only/bbox-only inference",
+    "center": "Directional native extrema along requested axis and its normal, not world bbox midpoint; oblique triangular-prism regression covers both kept sides",
+    "policy": "New projection-linked detached/imposed, equal actual scale, no explicit label; verified geometry protected until EXPLODE; legacy v1/v2 migrate to v3 without geometric movement or reclassification",
+    "full_ci": {
+      "date": "2026-11-23",
+      "command": "CARGO_BUILD_JOBS=1 cargo xtask ci",
+      "result": "PASS all nine gates, complete native worker suite; no gate skipped",
+      "elapsed_seconds": 897.94,
+      "warnings": "Four existing WASM dead-code warnings retained",
+      "earlier_attempts": "First complete run hit external 3600-second deadline in native linking; second cancelled after debugging five concurrent LLVM StringTableBuilder linkers; only build parallelism constrained for final complete run, no permanent config change"
+    },
+    "narrow_checks": {
+      "engine_models": 97,
+      "gost_axes": 5,
+      "io_sections": 15,
+      "worker_sections": 13,
+      "worker_extrema_unit_cases": 2,
+      "real_transport_cases": 3,
+      "worker_clippy": "PASS all targets",
+      "final_worker_build_and_cli": "PASS; actual final panic-free worker recreates identical native entities and symmetry report",
+      "root_clippy": "PASS doc/io/engine/UI all targets",
+      "i18n": "PASS, 346 existing Russian fallback strings",
+      "desktop_cli_build": "PASS"
+    },
+    "step_gui": {
+      "port": 18076,
+      "creation": "Actual Create exact cross-section GUI button",
+      "source_handle": "184",
+      "target_handle": "18D",
+      "requested_at": [200,200],
+      "canonical_at": [50,160],
+      "symmetry": {"axis":[1,0],"center":[40,-10],"symmetric":true,"tolerance_mm":1e-9},
+      "source_marks": 0,
+      "native_geometry": {"GOST-THIN Line":4,"GOST-CENTER Line":6,"Hatch":1,"Text":0},
+      "raw_quality": "8 covered uncertain retained, not analytic-complete",
+      "dxf": "target/coexistence/proof/symmetry-step-imposed.dxf",
+      "dxf_bytes": 94345,
+      "optional_scale": "Actual GUI command omitted scale: canonical 1 and symmetry-axis notation",
+      "explicit_label": "Actual explicit A retains cutting-plane style and eight source marks",
+      "persistence": "GUI/CLI full native entities/model metadata identical; source/common MOVE exactly once, Undo and EXPLODE/Undo full entity equality"
+    },
+    "inclined_gui": {
+      "creation": "GUI public gost.model.section through engine.execute, actual native worker",
+      "canonical_at": [60,139.99999999999997],
+      "symmetry": {"axis":[1,0],"center":[15.00000000000001,1.1546319456101628e-14],"symmetric":true,"tolerance_mm":1e-9},
+      "raw_quality": {"analytic_complete":true,"uncertain_pieces":0,"bounded_pieces":0,"sampled_pieces":0,"unsupported_faces":0,"unsupported_trims":0,"import_issues":0,"open_bodies":0},
+      "native_geometry": {"Spline":5,"Hatch":1,"GOST-CENTER Line":6,"Text":0},
+      "geometry_preservation": "All five full native spline geometries identical to previous proof; native numerical AREA unchanged",
+      "native_area_mm2": 392.6990733607209,
+      "dxf": "target/coexistence/proof/symmetry-inclined-section.dxf",
+      "dxf_bytes": 94948,
+      "persistence": "GUI/CLI full native entities and model metadata identical; source/common MOVE and Undo exact",
+      "actual_cli_creation": "Complete native paper entities identical; model metadata differs only measured phase_ms",
+      "cli_dxf": "target/coexistence/proof/symmetry-inclined-cli-created.dxf",
+      "gui_exit": 0
+    },
+    "actual_legacy_dxf": "v1 source-bound-section remains independent, v2 off-centre-step-imposed retains constraint and cutting-plane; GUI/CLI native entities identical; MOVE/Undo exact",
+    "screenshots_read": [
+      "target/coexistence/proof/symmetry-bound-imposed-controls.png",
+      "target/coexistence/proof/symmetry-gui-completed-fields.png",
+      "target/coexistence/proof/symmetry-step-native-sheet.png",
+      "target/coexistence/proof/symmetry-detached-and-explicit-label.png",
+      "target/coexistence/proof/symmetry-inclined-native-sheet.png"
+    ],
+    "acceptance_limits": "Hole/recess full-contour convention 7.9 and B-Rep rebuild 7.11 remain open; canonical shaft Front remains 20 uncertain / 4 uncovered; 60/172 accepted, 112 open"
+  },
   "checks": {
     "io_section_cases": 9,
     "io_projection_cases": 3,

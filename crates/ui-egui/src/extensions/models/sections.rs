@@ -126,11 +126,11 @@ impl State {
                 }
                 ui.small(crate::tl!("Disable Projection link for free placement and orientation; cutting-plane notation remains source-bound."));
                 if self.presentation == "imposed" {
-                    ui.small(crate::tl!("Non-symmetric imposed sections use source arrows without letters."));
+                    ui.small(crate::tl!("Linked same-scale sections use verified symmetry axes without arrows or letters; other imposed sections use arrows without letters."));
                 } else {
                     ui.label(crate::tl!("Section designation (optional)"));
                     ui.text_edit_singleline(&mut self.designation);
-                    ui.small(crate::tl!("Leave blank to choose the next unused section designation."));
+                    ui.small(crate::tl!("Leave blank for automatic symmetry notation or the next unused section designation."));
                 }
             }
             ui.label(crate::tl!("Plane origin (mm)"));
@@ -173,7 +173,7 @@ impl State {
                 }
             }
             ui.small(crate::tl!("Hatching: 3 mm on paper; scale and insertion use the view controls above."));
-            ui.small(crate::tl!("Exact section geometry stays frozen. Source-bound cutting-plane notation follows 2D source MOVE; no 3D source rebuild or symmetry inference."));
+            ui.small(crate::tl!("Exact section geometry stays frozen. Eligible symmetry uses native curve reflection; no 3D source rebuild."));
             let create = if self.presentation == "cutaway" { crate::tl!("Create exact section") } else { crate::tl!("Create exact cross-section") };
             if ui.add_enabled(valid_body_count, egui::Button::new(create)).clicked() {
                 action = Some(Act::Section);

@@ -12,6 +12,8 @@ use solidcraft_geom::{
 use solidcraft_kernel::{Body, PlanarPiece, PlanarSpline, history::FaceOrigin, watch};
 use std::{collections::BTreeSet, sync::Arc};
 
+mod symmetry;
+
 pub(super) const MAX_COORD: f64 = 1_000_000.0;
 pub(super) const MAX_CAP_SEGMENTS: usize = 10_000;
 const FACING: f64 = 1.0 - 1e-9;
@@ -42,6 +44,7 @@ struct SectionQuery {
     require_analytic: bool,
     #[serde(default)]
     exclude_bodies: Vec<usize>,
+    symmetry_axis: Option<[f64; 2]>,
 }
 
 impl Worker {
@@ -50,6 +53,9 @@ impl Worker {
         let model = self.model.as_ref().ok_or(Error::NoModel)?;
         if request.source_sha256 != model.fingerprint.sha256 {
             return Err(Error::StaleModel);
+        }
+        if let Some(axis) = request.symmetry_axis {
+            symmetry::validate_axis(axis)?;
         }
         let plane = Plane::from_normal(vector(request.plane.origin)?, vector(request.plane.normal)?)
             .ok_or_else(|| Error::Parameters("section plane normal must be nonzero".into()))?;
@@ -77,6 +83,7 @@ impl Worker {
         let mut bodies = Vec::with_capacity(model.bodies.len());
         let mut dispositions = Vec::with_capacity(model.bodies.len());
         let mut caps = Vec::new();
+        let mut first_cap = None;
         let mut segments = 0usize;
         let mut topology = 0usize;
         for (source_body, source) in model.bodies.iter().enumerate() {
@@ -118,7 +125,7 @@ impl Worker {
                 return Err(Error::Geometry(format!("section source body {source_body} did not produce a closed exact B-rep")));
             }
             let result_body = bodies.len();
-            let first_cap = caps.len();
+            let cap_start = caps.len();
             // A box enclosing the entire uncut body cannot extend below this lower support.
             // A body wholly on the kept side merely touches the plane: never hatch its own face.
             let n = kept.normal();
@@ -199,15 +206,26 @@ impl Worker {
                                 "planar_read_tolerance_mm":body.planar_edges_tolerance(),
                                 "curve_contract":"upstream_exact_native_planar_read_with_reported_recognition_tolerance_not_symbolic_certificate",
                                 "topology_identity":"section_result_local_only"}}));
+                        // json! borrows the region for serialization; retain its allocation by
+                        // move only when a single-cap reflection report may still be needed.
+                        if request.symmetry_axis.is_some() && caps.len() == 1 {
+                            first_cap = Some(region);
+                        } else {
+                            first_cap = None;
+                        }
                     }
                 }
             }
             dispositions.push(json!({"source_body":source_body,"source_placement":source_body,"result_body":result_body,
-                "status":if caps.len() > first_cap { "cut" } else { "retained" },
+                "status":if caps.len() > cap_start { "cut" } else { "retained" },
                 "topology":{"faces":record.faces.len(),"edges":record.edges.len(),"vertices":record.vertices.len(),"shells":record.shells.len()}}));
             bodies.push(LoadedBody { body, closed: true, refused: false });
         }
         budget.check()?;
+        let symmetry = match (request.symmetry_axis, first_cap) {
+            (Some(axis), Some(region)) => Some(symmetry::classify(&region, axis, &budget)?),
+            _ => None,
+        };
         let mut result = projection(
             model,
             &bodies,
@@ -223,13 +241,13 @@ impl Worker {
             Error::Geometry(why) => Error::Geometry(format!("section HLR: {why}")),
             other => other,
         })?;
-        result["protocol"] = json!("cadcraft-section/1");
+        result["protocol"] = json!("cadcraft-section/2");
         result["source_mapping"] = json!(
             "drawing placement/body and edge/face indices are SECTION-RESULT-LOCAL; section.bodies maps result_body to original v1.load source_body/source_placement, including removed/excluded bodies; never use cut indices with v1.references or v1.resolve_point"
         );
         result["section"] = json!({"plane":{"origin":plane.origin,"normal":plane.normal()},
             "kept_side":match request.kept_side { KeptSide::Positive => "positive", KeptSide::Negative => "negative" },
-            "status":if bodies.is_empty() { "empty" } else { "nonempty" },"bodies":dispositions,"caps":caps,
+            "status":if bodies.is_empty() { "empty" } else { "nonempty" },"bodies":dispositions,"caps":caps,"symmetry":symmetry,
             "topology_identity":"section_result_local_only",
             "cap_coordinates":"world_origin_screen_mm_same_basis_and_scale_as_drawing",
             "cap_contract":"outer_ccw_holes_cw_exact_segments_no_polygonization_no_paper_hatch_spacing",

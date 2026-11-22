@@ -180,7 +180,7 @@ Legacy polyhedral caption вычисляет печатное отношение
 Назначение — §7.5; геометрическая симметрия и parent-view связь не подразумеваются.
 
 `models::section_notation` хранит source-bound обозначение в
-`SavedView.provenance.section.notation` v2. Активен только `source_view`;
+`SavedView.provenance.section.notation` v3 (`kind`, точное `source_marks`). Активен только `source_view`;
 `original_source_view` — неизменяемый audit, `missing_source` не перепривязывается.
 Source и target — native paper INSERT одной модели/ревизии на одном mm-layout.
 Малый handle-free XDATA marker проверяется до декодирования Store и mark payload;
@@ -196,10 +196,11 @@ Clipboard переносит активную связь только между
 `models::section_projection` добавляет optional immutable axis/offset constraint:
 along-trace для вынесенных сечений/разрезов, fixed для наложенных. Новые
 source-bound запросы включают его по умолчанию; явный `projection_link:false`
-сохраняет независимое положение. v1 notation при bounded decode мигрирует в v2
-именно с independent placement, без движения native geometry и без перепривязки.
+сохраняет независимое положение. v1/v2 notation при bounded decode мигрируют в v3:
+v1 остаётся independent, v2 сохраняет constraint; оба остаются cutting-plane,
+без движения или переклассификации сохранённой геометрии.
 `sections::prepare_request` до worker I/O складывает frame вокруг следа секущей
-плоскости в source basis; installer совмещает bbox точной геометрии со следом.
+плоскости в source basis; installer совмещает геометрию со следом.
 Наложение сохраняет исходную модельную координату вдоль следа и фактический
 масштаб источника; центрируется только поперёк следа. Общий bbox источника не
 задаёт продольную координату сечения детали переменного профиля.
@@ -210,6 +211,20 @@ translation → source notation cleanup → exact dimensions. Так MOVE пре
 результат дважды. В callback меняется только INSERT; 3D rebuild не подразумевается.
 Prefilter замечает effective paper-unit изменения marked layouts, в том числе
 header fallback; unrelated model units не меняют explicit-mm sheets.
+
+При linked detached/imposed, одинаковом фактическом масштабе и без явной буквы
+канонический запрос включает `symmetry_axis` в native cap XY. `cadcraft-section/2`
+возвращает обязательный nullable report; анализируется ровно одна cap-область.
+Worker отражает native Region2 целиком, включая отверстия, и проверяет пустоту
+точной planar difference с bounded tolerance; выборочных точек/подгонки нет.
+Центр вычисляется по экстремумам native кривых; host проверяет его по общему
+`SectionCap::conservative_bounds`, без tessellation. Raw HLR quality не меняется.
+При подтверждённой симметрии используются native оси общего `gost::axes::AxisPattern`,
+без стрелок, букв и caption; наложенный результат не дублирует ось в source block.
+Изменение содержимого verified target block запрещено до EXPLODE, иначе сохранённый
+report мог бы ложно разрешать отсутствие стрелок. Source MOVE/Undo и orphan freeze
+сохраняют прежние правила. Это не B-Rep rebuild и не условность §7.9.
+
 
 `models::projections` хранит first-angle DAG в `SavedView.provenance.projection_link`
 (version 1). Активная ссылка — `parent`; `original_parent` остаётся только audit.

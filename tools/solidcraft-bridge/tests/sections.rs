@@ -1,6 +1,6 @@
 use cadcraft_model_worker::{Error, Worker};
 use serde_json::{Value, json};
-use solidcore_record::{Region2, Seg2, Vec3};
+use solidcore_record::{Loop2, Plane, Region2, Seg2, Vec2, Vec3};
 use solidcraft_geom::{Loop2Geom, Seg2Geom, Vec3Geom, hlr};
 use solidcraft_kernel::{Body, BoolOp, ExportBody, StepHeader, history::FaceOrigin};
 use std::{
@@ -51,6 +51,31 @@ fn query(loaded: &Value, z: f64, side: &str) -> Value {
         "kept_side":side,"direction":if side == "positive" { [0,0,1] } else { [0,0,-1] },"up":[0,1,0]})
 }
 
+fn assert_symmetry(section: &Value, axis: [f64; 2], symmetric: bool) {
+    let report = &section["section"]["symmetry"];
+    assert_eq!(report.as_object().unwrap().len(), 4, "{section}");
+    assert_eq!(report["axis"], json!(axis));
+    assert_eq!(report["symmetric"], symmetric, "{section}");
+    assert!(report["center"].as_array().unwrap().iter().all(|v| v.as_f64().is_some_and(|v| v.is_finite() && v.abs() <= 1e6)));
+    assert!((1e-9..=1e-6).contains(&report["tolerance_mm"].as_f64().unwrap()));
+}
+
+fn ellipse(center: Vec2, rx: f64, ry: f64, split_quadrant: usize) -> Loop2 {
+    let cardinals = [Vec2::new(rx, 0.), Vec2::new(0., ry), Vec2::new(-rx, 0.), Vec2::new(0., -ry)];
+    let apexes = [Vec2::new(rx, ry), Vec2::new(-rx, ry), Vec2::new(-rx, -ry), Vec2::new(rx, -ry)];
+    let mut segs = Vec::new();
+    for i in 0..4 {
+        let conic = Seg2::Conic { a: center + cardinals[i], apex: center + apexes[i], b: center + cardinals[(i + 1) % 4], w: 0.5_f64.sqrt() };
+        if i == split_quadrant {
+            let (a, b) = conic.split_at(0.27);
+            segs.extend([a, b]);
+        } else {
+            segs.push(conic);
+        }
+    }
+    Loop2 { segs }
+}
+
 fn annulus() -> Body {
     let outer = solidcraft_kernel::cylinder(Vec3::ZERO, Vec3::Z, 5.0, 20.0).unwrap();
     let bore = solidcraft_kernel::cylinder(Vec3::new(0., 0., -1.), Vec3::Z, 2.0, 22.0).unwrap();
@@ -71,7 +96,9 @@ fn annular_cap_keeps_exact_hole_history_and_source_immutable() {
         let (mut worker, loaded) = fixture.load(&[("annulus", &annulus)]);
         let before = geometry_snapshot(&mut worker, &loaded);
         let section = worker.call("v1.section", query(&loaded, 10., "positive")).unwrap();
-        assert_eq!(section["protocol"], "cadcraft-section/1");
+        assert_eq!(section["protocol"], "cadcraft-section/2");
+        assert!(section["section"].as_object().unwrap().contains_key("symmetry"));
+        assert!(section["section"]["symmetry"].is_null());
         assert_eq!(section["section"]["status"], "nonempty");
         assert_eq!(section["section"]["bodies"][0]["source_body"], 0);
         assert_eq!(section["section"]["bodies"][0]["result_body"], 0);
@@ -89,6 +116,17 @@ fn annular_cap_keeps_exact_hole_history_and_source_immutable() {
         let origins: Vec<FaceOrigin> = serde_json::from_value(caps[0]["provenance"]["face_origins"].clone()).unwrap();
         assert!(!origins.is_empty() && origins.iter().all(|origin| matches!(origin, FaceOrigin::Face { operand: 1, .. })));
         assert_eq!(caps[0]["provenance"]["topology_identity"], "section_result_local_only");
+        for axis in [[1., 0.], [0., 1.], [0.6, 0.8]] {
+            let mut request = query(&loaded, 10., "positive");
+            request["symmetry_axis"] = json!(axis);
+            let reflected = worker.call("v1.section", request).unwrap();
+            assert_symmetry(&reflected, axis, true);
+            assert_eq!(reflected["section"]["caps"], section["section"]["caps"]);
+            assert_eq!(reflected["quality"], section["quality"]);
+        }
+        let mut null_request = query(&loaded, 10., "positive");
+        null_request["symmetry_axis"] = Value::Null;
+        assert!(worker.call("v1.section", null_request).unwrap()["section"]["symmetry"].is_null());
         // Strict mode must preserve the ordinary HLR acceptance policy, never hide uncertainty.
         let mut strict = query(&loaded, 10., "positive");
         strict["require_analytic"] = json!(true);
@@ -112,12 +150,18 @@ fn tangent_and_complete_removal_never_reuse_old_caps_or_body() {
         let actual_cut = worker.call("v1.section", query(&loaded, 10., "positive")).unwrap();
         assert!(!actual_cut["section"]["caps"].as_array().unwrap().is_empty());
         for (z, side) in [(0., "positive"), (20., "negative")] {
-            let touching = worker.call("v1.section", query(&loaded, z, side)).unwrap();
+            let mut request = query(&loaded, z, side);
+            request["symmetry_axis"] = json!([0, 1]);
+            let touching = worker.call("v1.section", request).unwrap();
+            assert!(touching["section"]["symmetry"].is_null());
             assert_eq!(touching["section"]["status"], "nonempty");
             assert!(touching["section"]["caps"].as_array().unwrap().is_empty(), "original coplanar face is not a cut: {touching}");
             assert_eq!(touching["section"]["bodies"][0]["status"], "retained");
         }
-        let removed = worker.call("v1.section", query(&loaded, 21., "positive")).unwrap();
+        let mut request = query(&loaded, 21., "positive");
+        request["symmetry_axis"] = json!([0, 1]);
+        let removed = worker.call("v1.section", request).unwrap();
+        assert!(removed["section"]["symmetry"].is_null());
         assert_eq!(removed["section"]["status"], "empty");
         assert_eq!(removed["section"]["bodies"][0]["status"], "removed");
         assert!(removed["section"]["bodies"][0]["result_body"].is_null());
@@ -168,8 +212,10 @@ fn inclined_native_cylinder_cap_preserves_world_profile_for_both_kept_sides() {
         let loaded = worker.call("v1.load", json!({"path":path})).unwrap();
         let before = geometry_snapshot(&mut worker, &loaded);
         for side in ["positive", "negative"] {
-            let request = query(&loaded, 20., side);
+            let mut request = query(&loaded, 20., side);
+            request["symmetry_axis"] = json!([0, 1]);
             let section = worker.call("v1.section", request).unwrap();
+            assert_symmetry(&section, [0., 1.], true);
             let caps = section["section"]["caps"].as_array().unwrap();
             assert_eq!(caps.len(), 1);
             let region: Region2 = serde_json::from_value(caps[0]["region"].clone()).unwrap();
@@ -179,6 +225,9 @@ fn inclined_native_cylinder_cap_preserves_world_profile_for_both_kept_sides() {
             assert!(region.outer.segs.iter().all(|s| !matches!(s, Seg2::Line { .. })), "no tessellated ellipse: {region:?}");
             let direction = if side == "positive" { Vec3::Z } else { -Vec3::Z };
             let view = hlr::View::new(direction, Vec3::Y).unwrap();
+            let center: [f64; 2] = serde_json::from_value(section["section"]["symmetry"]["center"].clone()).unwrap();
+            assert!((center[0] - view.x.dot(Vec3::new(15., 0., 20.))).abs() < 1e-8);
+            assert!((center[1] - view.y.dot(Vec3::new(15., 0., 20.))).abs() < 1e-8);
             for segment in &region.outer.segs {
                 for t in [0., 0.25, 0.5, 0.75, 1.] {
                     let p = segment.point_at(t);
@@ -186,6 +235,9 @@ fn inclined_native_cylinder_cap_preserves_world_profile_for_both_kept_sides() {
                     assert!(((0.8 * world.x - 0.6 * world.z).powi(2) + world.y.powi(2) - 25.).abs() < 1e-4, "{world:?}");
                 }
             }
+            let mut diagonal = query(&loaded, 20., side);
+            diagonal["symmetry_axis"] = json!([0.6, 0.8]);
+            assert_symmetry(&worker.call("v1.section", diagonal).unwrap(), [0.6, 0.8], false);
         }
         assert_eq!(geometry_snapshot(&mut worker, &loaded), before);
     });
@@ -254,6 +306,11 @@ fn hostile_section_parameters_and_failed_calls_are_atomic() {
         for direction in [json!([0, 0, -1]), json!([1, 0, 1]), json!([0, 0, 0])] {
             let mut case = valid.clone();
             case["direction"] = direction;
+            cases.push(case);
+        }
+        for axis in [json!([0, 0]), json!([0, 2]), json!([1, 1]), json!([null, 1]), json!([0]), json!([0, 1, 0]), json!([1e300, 0])] {
+            let mut case = valid.clone();
+            case["symmetry_axis"] = axis;
             cases.push(case);
         }
         for indices in [json!([0, 0]), json!([1]), json!([-1])] {
@@ -382,5 +439,104 @@ fn selected_open_body_rejects_whole_section_and_exclusion_is_explicit() {
         assert_eq!(caps.len(), 1);
         assert_ne!(caps[0]["source_body"], open);
         assert_eq!(geometry_snapshot(&mut worker, &loaded), before);
+    });
+}
+
+#[test]
+fn differently_segmented_conic_outer_and_hole_keep_material_symmetry() {
+    kernel_test(|| {
+        let fixture = Fixture::new();
+        let profile = Region2 { outer: ellipse(Vec2::new(3., -4.), 8., 5., 0), holes: vec![ellipse(Vec2::new(3., -4.), 2., 1., 2).reversed()] };
+        let body = solidcraft_kernel::extrude_planar_regions(&Plane { origin: Vec3::ZERO, x: Vec3::X, y: Vec3::Y }, &[profile], 0., 20.).unwrap();
+        let (mut worker, loaded) = fixture.load(&[("elliptical ring", &body)]);
+        let before = geometry_snapshot(&mut worker, &loaded);
+        for side in ["positive", "negative"] {
+            let mut request = query(&loaded, 10., side);
+            request["symmetry_axis"] = json!([0, 1]);
+            let section = worker.call("v1.section", request).unwrap();
+            assert_symmetry(&section, [0., 1.], true);
+            let caps = section["section"]["caps"].as_array().unwrap();
+            assert_eq!(caps.len(), 1);
+            let region: Region2 = serde_json::from_value(caps[0]["region"].clone()).unwrap();
+            assert_eq!(region.holes.len(), 1);
+            let area = region.outer.signed_area() + region.holes.iter().map(Loop2Geom::signed_area).sum::<f64>();
+            // Native conic signed_area is numerical, not a symbolic integral.
+            assert!((area - 38. * std::f64::consts::PI).abs() < 1e-4, "elliptical material area changed: {area}");
+            let view = hlr::View::new(if side == "positive" { Vec3::Z } else { -Vec3::Z }, Vec3::Y).unwrap();
+            let center: [f64; 2] = serde_json::from_value(section["section"]["symmetry"]["center"].clone()).unwrap();
+            assert!((center[0] - view.x.dot(Vec3::new(3., -4., 10.))).abs() < 1e-8);
+            assert!((center[1] - view.y.dot(Vec3::new(3., -4., 10.))).abs() < 1e-8);
+        }
+        assert_eq!(geometry_snapshot(&mut worker, &loaded), before);
+    });
+}
+
+#[test]
+fn off_axis_bore_and_asymmetric_outer_are_not_material_symmetric() {
+    kernel_test(|| {
+        let fixture = Fixture::new();
+        let outer = solidcraft_kernel::cylinder(Vec3::ZERO, Vec3::Z, 5., 20.).unwrap();
+        let bore = solidcraft_kernel::cylinder(Vec3::new(1., 1., -1.), Vec3::Z, 1., 22.).unwrap();
+        let bored = solidcraft_kernel::boolean(&outer, &bore, BoolOp::Cut).unwrap().unwrap();
+        let rectangle = solidcraft_kernel::box_solid(Vec3::ZERO, Vec3::new(10., 8., 20.)).unwrap();
+        let corner = solidcraft_kernel::box_solid(Vec3::new(-1., -1., -1.), Vec3::new(3., 2., 21.)).unwrap();
+        let notched = solidcraft_kernel::boolean(&rectangle, &corner, BoolOp::Cut).unwrap().unwrap();
+        for (name, body, holes) in [("off-axis bore", &bored, 1), ("asymmetric outline", &notched, 0)] {
+            let (mut worker, loaded) = fixture.load(&[(name, body)]);
+            let before = geometry_snapshot(&mut worker, &loaded);
+            let mut request = query(&loaded, 10., "positive");
+            request["symmetry_axis"] = json!([1, 0]);
+            let section = worker.call("v1.section", request).unwrap();
+            assert_symmetry(&section, [1., 0.], false);
+            let caps = section["section"]["caps"].as_array().unwrap();
+            assert_eq!(caps.len(), 1);
+            assert_eq!(caps[0]["region"]["holes"].as_array().unwrap().len(), holes);
+            assert_eq!(geometry_snapshot(&mut worker, &loaded), before);
+        }
+    });
+}
+
+#[test]
+fn multiple_caps_never_claim_a_single_region_symmetry() {
+    kernel_test(|| {
+        let fixture = Fixture::new();
+        let a = solidcraft_kernel::cylinder(Vec3::ZERO, Vec3::Z, 2., 20.).unwrap();
+        let b = solidcraft_kernel::cylinder(Vec3::new(10., 0., 0.), Vec3::Z, 2., 20.).unwrap();
+        let (mut worker, loaded) = fixture.load(&[("a", &a), ("b", &b)]);
+        let mut request = query(&loaded, 10., "positive");
+        request["symmetry_axis"] = json!([0, 1]);
+        let section = worker.call("v1.section", request).unwrap();
+        assert_eq!(section["section"]["caps"].as_array().unwrap().len(), 2);
+        assert!(section["section"].as_object().unwrap().contains_key("symmetry"));
+        assert!(section["section"]["symmetry"].is_null());
+    });
+}
+
+#[test]
+fn oblique_triangle_symmetry_uses_directional_extrema_not_world_bbox_center() {
+    kernel_test(|| {
+        let fixture = Fixture::new();
+        let along = Vec2::new(0.8, 0.6);
+        let normal = Vec2::new(-0.6, 0.8);
+        let origin = Vec2::new(13., -7.);
+        let vertices = [origin, origin + along * 10. - normal * 3., origin + along * 10. + normal * 3.];
+        let region =
+            Region2 { outer: Loop2 { segs: (0..3).map(|i| Seg2::Line { a: vertices[i], b: vertices[(i + 1) % 3] }).collect() }, holes: vec![] };
+        let body = solidcraft_kernel::extrude_planar_regions(&Plane { origin: Vec3::ZERO, x: Vec3::X, y: Vec3::Y }, &[region], 0., 20.).unwrap();
+        let (mut worker, loaded) = fixture.load(&[("oblique triangular prism", &body)]);
+        for side in ["positive", "negative"] {
+            let view = hlr::View::new(if side == "positive" { Vec3::Z } else { -Vec3::Z }, Vec3::Y).unwrap();
+            let world_axis = Vec3::new(along.x, along.y, 0.);
+            let axis = [view.x.dot(world_axis), view.y.dot(world_axis)];
+            let mut request = query(&loaded, 10., side);
+            request["symmetry_axis"] = json!(axis);
+            let result = worker.call("v1.section", request).unwrap();
+            assert_symmetry(&result, axis, true);
+            let center: [f64; 2] = serde_json::from_value(result["section"]["symmetry"]["center"].clone()).unwrap();
+            let expected = origin + along * 5.;
+            let world_center = Vec3::new(expected.x, expected.y, 10.);
+            assert!((center[0] - view.x.dot(world_center)).abs() < 1e-8);
+            assert!((center[1] - view.y.dot(world_center)).abs() < 1e-8);
+        }
     });
 }

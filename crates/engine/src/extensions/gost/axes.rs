@@ -73,44 +73,76 @@ pub(in crate::extensions) fn entity_count(radius: f64, scale: f64, extension: f6
     Ok(if small { 4 } else { 4 + 8 * pattern(length)?.0 })
 }
 
-/// Append the same paper-sized native axes used by GOST.CENTER, without a temporary
-/// block or an intermediate geometry allocation for a managed model view.
-pub(in crate::extensions) fn geometry(result: &mut Vec<(Common, EntityKind)>, center: Vec2, radius: f64, scale: f64, extension: f64) -> Result<()> {
-    if !center.is_finite() || center.x.abs() > 1e9 || center.y.abs() > 1e9 {
-        return Err(bad("gost.center", "invalid axis centre"));
-    }
-    let (length, small) = settings(radius, scale, extension)?;
-    // Fit complete symmetric periods: equal long dashes, a dash at the centre
-    // crossing and at both ends. Never turn a short large-circle axis solid.
-    let (periods, dash, gap) = if small {
-        (0, 0.0, 0.0)
-    } else {
-        let (count, dash, interval) = pattern(length)?;
-        (count, dash, (interval - 0.5) * 0.5)
-    };
-    for dir in [Vec2::X, -Vec2::X, Vec2::Y, -Vec2::Y] {
-        let mut add = |start: f64, end: f64| {
-            let common =
-                Common { layer: if small { "GOST-THIN" } else { "GOST-CENTER" }.into(), linetype: "Continuous".into(), ..Default::default() };
-            result
-                .push((common, EntityKind::Line(Line { a: (center + dir * (start * scale)).to3(0.0), b: (center + dir * (end * scale)).to3(0.0) })));
+/// A bounded paper-sized pattern shared by centre crosses and section symmetry axes.
+pub(in crate::extensions) struct AxisPattern {
+    length: f64,
+    small: bool,
+    periods: usize,
+    dash: f64,
+    gap: f64,
+}
+impl AxisPattern {
+    pub(in crate::extensions) fn new(radius: f64, scale: f64, extension: f64) -> Result<Self> {
+        let (length, small) = settings(radius, scale, extension)?;
+        let (periods, dash, gap) = if small {
+            (0, 0., 0.)
+        } else {
+            let (count, dash, interval) = pattern(length)?;
+            (count, dash, (interval - 0.5) * 0.5)
         };
-        if small {
-            add(0.0, length);
-            continue;
-        }
-        let mut end = dash * 0.5;
-        add(0.0, end);
-        for index in 0..periods {
-            let dot_start = end + gap;
-            let dot_end = dot_start + 0.5;
-            add(dot_start, dot_end);
-            let start = dot_end + gap;
-            end = if index + 1 == periods { length } else { start + dash };
-            add(start, end);
-        }
+        Ok(Self { length, small, periods, dash, gap })
     }
-    Ok(())
+    pub(in crate::extensions) fn count(&self) -> usize {
+        if self.small { 2 } else { 2 + 4 * self.periods }
+    }
+    pub(in crate::extensions) fn append(&self, result: &mut Vec<(Common, EntityKind)>, center: Vec2, direction: Vec2, scale: f64) -> Result<()> {
+        if !center.is_finite()
+            || center.x.abs() > 1e9
+            || center.y.abs() > 1e9
+            || !direction.is_finite()
+            || (direction.len() - 1.).abs() > 1e-10
+            || !scale.is_finite()
+            || scale <= 0.
+            || scale > 1e6
+        {
+            return Err(bad("gost.center", "invalid native axis frame"));
+        }
+        for dir in [direction, -direction] {
+            let mut add = |start: f64, end: f64| {
+                let common = Common {
+                    layer: if self.small { "GOST-THIN" } else { "GOST-CENTER" }.into(),
+                    linetype: "Continuous".into(),
+                    ..Default::default()
+                };
+                result.push((
+                    common,
+                    EntityKind::Line(Line { a: (center + dir * (start * scale)).to3(0.), b: (center + dir * (end * scale)).to3(0.) }),
+                ));
+            };
+            if self.small {
+                add(0., self.length);
+                continue;
+            }
+            let mut end = self.dash * 0.5;
+            add(0., end);
+            for index in 0..self.periods {
+                let dot_start = end + self.gap;
+                let dot_end = dot_start + 0.5;
+                add(dot_start, dot_end);
+                let start = dot_end + self.gap;
+                end = if index + 1 == self.periods { self.length } else { start + self.dash };
+                add(start, end);
+            }
+        }
+        Ok(())
+    }
+}
+
+/// Append native centre crosses without an intermediate geometry allocation.
+pub(in crate::extensions) fn geometry(result: &mut Vec<(Common, EntityKind)>, center: Vec2, radius: f64, scale: f64, extension: f64) -> Result<()> {
+    let pattern = AxisPattern::new(radius, scale, extension)?;
+    pattern.append(result, center, Vec2::X, scale)?;
+    pattern.append(result, center, Vec2::Y, scale)
 }
 fn rebuild(d: &mut Drawing, h: Handle, r: &Record) -> Result<()> {
     let mut prepared = Vec::new();

@@ -808,4 +808,77 @@
   Canonical shaft Front остаётся **20 uncertain / 4 uncovered**.
   Пункт сечений открыт: **60/172**, открыто **112**.
 
+## Автоматическое оформление симметричных сечений — 22.11.2026
+
+- Для новых linked detached/imposed того же фактического масштаба без явной
+  буквы worker проверяет отражение **всей material Region2, включая отверстия**.
+  Native planar difference, tolerance 1e-9..1e-6 мм; без выборочных точек,
+  fitting, polygonization, bbox-only или area-only классификации.
+  Отказы ядра не подавляются. Raw HLR quality остаётся прежним.
+- Центр вычисляется по экстремумам **вдоль заданной оси и её нормали**:
+  середина world bbox не обязана лежать на наклонной оси треугольника.
+  Регрессия проверяет реальную extruded triangular prism с обеих kept sides.
+  Conic/polynomial extrema вычисляются аналитически/по корням производных.
+- Clean wire cutover `cadcraft-section/2`; строгий nullable report только
+  для запрошенного анализа одной cap. Общий `SectionCap::conservative_bounds`
+  даёт host validation без tessellation, включая неполярные conics.
+- При подтверждении — native ось без стрелок, букв и caption по §7.3.
+  Наложенный результат не дублирует ось в source block. Общий AxisPattern
+  сохраняет штрихи/интервалы и исключение <12 мм по ГОСТ 2.303 §11.
+  Явная буква, free placement, другой масштаб, разрез сохраняют прежний стиль.
+  Verified target block защищён от геометрического изменения до EXPLODE.
+- **97 model engine cases**, **5 GOST axes cases**, **15 IO section cases**
+  прошли; root doc/IO/engine/UI all-target Clippy, i18n и desktop/CLI build
+  прошли. **13 worker section cases** и **2 native extrema unit cases** прошли.
+  Различная native сегментация эллипса не считается нарушением контракта;
+  numerical area проверяется с 1e-4 мм², а не как symbolic integral.
+  **3 real transport cases**, worker all-target Clippy и финальный native build
+  прошли. После удаления запрещённого unreachable! из проверяемого match
+  реальный CLI повторно создал curved cap: entities/report совпали целиком.
+- Финальный CI 23.11.2026: **все 9 gates прошли**, **897,94 с**,
+  `CARGO_BUILD_JOBS=1 cargo xtask ci`. Ни один gate не пропущен; весь native
+  worker suite прошёл. Четыре прежних WASM dead-code warnings сохранены.
+  Первый полный запуск прерван внешним deadline 3600 с при native linking;
+  следующий отменён после диагностики пяти параллельных linker процессов
+  в LLVM StringTableBuilder. Для успешного полного запуска ограничена только
+  параллельность сборки, не состав проверок; постоянный config не менялся.
+- Реальный GUI 18076, **кнопка** «Создать точное сечение»: step fixture,
+  source `184` [50;130], 1:1, imposed `18D`, Z=20/+Z.
+  Requested [200;200] → actual **[50;160]**, поля GUI обновлены.
+  Report axis [1;0], center [40;−10], symmetric=true, tolerance **1e-9 мм**;
+  notation v3 symmetry_axis, source_marks **0**. EXPLODE:
+  **4 GOST-THIN LINE + HATCH + 6 GOST-CENTER LINE**, без текста/стрелок.
+  Raw **8 covered uncertain** не заменены на analytic-complete.
+- Actual GUI public command: detached без параметра scale сохраняет canonical
+  scale=1 и symmetry_axis. Явная А возвращает 8 source marks и обычную надпись.
+  Source/common MOVE переносит результат один раз; Undo/EXPLODE восстанавливают
+  полные paper entities. Step DXF **94345 bytes**, GUI/CLI reopen:
+  все paper entities и полные model metadata совпали; CLI MOVE/Undo точен.
+- Inclined-cylinder fixture: GUI public command, 2:1, Z=20/+Z, imposed `18D`
+  в **[60;140]**. Report center [15;≈0], tolerance **1e-9 мм**, symmetric=true.
+  Raw analytic_complete=true, все uncertain/bounded/sampled/unsupported/import/open=0.
+  **5 native SPLINE + HATCH + 6 GOST-CENTER LINE**, без стрелок/букв.
+  Все пять полных SPLINE geometry objects совпали с предыдущим proof;
+  native AREA осталась **392,6990733607209 мм²**.
+- Inclined DXF **94948 bytes**: GUI/CLI reopen сохраняют полные native entities
+  и model metadata. Реальный CLI заново создал сечение через worker:
+  paper entities совпали целиком; metadata различались **только phase_ms**.
+  Source/common MOVE и Undo после reopen точны. GUI завершился **0**.
+- Actual legacy DXF v1 (`source-bound-section.dxf`) остаётся independent;
+  actual v2 (`off-centre-step-imposed.dxf`) сохраняет constraint и cutting-plane.
+  GUI/CLI native entities совпали, MOVE/Undo сохранил старый контракт.
+  Миграция в v3 не переклассифицирует существующие обозначения.
+- Прочитаны screenshots manager guidance/completed fields, native step sheet,
+  detached/explicit comparison и inclined native sheet в
+  `target/coexistence/proof/symmetry-*.png`.
+- Следующая §7.9 fixture создана в `target/model-worker-smoke/axial-cross-bore.sc`:
+  shaft cylinder X, R15×80; transverse bore Y, R4, X=40.
+  Реальный CLI загрузил обе features, но detached plane X=40 отказал:
+  `multiple cross-section cap regions need component/convention review`.
+  Это зафиксированный **открытый отказ**, не успех; повторно для подтверждения
+  не запускался. Нормативный рисунок 40 (PDF page17) прочитан визуально.
+- Это не полная приёмка сечений: §7.9 и B-Rep rebuild §7.11 открыты.
+  Canonical shaft Front остаётся **20 uncertain / 4 uncovered**.
+  Принято **60/172**, открыто **112**.
+
 Ни один из этих результатов не закрывает полный новый roadmap. Точные B-Rep-проекции, сборки, нормативные профили, полная русификация, кроссплатформенные установки и выпуск остаются в активном плане.

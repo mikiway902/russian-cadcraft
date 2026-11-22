@@ -1,6 +1,5 @@
 //! Frozen paper projection constraints. Events translate native INSERTs only.
 use super::{Drawing, EntityKind, Handle, Insert, Options, Result, SavedView, Session, Space, Vec2, err, load, projections, section_notation};
-use cadcraft_geom::Bounds2;
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, sync::Arc};
 
@@ -41,18 +40,7 @@ fn bounded(at: Vec2) -> Result<()> {
     Ok(())
 }
 
-fn center(bounds: Bounds2) -> Result<Vec2> {
-    if bounds.is_empty() || !bounds.min.is_finite() || !bounds.max.is_finite() {
-        return Err(err("section projection requires finite native geometry bounds"));
-    }
-    let center = bounds.center();
-    if !center.is_finite() {
-        return Err(err("nonfinite section projection bounds center"));
-    }
-    Ok(center)
-}
-
-pub(super) fn place(source: &SourceTrace, source_scale: f64, target_bounds: Bounds2, opts: &mut Options, imposed: bool) -> Result<Constraint> {
+pub(super) fn place(source: &SourceTrace, source_scale: f64, native_center: Vec2, opts: &mut Options, imposed: bool) -> Result<Constraint> {
     let SourceTrace { origin: source_origin, point: trace_point, axis } = *source;
     let mut constraint =
         Constraint { version: 1, mode: if imposed { Mode::Fixed } else { Mode::AlongTrace }, axis: [axis.x, axis.y], offset: [0., 0.] };
@@ -65,7 +53,9 @@ pub(super) fn place(source: &SourceTrace, source_scale: f64, target_bounds: Boun
     if imposed && (opts.scale * source_scale - 1.).abs() > 1e-10 {
         return Err(err("imposed section projection requires the actual source scale"));
     }
-    let native_center = center(target_bounds)?;
+    if !native_center.is_finite() {
+        return Err(err("section projection requires a finite native alignment centre"));
+    }
     let normal = axis.perp();
     let at = if imposed {
         // Folding preserves model coordinates along the source trace. Centering

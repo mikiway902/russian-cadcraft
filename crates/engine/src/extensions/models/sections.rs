@@ -55,7 +55,7 @@ fn presentation(p: &Value) -> Result<Presentation> {
 
 pub(super) fn specs() -> Vec<CommandSpec> {
     vec![CommandSpec::new("gost.model.section", "Create Exact Model Section", section)
-        .params("{id,plane:{origin:[x,y,z],normal:[x,y,z]},kept_side:positive|negative,presentation?:cutaway|detached|imposed,source_view?:HEX,label?:string|null,projection_link?:bool (source-bound default true),up?,layout?,at?,scale?,hidden?,accept_incomplete?,exclude_bodies?}; frozen native geometry; source-linked section placement and MOVE are constrained unless projection_link:false")]
+        .params("{id,plane:{origin:[x,y,z],normal:[x,y,z]},kept_side:positive|negative,presentation?:cutaway|detached|imposed,source_view?:HEX,label?:string|null,projection_link?:bool (source-bound default true),up?,layout?,at?,scale?,hidden?,accept_incomplete?,exclude_bodies?}; frozen native geometry; eligible linked same-scale sections with no explicit label use verified symmetry-axis notation; symmetry_axis is a canonical derived hint, not a free orientation; placement and MOVE are constrained unless projection_link:false")]
 }
 fn vec(v: [f64; 3]) -> Vec3 {
     Vec3::new(v[0], v[1], v[2])
@@ -83,6 +83,7 @@ pub fn request(p: &Value) -> Result<SectionRequest> {
             "source_view",
             "label",
             "projection_link",
+            "symmetry_axis",
             "up",
             "layout",
             "at",
@@ -111,6 +112,21 @@ pub fn request(p: &Value) -> Result<SectionRequest> {
         }
         super::flag(p, "projection_link", true)?;
     }
+    let symmetry_axis = match p.get("symmetry_axis") {
+        None | Some(Value::Null) => None,
+        Some(value) => {
+            if p.get("source_view").is_none() {
+                return Err(err("canonical symmetry_axis requires source_view"));
+            }
+            let values = value.as_array().filter(|a| a.len() == 2).ok_or_else(|| err("symmetry_axis must be a unit XY pair"))?;
+            let x = values.first().and_then(Value::as_f64).ok_or_else(|| err("invalid symmetry_axis X"))?;
+            let y = values.get(1).and_then(Value::as_f64).ok_or_else(|| err("invalid symmetry_axis Y"))?;
+            if !x.is_finite() || !y.is_finite() || (Vec2::new(x, y).len() - 1.).abs() > 1e-9 {
+                return Err(err("symmetry_axis must be a finite unit XY pair"));
+            }
+            Some([x, y])
+        }
+    };
     let plane_value = p.get("plane").ok_or_else(|| err("section plane required"))?;
     keys(plane_value, &["origin", "normal"])?;
     let origin = vector(plane_value.get("origin").ok_or_else(|| err("section plane origin required"))?)?;
@@ -164,7 +180,14 @@ pub fn request(p: &Value) -> Result<SectionRequest> {
         }
         exclude_bodies.sort_unstable();
     }
-    Ok(SectionRequest { plane: Plane { origin, normal: array(normal) }, kept_side, direction: array(direction), up: array(up), exclude_bodies })
+    Ok(SectionRequest {
+        plane: Plane { origin, normal: array(normal) },
+        kept_side,
+        direction: array(direction),
+        up: array(up),
+        symmetry_axis,
+        exclude_bodies,
+    })
 }
 /// Resolve drawing-dependent source orientation before host work. The returned
 /// parameters are the request sent to the worker and checked again at completion.
@@ -181,6 +204,15 @@ fn canonical_request(s: &Session, p: &Value, store: &super::Store) -> Result<(Va
     if let Some(source) = source {
         let enabled = super::flag(p, "projection_link", true)?;
         canonical["projection_link"] = json!(enabled);
+        canonical["scale"] = json!(opts.scale);
+        let axis = if enabled { source.symmetry_axis(p, &request, &opts)? } else { None };
+        if let Some(supplied) = request.symmetry_axis
+            && axis.is_none_or(|actual| actual.iter().zip(supplied).any(|(a, b)| (a - b).abs() > 1e-9))
+        {
+            return Err(err("symmetry_axis differs from the canonical source trace or is ineligible"));
+        }
+        request.symmetry_axis = axis;
+        canonical["symmetry_axis"] = json!(axis);
         if enabled {
             let up = source.canonical_up(&request, &opts, p.get("up").is_some())?;
             canonical["up"] = json!(up);
@@ -308,6 +340,51 @@ fn circular_centers(section: &Section) -> BTreeMap<(u64, u64), CircularAxes> {
     centers
 }
 
+pub(super) fn bounds(section: &Section, p: &Value, hidden: bool) -> Result<cadcraft_geom::Bounds2> {
+    let mut bounds = cadcraft_geom::Bounds2::EMPTY;
+    for edge in section.caps.iter().flat_map(|cap| &cap.loops).flat_map(|ring| &ring.edges) {
+        bounds = bounds.union(&super::projections::curve_bounds(&outline(edge))?);
+    }
+    if presentation(p)?.draws_projection() {
+        for entity in &section.projection.entities {
+            if entity.visibility != Visibility::Hidden || hidden {
+                bounds = bounds.union(&super::projections::curve_bounds(&entity.kind)?);
+            }
+        }
+    }
+    if bounds.is_empty() || !bounds.min.is_finite() || !bounds.max.is_finite() {
+        return Err(err("section requires finite native geometry bounds"));
+    }
+    Ok(bounds)
+}
+
+fn check_symmetry(section: &Section, request: &SectionRequest) -> Result<()> {
+    let expected = request.symmetry_axis.filter(|_| section.caps.len() == 1);
+    if section.symmetry.is_some() != expected.is_some() {
+        return Err(err("section symmetry report differs from its canonical request/cap count"));
+    }
+    if let Some(proof) = &section.symmetry {
+        let axis = expected.ok_or_else(|| err("unexpected section symmetry report"))?;
+        if !crate::finite::is_finite(proof)
+            || !(1e-9..=1e-6).contains(&proof.tolerance_mm)
+            || proof.axis.iter().zip(axis).any(|(a, b)| (a - b).abs() > 1e-9)
+            || proof.center.iter().any(|v| v.abs() > 1e6)
+        {
+            return Err(err("invalid native section symmetry report"));
+        }
+        let outer = section.caps.first().and_then(|cap| cap.conservative_bounds()).ok_or_else(|| err("symmetry cap bounds unavailable"))?;
+        let center = Vec2::new(proof.center[0], proof.center[1]);
+        if center.x < outer.min.x - proof.tolerance_mm
+            || center.x > outer.max.x + proof.tolerance_mm
+            || center.y < outer.min.y - proof.tolerance_mm
+            || center.y > outer.max.y + proof.tolerance_mm
+        {
+            return Err(err("section symmetry centre lies outside its native cap"));
+        }
+    }
+    Ok(())
+}
+
 fn install(s: &mut Session, id: &str, expected_sha: &str, p: &Value, mut section: Section) -> Result<Value> {
     let store = load(s.doc()?)?;
     let (mut canonical, request, mut opts) = canonical_request(s, p, &store)?;
@@ -394,6 +471,7 @@ fn install(s: &mut Session, id: &str, expected_sha: &str, p: &Value, mut section
             check_loop(ring, i == 0, tolerance, &mut edge_budget)?;
         }
     }
+    check_symmetry(&section, &request)?;
     if section.status == SectionStatus::Empty || section.caps.is_empty() {
         let projection = &section.projection;
         let q = projection.quality;
@@ -445,7 +523,10 @@ fn install(s: &mut Session, id: &str, expected_sha: &str, p: &Value, mut section
             }
         }
     }
-    let mut notation = super::section_notation::prepare(s.doc()?, &store, p, &request, &opts)?;
+    let mut centers = circular_centers(&section);
+    let circle_radius = if section.caps.len() == 1 { centers.values().next().map(|g| g.radius) } else { None };
+    let notation = super::section_notation::prepare(s.doc()?, &store, p, &request, &mut opts, &section, circle_radius)?;
+    let symmetry_axis = notation.as_ref().and_then(|n| n.axis_direction());
     let mut angles = BTreeMap::new();
     for cap in &section.caps {
         angles.entry(cap.source_body).or_insert_with(|| hatch_angle(&section, cap.source_body));
@@ -474,42 +555,33 @@ fn install(s: &mut Session, id: &str, expected_sha: &str, p: &Value, mut section
             "face":c.face,"loops":c.loops.len(),"hatch_angle":angles[&c.source_body],"provenance":provenance})
         })
         .collect();
-    let mut centers = circular_centers(&section);
     let axis_count = centers.values_mut().try_fold(0_usize, |sum, group| {
         group.extension = crate::extensions::gost::axes::default_extension(group.radius, opts.scale)?;
-        let count = crate::extensions::gost::axes::entity_count(group.radius, opts.scale, group.extension)?;
+        let count =
+            crate::extensions::gost::axes::entity_count(group.radius, opts.scale, group.extension)? / if symmetry_axis.is_some() { 2 } else { 1 };
         sum.checked_add(count).filter(|n| *n <= super::MAX_ENTITIES).ok_or_else(|| err("section axis entity limit"))
     })?;
     let mut audit = json!({"plane":section.plane,"kept_side":section.kept_side,"exclude_bodies":request.exclude_bodies,
         "bodies":section.bodies,"caps":audit_caps,"topology_identity":"section_result_local_only",
         "association":"frozen_editable_not_associative_topology","hatch_spacing_paper_mm":3.,"model_units_per_paper_mm":opts.scale,
         "presentation":presentation.name(),
+        "symmetry":section.symmetry,
         "visible_geometry":if presentation.draws_projection() {"cut_caps_and_retained_body_projection"}else{"intersection_regions_only"},
         "circular_center_axes":{"groups":centers.len(),"entities":axis_count,"extension_policy":"automatic_3_to_4_5_paper_mm","association":"frozen_with_view"}});
-    let caption = if let Some(notation) = &mut notation {
-        let mut bounds = cadcraft_geom::Bounds2::EMPTY;
-        for edge in section.caps.iter().flat_map(|cap| &cap.loops).flat_map(|ring| &ring.edges) {
-            bounds = bounds.union(&super::projections::curve_bounds(&outline(edge))?);
-        }
-        if presentation.draws_projection() {
-            for entity in &section.projection.entities {
-                if entity.visibility != Visibility::Hidden || opts.hidden {
-                    bounds = bounds.union(&super::projections::curve_bounds(&entity.kind)?);
-                }
-            }
-        }
-        notation.align(bounds, &mut opts)?;
+    let caption = if let Some(notation) = &notation {
         audit["notation"] = notation.audit();
-        notation.caption(s.doc()?, bounds, opts.scale)?
+        notation.caption(s.doc()?)?
     } else {
         None
     };
+    let symmetry_count = notation.as_ref().map_or(0, |n| n.axis_count());
     let outline_count = if presentation.draws_projection() { 0 } else { edge_budget };
     let entity_count = section
         .caps
         .len()
         .checked_add(outline_count)
         .and_then(|n| n.checked_add(axis_count))
+        .and_then(|n| n.checked_add(symmetry_count))
         .and_then(|n| n.checked_add(usize::from(caption.is_some())))
         .filter(|n| *n <= super::MAX_ENTITIES)
         .ok_or_else(|| err("section native entity count limit"))?;
@@ -544,12 +616,20 @@ fn install(s: &mut Session, id: &str, expected_sha: &str, p: &Value, mut section
     }
     for group in centers.into_values() {
         let first = entities.len();
-        crate::extensions::gost::axes::geometry(&mut entities, group.center, group.radius, opts.scale, group.extension)?;
+        if let Some(axis) = symmetry_axis {
+            let pattern = crate::extensions::gost::axes::AxisPattern::new(group.radius, opts.scale, group.extension)?;
+            pattern.append(&mut entities, group.center, axis.perp(), opts.scale)?;
+        } else {
+            crate::extensions::gost::axes::geometry(&mut entities, group.center, group.radius, opts.scale, group.extension)?;
+        }
         if let Some((common, _)) = entities.get(first)
             && s.doc()?.layer(&common.layer).is_none()
         {
             return Err(err("section centre-axis layer required; run gost.setup first"));
         }
+    }
+    if let Some(notation) = &notation {
+        notation.append_axis(&mut entities)?;
     }
     if let Some(caption) = caption {
         entities.push(caption);
