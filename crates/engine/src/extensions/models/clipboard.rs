@@ -10,6 +10,7 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 const MAX_CLIPBOARD_MODELS: usize = 32;
 const MAX_CLIPBOARD_VIEWS: usize = 128;
 const MAX_CLIPBOARD_ENTITIES: usize = 50_000;
+const SECTION_MARK: &str = super::section_notation::MARK;
 
 pub(super) const HOOKS: ClipboardHooks = ClipboardHooks { prepare_blocks: None, capture: Some(capture), pasted: Some(pasted) };
 pub(super) const COPY_HOOKS: CopyHooks = CopyHooks { tracks, apply: copied };
@@ -17,7 +18,8 @@ pub(super) const COPY_HOOKS: CopyHooks = CopyHooks { tracks, apply: copied };
 fn managed(e: &Entity) -> Result<bool> {
     Ok(data::load::<ViewLink>(&e.common, VIEW)?.is_some()
         || data::load::<Value>(&e.common, PIECE)?.is_some()
-        || data::load::<super::dimensions::Link>(&e.common, super::dimensions::DIM)?.is_some())
+        || data::load::<super::dimensions::Link>(&e.common, super::dimensions::DIM)?.is_some()
+        || data::load::<Value>(&e.common, SECTION_MARK)?.is_some())
 }
 
 fn references(e: &Entity) -> Option<&str> {
@@ -98,6 +100,9 @@ impl Needed {
             self.views.insert(link.view);
             linked = true;
         }
+        if data::load::<Value>(&e.common, SECTION_MARK)?.is_some() {
+            linked = true;
+        }
         if linked && let Some(block) = block {
             self.blocks.insert(block.to_owned());
         }
@@ -123,11 +128,12 @@ fn capture(source: &Drawing, ents: &[Entity], defs: &mut Drawing) -> Result<()> 
             needed.note(e, Some(name))?;
         }
     }
-    if needed.models.is_empty() {
-        return Ok(());
-    }
     if needed.entities > MAX_CLIPBOARD_ENTITIES {
         return Err(err("model clipboard entity limit exceeded"));
+    }
+    if needed.models.is_empty() {
+        isolate_definitions(defs, &needed.blocks)?;
+        return Ok(());
     }
     let source_store = load(source)?;
     let models: Vec<_> = source_store.models.iter().filter(|m| needed.models.contains(&m.id)).cloned().collect();
@@ -231,6 +237,9 @@ fn fresh_handle(d: &mut Drawing) -> Result<Handle> {
 fn install(d: &mut Drawing, defs: &Drawing, pairs: &[CopyPair], renames: &BTreeMap<String, String>, same_document: bool) -> Result<()> {
     let source = load(defs)?;
     check_limits(&source)?;
+    if pairs.len() > MAX_CLIPBOARD_ENTITIES {
+        return Err(err("model clipboard entity limit exceeded"));
+    }
     let mut forward = BTreeMap::new();
     let mut reverse = BTreeMap::new();
     for (old, new) in pairs {
@@ -241,14 +250,11 @@ fn install(d: &mut Drawing, defs: &Drawing, pairs: &[CopyPair], renames: &BTreeM
     if source.models.is_empty() {
         // Hand-built or malformed clipboards cannot fall through to a colliding destination Store.
         for e in entities(d).filter(|e| reverse.contains_key(&e.handle)) {
-            if managed(e)? {
+            if managed(e)? && data::load::<Value>(&e.common, SECTION_MARK)?.is_none() {
                 return Err(err("clipboard model association has no transferred metadata"));
             }
         }
-        return Ok(());
-    }
-    if pairs.len() > MAX_CLIPBOARD_ENTITIES {
-        return Err(err("model clipboard entity limit exceeded"));
+        return remap_section_marks(d, &reverse, &BTreeMap::new(), &BTreeMap::new());
     }
     for (name, block) in &defs.blocks {
         if block.anonymous && !renames.contains_key(&name.to_ascii_uppercase()) {
@@ -382,6 +388,20 @@ fn install(d: &mut Drawing, defs: &Drawing, pairs: &[CopyPair], renames: &BTreeM
                 link["status"] = json!("missing_parent");
             }
         }
+        if let Some(notation) = view.provenance.get_mut("section").and_then(|section| section.get_mut("notation")) {
+            let new_source = (seen_views.contains(&original.handle) && notation["status"] == "linked")
+                .then(|| {
+                    notation["source_view"]
+                        .as_str()
+                        .and_then(Handle::parse_hex)
+                        .and_then(|source| active_views.get(&source))
+                        .and_then(|old| view_handles.get(*old))
+                })
+                .flatten();
+            notation["source_view"] = new_source.map_or(Value::Null, |source| json!(source));
+            notation["status"] = json!(if new_source.is_some() { "linked" } else { "missing_source" });
+            view.parameters["source_view"] = notation["source_view"].clone();
+        }
     }
     for space in std::iter::once(&mut d.model).chain(d.layouts.iter_mut().map(|l| &mut l.entities)) {
         apply_updates(space, &mut updates);
@@ -409,6 +429,27 @@ fn install(d: &mut Drawing, defs: &Drawing, pairs: &[CopyPair], renames: &BTreeM
     if !updates.is_empty() {
         return Err(err("adopted model clipboard entity disappeared"));
     }
+    let mut source_blocks: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+    for e in entities(d).filter(|e| reverse.contains_key(&e.handle)) {
+        if data::load::<ViewLink>(&e.common, VIEW)?.is_some()
+            && let EntityKind::Insert(insert) = &e.kind
+        {
+            source_blocks.entry(insert.block.to_ascii_uppercase()).or_default().insert(e.handle.hex());
+        }
+    }
+    let linked_sections = destination.views[first_copied_view..]
+        .iter()
+        .filter_map(|view| {
+            let notation = &view.provenance["section"]["notation"];
+            if notation["status"] != "linked" {
+                return None;
+            }
+            let original = reverse.get(&Handle::parse_hex(&view.handle)?)?;
+            let source = notation["source_view"].as_str()?;
+            Some((*original, (view.handle.clone(), source.to_owned())))
+        })
+        .collect();
+    remap_section_marks(d, &reverse, &source_blocks, &linked_sections)?;
     save(d, &destination)
 }
 
@@ -419,6 +460,51 @@ fn apply_updates(store: &mut cadcraft_doc::EntityStore, updates: &mut BTreeMap<H
             store.modify(h, |e| e.common = common);
         }
     }
+}
+
+/// Only adopted native entities may acquire new associations. Orphan marks in copied
+/// source blocks disappear; detached marks remain ordinary editable static geometry.
+fn remap_section_marks(
+    d: &mut Drawing,
+    reverse: &BTreeMap<Handle, Handle>,
+    source_blocks: &BTreeMap<String, BTreeSet<String>>,
+    sections: &BTreeMap<Handle, (String, String)>,
+) -> Result<()> {
+    let remap = |store: &mut cadcraft_doc::EntityStore, sources: Option<&BTreeSet<String>>| -> Result<()> {
+        let mut updates = BTreeMap::new();
+        let mut removed = Vec::new();
+        for e in store.iter().filter(|e| reverse.contains_key(&e.handle)) {
+            let Some(mut mark) = data::load::<Value>(&e.common, SECTION_MARK)? else { continue };
+            let target = mark["section"].as_str().and_then(Handle::parse_hex).and_then(|old| sections.get(&old));
+            let target = target.filter(|(_, source)| sources.is_none_or(|sources| sources.contains(source)));
+            if sources.is_some() && target.is_none() {
+                removed.push(e.handle);
+                continue;
+            }
+            let mut common = e.common.clone();
+            if let Some((section, _)) = target {
+                mark["section"] = json!(section);
+                data::save(&mut common, SECTION_MARK, &mark)?;
+            } else {
+                super::section_notation::detach_mark(&mut common);
+            }
+            updates.insert(e.handle, common);
+        }
+        apply_updates(store, &mut updates);
+        for handle in removed {
+            store.remove(handle);
+        }
+        Ok(())
+    };
+    for store in std::iter::once(&mut d.model).chain(d.layouts.iter_mut().map(|layout| &mut layout.entities)) {
+        remap(store, None)?;
+    }
+    for (name, block) in &mut d.blocks {
+        if block.entities.iter().any(|e| reverse.contains_key(&e.handle)) {
+            remap(&mut Arc::make_mut(block).entities, source_blocks.get(&name.to_ascii_uppercase()))?;
+        }
+    }
+    Ok(())
 }
 
 fn copied(d: &mut Drawing, pairs: &[CopyPair]) -> Result<()> {

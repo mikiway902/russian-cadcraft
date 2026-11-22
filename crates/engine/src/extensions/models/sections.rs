@@ -55,7 +55,7 @@ fn presentation(p: &Value) -> Result<Presentation> {
 
 pub(super) fn specs() -> Vec<CommandSpec> {
     vec![CommandSpec::new("gost.model.section", "Create Exact Model Section", section)
-        .params("{id,plane:{origin:[x,y,z],normal:[x,y,z]},kept_side:positive|negative,presentation?:cutaway|detached|imposed,up?,layout?,at?,scale?,hidden?,accept_incomplete?,exclude_bodies?}; frozen editable exact native section, result-local topology; no mesh fallback")]
+        .params("{id,plane:{origin:[x,y,z],normal:[x,y,z]},kept_side:positive|negative,presentation?:cutaway|detached|imposed,source_view?:HEX,label?:string|null,up?,layout?,at?,scale?,hidden?,accept_incomplete?,exclude_bodies?}; frozen exact native geometry; optional cutting-plane marks follow the selected source view")]
 }
 fn vec(v: [f64; 3]) -> Vec3 {
     Vec3::new(v[0], v[1], v[2])
@@ -73,9 +73,37 @@ fn unit(v: [f64; 3]) -> Result<Vec3> {
 
 /// Validate host input and derive a perpendicular sight ray into the retained half-space.
 pub fn request(p: &Value) -> Result<SectionRequest> {
-    keys(p, &["id", "plane", "kept_side", "presentation", "up", "layout", "at", "scale", "hidden", "accept_incomplete", "exclude_bodies"])?;
+    keys(
+        p,
+        &[
+            "id",
+            "plane",
+            "kept_side",
+            "presentation",
+            "source_view",
+            "label",
+            "up",
+            "layout",
+            "at",
+            "scale",
+            "hidden",
+            "accept_incomplete",
+            "exclude_bodies",
+        ],
+    )?;
     presentation(p)?;
     text(p, "id")?;
+    if p.get("source_view").is_some() {
+        let source = text(p, "source_view")?;
+        if source.len() > 16 || Handle::parse_hex(source).is_none_or(|h| h.0 == 0) {
+            return Err(err("source_view must be a nonzero native view handle"));
+        }
+    } else if p.get("label").is_some() {
+        return Err(err("section label requires source_view"));
+    }
+    if p.get("label").is_some_and(|v| !v.is_null() && !v.is_string()) {
+        return Err(err("section label must be a designation string or null"));
+    }
     let plane_value = p.get("plane").ok_or_else(|| err("section plane required"))?;
     keys(plane_value, &["origin", "normal"])?;
     let origin = vector(plane_value.get("origin").ok_or_else(|| err("section plane origin required"))?)?;
@@ -134,8 +162,9 @@ pub fn request(p: &Value) -> Result<SectionRequest> {
 fn section(s: &mut Session, p: &Value) -> Result<Value> {
     let request = request(p)?;
     // Validate drawing prerequisites before invoking synchronous host I/O.
-    options_for_basis(s, p, request.direction, request.up)?;
+    let opts = options_for_basis(s, p, request.direction, request.up)?;
     let store = load(s.doc()?)?;
+    super::section_notation::select(s.doc()?, &store, p, &request, &opts)?;
     let m = model(&store, text(p, "id")?)?;
     let result = (hooks()?.section)(&m.path, &m.source.sha256, &request).map_err(err)?;
     install(s, &m.id, &m.source.sha256, p, result)
@@ -387,6 +416,7 @@ fn install(s: &mut Session, id: &str, expected_sha: &str, p: &Value, mut section
             }
         }
     }
+    let notation = super::section_notation::prepare(s.doc()?, &store, p, &request, &opts)?;
     let mut angles = BTreeMap::new();
     for cap in &section.caps {
         angles.entry(cap.source_body).or_insert_with(|| hatch_angle(&section, cap.source_body));
@@ -421,18 +451,38 @@ fn install(s: &mut Session, id: &str, expected_sha: &str, p: &Value, mut section
         let count = crate::extensions::gost::axes::entity_count(group.radius, opts.scale, group.extension)?;
         sum.checked_add(count).filter(|n| *n <= super::MAX_ENTITIES).ok_or_else(|| err("section axis entity limit"))
     })?;
-    let audit = json!({"plane":section.plane,"kept_side":section.kept_side,"exclude_bodies":request.exclude_bodies,
+    let mut audit = json!({"plane":section.plane,"kept_side":section.kept_side,"exclude_bodies":request.exclude_bodies,
         "bodies":section.bodies,"caps":audit_caps,"topology_identity":"section_result_local_only",
         "association":"frozen_editable_not_associative_topology","hatch_spacing_paper_mm":3.,"model_units_per_paper_mm":opts.scale,
         "presentation":presentation.name(),
         "visible_geometry":if presentation.draws_projection() {"cut_caps_and_retained_body_projection"}else{"intersection_regions_only"},
         "circular_center_axes":{"groups":centers.len(),"entities":axis_count,"extension_policy":"automatic_3_to_4_5_paper_mm","association":"frozen_with_view"}});
+    if let Some(notation) = &notation {
+        audit["notation"] = notation.audit();
+    }
+    let caption = if let Some(notation) = &notation {
+        let mut bounds = cadcraft_geom::Bounds2::EMPTY;
+        for edge in section.caps.iter().flat_map(|cap| &cap.loops).flat_map(|ring| &ring.edges) {
+            bounds = bounds.union(&super::projections::curve_bounds(&outline(edge))?);
+        }
+        if presentation.draws_projection() {
+            for entity in &section.projection.entities {
+                if entity.visibility != Visibility::Hidden || opts.hidden {
+                    bounds = bounds.union(&super::projections::curve_bounds(&entity.kind)?);
+                }
+            }
+        }
+        notation.caption(s.doc()?, bounds, opts.scale)?
+    } else {
+        None
+    };
     let outline_count = if presentation.draws_projection() { 0 } else { edge_budget };
     let entity_count = section
         .caps
         .len()
         .checked_add(outline_count)
         .and_then(|n| n.checked_add(axis_count))
+        .and_then(|n| n.checked_add(usize::from(caption.is_some())))
         .filter(|n| *n <= super::MAX_ENTITIES)
         .ok_or_else(|| err("section native entity count limit"))?;
     let outline_layer = if presentation == Presentation::Imposed { "GOST-THIN" } else { "GOST-OUTLINE" };
@@ -473,12 +523,18 @@ fn install(s: &mut Session, id: &str, expected_sha: &str, p: &Value, mut section
             return Err(err("section centre-axis layer required; run gost.setup first"));
         }
     }
+    if let Some(caption) = caption {
+        entities.push(caption);
+    }
     let scale = 1. / opts.scale;
     let mut out = install_view_options(s, id, expected_sha, p, section.projection, opts, Some(SectionOverlay { entities, audit, presentation }))?;
     let handle = Handle::parse_hex(text(&out, "handle")?).ok_or_else(|| err("section insertion handle missing"))?;
     s.doc_mut()?.modify_entity(handle, |e| {
         e.common.xdata.extend([tag(1001, STYLE), tag(1070, "1"), tag(1040, scale.to_string())]);
     })?;
+    if let Some(notation) = notation {
+        super::section_notation::install(s.doc_mut()?, handle, notation)?;
+    }
     out["status"] = json!("created");
     Ok(out)
 }
@@ -636,4 +692,4 @@ pub(super) fn validate_source_anchor(audit: &Value, placement: u64, point: [f64;
 
 #[cfg(test)]
 #[path = "sections_tests.rs"]
-mod tests;
+pub(super) mod tests;

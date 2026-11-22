@@ -1574,7 +1574,7 @@ menu	View	视图
 	Omit bodies entirely (not uncut exceptions)	完全排除实体（不是保持未剖切）
 	Body	实体
 	Hatching: 3 mm on paper; scale and insertion use the view controls above.	图纸剖面线间距为 3 毫米；比例和插入位置使用上方视图控件。
-	Frozen exact geometry; cutting-plane labels are separate.	冻结的精确几何；剖切平面标记需另行添加。
+	Exact section geometry stays frozen. Source-bound cutting-plane notation follows 2D source MOVE; no 3D source rebuild or symmetry inference.	精确剖切几何保持冻结。关联的剖切平面标记随源视图的二维 MOVE 移动；不会根据三维源模型重建，也不推断对称性。
 	Create exact section	创建精确剖视图
 	Create Exact Model Section	创建精确模型剖视图
 	Section removes every selected body; no view was created.	剖切移除了全部所选实体；未创建视图。
@@ -1605,3 +1605,9 @@ menu	View	视图
 	Enter view designation, or press Enter for the next unused designation	输入视图标记，或按 Enter 使用下一个未用标记
 	Leave blank to choose the next unused section designation.	留空以选择下一个未使用的断面标记。
 	View or section designation (optional)	视图或断面标记（可选）
+	Source ordinary view	源普通视图
+	No source — geometry only	无源视图 — 仅生成几何
+	Section designation (optional)	剖切标记（可选）
+	Without a source view, only frozen exact geometry is created; cutting-plane notation is not linked.	未选择源视图时，仅创建冻结的精确几何；剖切平面标记不与视图关联。
+	Use an ordinary view on the same millimetre sheet, with positive uniform unrotated scale and the cutting plane seen edge-on.	请选择同一毫米图纸上的普通视图，使用正的等比缩放且不旋转，并使剖切平面在视图中投影为线。
+	Non-symmetric imposed sections use source arrows without letters.	不对称重合断面在源视图上仅使用箭头，不带字母。

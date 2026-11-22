@@ -116,7 +116,7 @@ fn policy() -> crate::EngineError {
         "linked projection family refuses scale (including uniform scale), rotation, mirror, nonuniform transforms, layout moves and nested wrappers; recreate related views at the required scale",
     )
 }
-fn placement<'a>(d: &'a Drawing, view: &SavedView) -> Result<(&'a Insert, Space, Vec2)> {
+pub(super) fn placement<'a>(d: &'a Drawing, view: &SavedView) -> Result<(&'a Insert, Space, Vec2)> {
     let h = handle(&view.handle)?;
     let entity = d.entity(h).ok_or_else(|| err("projection view is not live at top level"))?;
     let saved: ViewLink = data::load(&entity.common, VIEW)?.ok_or_else(|| err("projection view association missing"))?;
@@ -299,7 +299,7 @@ fn checked_bounds(b: Bounds2) -> Result<Bounds2> {
     }
     Ok(b)
 }
-fn curve_bounds(kind: &EntityKind) -> Result<Bounds2> {
+pub(super) fn curve_bounds(kind: &EntityKind) -> Result<Bounds2> {
     if !crate::finite::is_finite(kind) {
         return Err(err("nonfinite native projection curve"));
     }
@@ -319,13 +319,16 @@ fn curve_bounds(kind: &EntityKind) -> Result<Bounds2> {
     }
     checked_bounds(bounds)
 }
-fn view_bounds(d: &Drawing, i: &Insert) -> Result<Bounds2> {
+pub(super) fn view_bounds(d: &Drawing, i: &Insert) -> Result<Bounds2> {
     let block = d.block(&i.block).ok_or_else(|| err("missing projection block"))?;
     if block.entities.len() > MAX_ENTITIES {
         return Err(err("projection entity count limit exceeded"));
     }
     let mut bounds = Bounds2::EMPTY;
     for entity in block.entities.iter() {
+        if super::section_notation::mark_owner(&entity.common)?.is_some() {
+            continue;
+        }
         if entity.common.extrusion != Vec3::Z {
             return Err(err("projection bounds refuse non-XY native curves"));
         }

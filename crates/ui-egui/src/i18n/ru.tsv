@@ -1406,7 +1406,7 @@
 	Omit bodies entirely (not uncut exceptions)	Исключить тела целиком (не оставлять неразрезанными)
 	Body	Тело
 	Hatching: 3 mm on paper; scale and insertion use the view controls above.	Шаг штриховки — 3 мм на листе; масштаб и вставка задаются выше.
-	Frozen exact geometry; cutting-plane labels are separate.	Снимок точной геометрии; обозначения секущей плоскости наносятся отдельно.
+	Exact section geometry stays frozen. Source-bound cutting-plane notation follows 2D source MOVE; no 3D source rebuild or symmetry inference.	Точная геометрия разреза остаётся снимком. Обозначение секущей плоскости следует за 2D-перемещением исходного вида (MOVE); перестроение по 3D-источнику и распознавание симметрии не выполняются.
 	Create exact section	Создать точный разрез
 	Create Exact Model Section	Создать точный разрез модели
 	Section removes every selected body; no view was created.	Разрез удаляет все выбранные тела; вид не создан.
@@ -1436,3 +1436,9 @@
 	Enter section designation, NoLetters for arrows only, or press Enter for the next unused designation	Введите обозначение; NoLetters — только стрелки; Enter — следующее свободное обозначение
 	Enter view designation, or press Enter for the next unused designation	Введите обозначение вида или нажмите Enter для следующего свободного обозначения
 	Leave blank to choose the next unused section designation.	Оставьте поле пустым для выбора следующего свободного обозначения сечения.
+	Source ordinary view	Исходный обычный вид
+	No source — geometry only	Без исходного вида — только геометрия
+	Section designation (optional)	Обозначение разреза или сечения (необязательно)
+	Without a source view, only frozen exact geometry is created; cutting-plane notation is not linked.	Без исходного вида создаётся только снимок точной геометрии; обозначение секущей плоскости не связано с видом.
+	Use an ordinary view on the same millimetre sheet, with positive uniform unrotated scale and the cutting plane seen edge-on.	Выберите обычный вид на том же листе в миллиметрах, с положительным равномерным масштабом без поворота; секущая плоскость должна проецироваться в линию.
+	Non-symmetric imposed sections use source arrows without letters.	Несимметричные наложенные сечения обозначаются на исходном виде стрелками без букв.

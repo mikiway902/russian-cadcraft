@@ -172,6 +172,22 @@ Legacy polyhedral caption вычисляет печатное отношение
 алфавита, вычисление высоты букв и guard неиспользуемого слоя GOST-TEXT.
 Назначение — §7.5; геометрическая симметрия и parent-view связь не подразумеваются.
 
+`models::section_notation` хранит source-bound обозначение в
+`SavedView.provenance.section.notation` v1. Активен только `source_view`;
+`original_source_view` — неизменяемый audit, `missing_source` не перепривязывается.
+Source и target — native paper INSERT одной модели/ревизии на одном mm-layout.
+Малый handle-free XDATA marker проверяется до декодирования Store и mark payload;
+обычные projected curves не требуют JSON allocations ради фильтрации обозначений.
+Trace плоскости вычисляется в сохранённом basis исходного вида, размерные
+штрихи/стрелки строятся в paper mm общим `CuttingPlane`, затем переводятся в
+source-local координаты с учётом base блока. Caption использует общий
+`view_caption` и фактический масштаб результата. MOVE не требует перестройки
+геометрии обозначений; изменение масштаба/ориентации исходного INSERT запрещено.
+Clipboard переносит активную связь только между реально переданными native views,
+не snapshot placeholders; source-only копия очищает только скопированные
+осиротевшие marks. Frozen geometry и raw HLR quality остаются отдельным контрактом.
+
+
 `models::projections` хранит first-angle DAG в `SavedView.provenance.projection_link`
 (version 1). Активная ссылка — `parent`; `original_parent` остаётся только audit.
 Метаданные проверяются при загрузке/сохранении Store: source identity, отсутствие

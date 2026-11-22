@@ -393,18 +393,7 @@ fn prepared(d: &Drawing, r: &View) -> Result<Vec<(Common, EntityKind)>> {
     }
     if let Some(label) = &r.label {
         let height = super::gost::standards::designation_height(d)?;
-        // Keep the actual image scale explicit, including 1:1: changing a title
-        // block must not leave an unmarked view at a different scale (§5.11).
-        let mut name = if r.scale >= 1.0 {
-            if cut.is_some() { format!("{label}—{label} (1:{})", r.scale) } else { format!("{label} (1:{})", r.scale) }
-        } else if cut.is_some() {
-            format!("{label}—{label} ({}:1)", 1.0 / r.scale)
-        } else {
-            format!("{label} ({}:1)", 1.0 / r.scale)
-        };
-        if let Some(decimal) = name.find('.') {
-            name.replace_range(decimal..decimal + 1, ",");
-        }
+        let name = super::gost::annotations::view_caption(label, cut.is_some(), r.scale);
         let mut bounds: Option<cadcraft_geom::Bounds2> = None;
         let mut include = |p| {
             let point = cadcraft_geom::Bounds2::from_points([p]);

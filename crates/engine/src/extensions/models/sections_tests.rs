@@ -28,7 +28,7 @@ fn ring(points: &[Vec2]) -> HatchLoop {
         sources: vec![],
     }
 }
-fn fixture() -> Section {
+pub(in crate::extensions::models) fn fixture() -> Section {
     let outer = ring(&[Vec2::new(0., 0.), Vec2::new(20., 0.), Vec2::new(20., 20.), Vec2::new(0., 20.)]);
     let bore = HatchLoop {
         vertices: vec![],

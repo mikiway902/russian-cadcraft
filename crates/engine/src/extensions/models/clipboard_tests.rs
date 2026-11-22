@@ -751,3 +751,320 @@ fn native_copy_of_a_wrapper_remaps_the_nested_saved_view_and_curve_handles() {
     assert_eq!((store.models.len(), store.views.len()), (1, 2));
     assert!(store.views.iter().any(|v| v.handle == nested.handle.hex()));
 }
+
+fn section_notation_fixture() -> (Session, String, Handle, Handle) {
+    let mut s = crate::extensions::new_session();
+    let id = apply_loaded(&mut s, metadata('a'), None).unwrap()["id"].as_str().unwrap().to_owned();
+    let mut projected = projection('a');
+    projected.basis = Basis { x: [1., 0., 0.], y: [0., 1., 0.], direction: [0., 0., -1.] };
+    projected.entities[0].kind = EntityKind::Line(Line { a: Vec3::new(0., -10., 0.), b: Vec3::new(20., 10., 0.) });
+    let source = apply_view(
+        &mut s,
+        &id,
+        &"a".repeat(64),
+        &json!({"id":id,"layout":"GOST1","at":[20,50],"scale":2,"direction":[0,0,-1],"up":[0,1,0]}),
+        projected,
+    )
+    .unwrap();
+    let source = Handle::parse_hex(source["handle"].as_str().unwrap()).unwrap();
+    let section = super::super::sections::apply(
+        &mut s,
+        &id,
+        &"a".repeat(64),
+        &json!({"id":id,"plane":{"origin":[0,0,0],"normal":[0,1,0]},"kept_side":"positive",
+            "layout":"GOST1","at":[80,50],"scale":2,"source_view":source.hex(),"label":"А"}),
+        super::super::sections::tests::fixture(),
+    )
+    .unwrap();
+    let section = Handle::parse_hex(section["handle"].as_str().unwrap()).unwrap();
+    s.state_mut().unwrap().space = Space::Paper("GOST1".into());
+    (s, id, source, section)
+}
+
+fn section_marks(d: &Drawing, source: Handle) -> Vec<&Entity> {
+    d.block(&insert(d, source).block)
+        .unwrap()
+        .entities
+        .iter()
+        .filter(|e| data::load::<Value>(&e.common, SECTION_MARK).unwrap().is_some())
+        .map(Arc::as_ref)
+        .collect()
+}
+
+fn assert_section_snapshot(original: &SavedView, copied: &SavedView, source: Option<Handle>) {
+    let notation = &copied.provenance["section"]["notation"];
+    let expected = source.map_or(Value::Null, |source| json!(source.hex()));
+    assert_eq!(notation["source_view"], expected);
+    assert_eq!(copied.parameters["source_view"], expected);
+    assert_eq!(notation["status"], if source.is_some() { "linked" } else { "missing_source" });
+    assert_eq!(notation["original_source_view"], original.provenance["section"]["notation"]["original_source_view"]);
+    let mut normalized = copied.clone();
+    normalized.provenance["section"]["notation"] = original.provenance["section"]["notation"].clone();
+    normalized.parameters["source_view"] = original.parameters["source_view"].clone();
+    assert_snapshot(original, &normalized);
+}
+
+fn assert_section_native_pair(d: &Drawing, source: Handle, section: Handle, original_marks: &[Entity], caption: &[String]) {
+    let marks = section_marks(d, source);
+    assert_eq!(marks.len(), original_marks.len());
+    assert!(!marks.is_empty());
+    for (actual, original) in marks.iter().zip(original_marks) {
+        let canonical = |kind: &EntityKind| {
+            let mut kind = kind.clone();
+            if let EntityKind::Text(text) = &mut kind
+                && let Some(anchor) = text.align_pt
+                && text.halign == cadcraft_doc::HAlign::Center
+            {
+                // DXF normalizes the unused baseline insert of justified TEXT.
+                // The explicit alignment point is its actual geometric anchor.
+                text.insert = anchor;
+            }
+            kind
+        };
+        assert_eq!(
+            canonical(&actual.kind),
+            canonical(&original.kind),
+            "native source marks keep their source-local geometry and justified text anchor"
+        );
+        let association: Value = data::load(&actual.common, SECTION_MARK).unwrap().unwrap();
+        assert_eq!(association["section"], section.hex());
+    }
+    let block = d.block(&insert(d, section).block).unwrap();
+    assert!(block.entities.iter().any(|e| matches!(e.kind, EntityKind::Hatch(_))));
+    let actual: Vec<_> = block
+        .entities
+        .iter()
+        .filter_map(|e| match &e.kind {
+            EntityKind::Text(text) => Some(text.value.clone()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(actual, caption, "the native section caption must survive copying");
+    assert!(!actual.is_empty());
+}
+
+#[test]
+fn section_notation_pair_copy_and_clipboard_preserve_native_geometry_metadata_and_undo() {
+    for clipboard in [false, true] {
+        let (mut s, _, source, section) = section_notation_fixture();
+        let before = load(s.doc().unwrap()).unwrap();
+        let source_block = s.doc().unwrap().block(&insert(s.doc().unwrap(), source).block).unwrap().clone();
+        let original_marks: Vec<_> = section_marks(s.doc().unwrap(), source).into_iter().cloned().collect();
+        let caption: Vec<_> = s
+            .doc()
+            .unwrap()
+            .block(&insert(s.doc().unwrap(), section).block)
+            .unwrap()
+            .entities
+            .iter()
+            .filter_map(|e| match &e.kind {
+                EntityKind::Text(text) => Some(text.value.clone()),
+                _ => None,
+            })
+            .collect();
+        let result = if clipboard {
+            s.execute("copybase", &json!({"handles":[section.hex(),source.hex()],"base":[0,0]})).unwrap();
+            s.execute("pasteclip", &json!({"at":[100,0]})).unwrap()
+        } else {
+            s.execute("copy", &json!({"handles":[section.hex(),source.hex()],"delta":[100,0]})).unwrap()
+        };
+        let copied_section = result_handle(&result);
+        let copied_source = Handle::parse_hex(result["handles"][1].as_str().unwrap()).unwrap();
+        let after = load(s.doc().unwrap()).unwrap();
+        let saved = after.views.iter().find(|v| v.handle == copied_section.hex()).unwrap();
+        assert_section_snapshot(&before.views[1], saved, Some(copied_source));
+        assert_section_native_pair(s.doc().unwrap(), copied_source, copied_section, &original_marks, &caption);
+        assert_eq!(s.doc().unwrap().block(&source_block.name).unwrap(), &source_block);
+        for original in &before.views {
+            assert_eq!(json!(after.views.iter().find(|v| v.handle == original.handle).unwrap()), json!(original));
+        }
+        let reopened = cadcraft_io::read_dxf(cadcraft_io::write_dxf(s.doc().unwrap()).as_bytes()).unwrap();
+        assert_section_native_pair(&reopened, copied_source, copied_section, &original_marks, &caption);
+        let reopened_store = load(&reopened).unwrap();
+        assert_section_snapshot(
+            &before.views[1],
+            reopened_store.views.iter().find(|v| v.handle == copied_section.hex()).unwrap(),
+            Some(copied_source),
+        );
+        s.undo().unwrap();
+        assert_eq!(json!(load(s.doc().unwrap()).unwrap()), json!(before));
+        assert!(s.doc().unwrap().entity(copied_section).is_none());
+        s.redo().unwrap();
+        assert_section_native_pair(s.doc().unwrap(), copied_source, copied_section, &original_marks, &caption);
+    }
+}
+
+#[test]
+fn section_notation_source_only_copy_and_clipboard_remove_only_copied_orphan_marks() {
+    for clipboard in [false, true] {
+        let (mut s, _, source, _) = section_notation_fixture();
+        let annotation = note(&mut s, source);
+        let original = s.doc().unwrap().block(&insert(s.doc().unwrap(), source).block).unwrap().clone();
+        let mark_count = section_marks(s.doc().unwrap(), source).len();
+        assert!(mark_count > 0);
+        let copied = if clipboard {
+            s.execute("copyclip", &json!({"handles":[source.hex()]})).unwrap();
+            let captured = load(&s.clipboard_source.as_ref().unwrap().defs).unwrap();
+            assert_eq!(captured.views.len(), 1, "marks must not capture the unselected section");
+            result_handle(&s.execute("pasteclip", &json!({"at":[100,0]})).unwrap())
+        } else {
+            result_handle(&s.execute("copy", &json!({"handles":[source.hex()],"delta":[100,0]})).unwrap())
+        };
+        assert!(section_marks(s.doc().unwrap(), copied).is_empty());
+        let copied_block = s.doc().unwrap().block(&insert(s.doc().unwrap(), copied).block).unwrap();
+        assert_eq!(copied_block.entities.len(), original.entities.len() - mark_count);
+        assert!(copied_block.entities.iter().any(|e| e.kind == annotation.kind && e.common == annotation.common));
+        assert_eq!(s.doc().unwrap().block(&original.name).unwrap(), &original);
+    }
+}
+
+#[test]
+fn section_notation_section_only_copy_and_cross_document_clipboard_never_bind_colliding_source() {
+    for clipboard in [false, true] {
+        let (mut source, _, original_source, section) = section_notation_fixture();
+        let before = load(source.doc().unwrap()).unwrap();
+        let (mut destination, _, collision, _) = section_notation_fixture();
+        assert_eq!(original_source, collision);
+        let untouched = destination.doc().unwrap().clone();
+        let copied = if clipboard {
+            source.execute("copyclip", &json!({"handles":[section.hex()]})).unwrap();
+            assert_eq!(load(&source.clipboard_source.as_ref().unwrap().defs).unwrap().views.len(), 1);
+            transfer(&source, &mut destination);
+            result_handle(&destination.execute("pasteclip", &json!({"at":[100,0]})).unwrap())
+        } else {
+            result_handle(&source.execute("copy", &json!({"handles":[section.hex()],"delta":[100,0]})).unwrap())
+        };
+        let d = if clipboard { destination.doc().unwrap() } else { source.doc().unwrap() };
+        let after = load(d).unwrap();
+        assert_section_snapshot(&before.views[1], after.views.iter().find(|v| v.handle == copied.hex()).unwrap(), None);
+        let copied_block = d.block(&insert(d, copied).block).unwrap();
+        assert!(copied_block.entities.iter().any(|e| matches!(e.kind, EntityKind::Text(_))));
+        assert_eq!(destination.doc().unwrap().entity(collision).unwrap(), untouched.entity(collision).unwrap());
+        assert_eq!(destination.doc().unwrap().block(&insert(&untouched, collision).block), untouched.block(&insert(&untouched, collision).block));
+    }
+}
+
+#[test]
+fn section_notation_detached_marks_copy_and_clipboard_keep_static_geometry_without_association() {
+    for clipboard in [false, true] {
+        let (mut s, _, source, _) = section_notation_fixture();
+        let original = (*section_marks(s.doc().unwrap(), source)[0]).clone();
+        let mut common = original.common.clone();
+        common.xdata.extend([tag(1001, "USER-STATIC-MARK"), tag(1000, "Keep me")]);
+        let detached = s.doc_mut().unwrap().add(&Space::Paper("GOST1".into()), common.clone(), original.kind.clone()).unwrap();
+        let copied = if clipboard {
+            s.execute("copybase", &json!({"handles":[detached.hex()],"base":[0,0]})).unwrap();
+            result_handle(&s.execute("pasteclip", &json!({"at":[0,0]})).unwrap())
+        } else {
+            result_handle(&s.execute("copy", &json!({"handles":[detached.hex()],"delta":[0,0]})).unwrap())
+        };
+        let actual = s.doc().unwrap().entity(copied).unwrap();
+        assert!(data::load::<Value>(&actual.common, SECTION_MARK).unwrap().is_none());
+        assert_eq!(actual.kind, original.kind);
+        assert!(actual.common.xdata.windows(2).any(|tags| tags == [tag(1001, "USER-STATIC-MARK"), tag(1000, "Keep me")]));
+        assert_eq!(s.doc().unwrap().entity(detached).unwrap().common, common);
+        assert!(!section_marks(s.doc().unwrap(), source).is_empty());
+    }
+}
+
+#[test]
+fn section_notation_snapshot_placeholder_is_not_a_copied_native_source() {
+    let (mut source, id, parent, section) = section_notation_fixture();
+    let curve = source
+        .doc()
+        .unwrap()
+        .block(&insert(source.doc().unwrap(), parent).block)
+        .unwrap()
+        .entities
+        .iter()
+        .find(|e| data::load::<Value>(&e.common, PIECE).unwrap().is_some())
+        .unwrap()
+        .clone();
+    let detached = source.doc_mut().unwrap().add(&Space::Paper("GOST1".into()), curve.common.clone(), curve.kind.clone()).unwrap();
+    apply_loaded(&mut source, metadata('b'), Some((&id, &"a".repeat(64)))).unwrap();
+    let before = load(source.doc().unwrap()).unwrap();
+    source.execute("copyclip", &json!({"handles":[section.hex(),detached.hex()]})).unwrap();
+    assert_eq!(load(&source.clipboard_source.as_ref().unwrap().defs).unwrap().views.len(), 2);
+    let mut destination = crate::extensions::new_session();
+    transfer(&source, &mut destination);
+    let copied = result_handle(&destination.execute("pasteclip", &json!({"at":[100,0]})).unwrap());
+    let after = load(destination.doc().unwrap()).unwrap();
+    assert_section_snapshot(&before.views[1], after.views.iter().find(|v| v.handle == copied.hex()).unwrap(), None);
+    let snapshot = after.views.iter().find(|v| v.handle != copied.hex()).unwrap();
+    assert!(destination.doc().unwrap().entity(Handle::parse_hex(&snapshot.handle).unwrap()).is_none());
+}
+
+#[test]
+fn section_notation_repeated_pair_copy_keeps_original_source_audit_immutable() {
+    let (mut s, _, source, section) = section_notation_fixture();
+    let original = load(s.doc().unwrap()).unwrap().views[1].clone();
+    let mut handles = vec![section.hex(), source.hex()];
+    for _ in 0..2 {
+        let result = s.execute("copy", &json!({"handles":handles,"delta":[100,0]})).unwrap();
+        handles = result["handles"].as_array().unwrap().iter().map(|v| v.as_str().unwrap().to_owned()).collect();
+        let copied_section = Handle::parse_hex(&handles[0]).unwrap();
+        let copied_source = Handle::parse_hex(&handles[1]).unwrap();
+        let after = load(s.doc().unwrap()).unwrap();
+        assert_section_snapshot(&original, after.views.iter().find(|v| v.handle == copied_section.hex()).unwrap(), Some(copied_source));
+        for mark in section_marks(s.doc().unwrap(), copied_source) {
+            let association: Value = data::load(&mark.common, SECTION_MARK).unwrap().unwrap();
+            assert_eq!(association["section"], copied_section.hex());
+        }
+    }
+}
+
+#[test]
+fn section_notation_system_dxf_clipboard_remaps_pair_despite_destination_handle_collisions() {
+    let (mut source, _, source_view, section) = section_notation_fixture();
+    let before = load(source.doc().unwrap()).unwrap();
+    let marks: Vec<_> = section_marks(source.doc().unwrap(), source_view).into_iter().cloned().collect();
+    let caption: Vec<_> = source
+        .doc()
+        .unwrap()
+        .block(&insert(source.doc().unwrap(), section).block)
+        .unwrap()
+        .entities
+        .iter()
+        .filter_map(|e| match &e.kind {
+            EntityKind::Text(text) => Some(text.value.clone()),
+            _ => None,
+        })
+        .collect();
+    source.execute("copybase", &json!({"handles":[section.hex(),source_view.hex()],"base":[0,0]})).unwrap();
+    let encoded = cadcraft_io::write_dxf(&native::system_drawing(&source).unwrap());
+    let decoded = cadcraft_io::read_dxf(encoded.as_bytes()).unwrap();
+    let (mut destination, _, collision_source, collision_section) = section_notation_fixture();
+    assert_eq!((source_view, section), (collision_source, collision_section));
+    let untouched = destination.doc().unwrap().clone();
+    assert!(native::load_system_drawing(&mut destination, decoded));
+    let result = destination.execute("pasteclip", &json!({"at":[100,0]})).unwrap();
+    let copied_section = result_handle(&result);
+    let copied_source = Handle::parse_hex(result["handles"][1].as_str().unwrap()).unwrap();
+    let after = load(destination.doc().unwrap()).unwrap();
+    let copied = after.views.iter().find(|v| v.handle == copied_section.hex()).unwrap();
+    assert_ne!(copied.model_id, before.views[1].model_id);
+    assert_section_snapshot(&before.views[1], copied, Some(copied_source));
+    assert_section_native_pair(destination.doc().unwrap(), copied_source, copied_section, &marks, &caption);
+    assert_eq!(destination.doc().unwrap().entity(collision_section), untouched.entity(collision_section));
+    assert_eq!(
+        destination.doc().unwrap().block(&insert(&untouched, collision_source).block),
+        untouched.block(&insert(&untouched, collision_source).block)
+    );
+    destination.undo().unwrap();
+    assert_eq!(destination.doc().unwrap(), &untouched);
+    destination.redo().unwrap();
+    assert_section_native_pair(destination.doc().unwrap(), copied_source, copied_section, &marks, &caption);
+}
+
+#[test]
+fn section_notation_missing_source_never_revives_from_audit_handle_when_source_is_copied() {
+    let (mut s, _, source, section) = section_notation_fixture();
+    let original = load(s.doc().unwrap()).unwrap().views[1].clone();
+    let orphan = result_handle(&s.execute("copy", &json!({"handles":[section.hex()],"delta":[100,0]})).unwrap());
+    let copied = s.execute("copy", &json!({"handles":[orphan.hex(),source.hex()],"delta":[100,0]})).unwrap();
+    let copied_section = result_handle(&copied);
+    let copied_source = Handle::parse_hex(copied["handles"][1].as_str().unwrap()).unwrap();
+    let after = load(s.doc().unwrap()).unwrap();
+    assert_section_snapshot(&original, after.views.iter().find(|v| v.handle == copied_section.hex()).unwrap(), None);
+    assert!(section_marks(s.doc().unwrap(), copied_source).is_empty());
+}

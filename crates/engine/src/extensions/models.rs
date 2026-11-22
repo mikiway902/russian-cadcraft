@@ -20,6 +20,7 @@ use std::{
 mod clipboard;
 pub mod dimensions;
 pub mod projections;
+mod section_notation;
 pub mod sections;
 
 const RECORD: &str = "CADCRAFT_GOST_LINKED_MODELS";
@@ -39,6 +40,7 @@ pub(super) const EXTENSION: super::Extension = super::Extension {
     document_changed: |s, e| {
         projections::after_command(s, e.before, e.uid)?;
         sections::after_command(s, e.before, e.uid)?;
+        section_notation::after_command(s, e.before, e.uid)?;
         dimensions::after_command(s, e.before, e.uid)
     },
     command_override: None,
@@ -239,7 +241,8 @@ fn validate_store(store: &Store) -> Result<()> {
         }
         validate_basis(&v.basis)?;
     }
-    projections::validate_store_links(store)
+    projections::validate_store_links(store)?;
+    section_notation::validate_store(store)
 }
 fn tag(code: i32, value: impl Into<String>) -> RawTag {
     RawTag { code, value: value.into() }
@@ -681,7 +684,9 @@ fn install_view_options(
     if covered_uncertain > 0 {
         warnings.push(format!("{covered_uncertain} raw uncertain pieces coincide with known visible pieces and were omitted under the upstream coverage contract; the raw quality report and provenance remain unchanged"));
     }
-    if presentation.is_some_and(|mode| !mode.draws_projection()) {
+    if section_overlay.as_ref().is_some_and(|overlay| overlay.audit.get("notation").is_some()) {
+        warnings.push("Source-bound cutting-plane notation uses the non-symmetric convention; verify symmetry and the axial hole/recess convention (GOST 2.305-2008 7.3-7.9). Exact section geometry is frozen; automatic 3D source rebuild is not implemented.".into());
+    } else if presentation.is_some_and(|mode| !mode.draws_projection()) {
         warnings.push("Geometric cross-section: add cutting-plane marks or symmetry axes and check the axial hole/recess convention (GOST 2.305-2008 7.3-7.9); automatic source rebuild is not implemented.".into());
     }
     let mut provenance = json!({"lines":projection.lines,"unsupported":projection.unsupported,"prepare_reports":projection.prepare_reports,

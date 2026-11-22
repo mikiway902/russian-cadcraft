@@ -94,6 +94,21 @@ fn add(s: &mut Session, kind: EntityKind, layer: &str, scale: f64) -> Result<Han
     Ok(s.doc_mut()?.add(&space, common, kind)?)
 }
 
+/// Actual image ratio, independent of DIMSCALE and title-block text.
+pub(in crate::extensions) fn view_caption(label: &str, section: bool, scale: f64) -> String {
+    let mut value = if section {
+        if scale >= 1.0 { format!("{label}—{label} (1:{scale})") } else { format!("{label}—{label} ({}:1)", 1.0 / scale) }
+    } else if scale >= 1.0 {
+        format!("{label} (1:{scale})")
+    } else {
+        format!("{label} ({}:1)", 1.0 / scale)
+    };
+    if let Some(decimal) = value.find('.') {
+        value.replace_range(decimal..decimal + 1, ",");
+    }
+    value
+}
+
 /// Native MTEXT lowers numeric indices; unindexed captions retain native TEXT.
 pub(in crate::extensions) fn designation_text(at: Vec2, value: String, height: f64) -> EntityKind {
     if value.chars().nth(1).is_some_and(|c| c.is_ascii_digit()) {

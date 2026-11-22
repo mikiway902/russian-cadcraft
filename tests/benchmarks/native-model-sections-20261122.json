@@ -282,6 +282,95 @@
     "full_ci": "cargo xtask ci: all 9 gates PASS, 412.90 seconds; existing four WASM dead-code warnings retained",
     "limits": "Static cutting-plane notation only; no automatic symmetry inference or parent-view relationship. Symmetric section convention 7.3 does not use these arrows."
   },
+  "source_bound_section_notation": {
+    "date": "2026-11-22",
+    "norm": "ГОСТ 2.305-2008 7.4-7.6; ГОСТ Р 2.316-2023 5.9-5.11",
+    "norm_sources": [
+      "https://docs.guap.ru/regdocs/stands/gost_2-305-2008_ver-2020.pdf",
+      "https://files.stroyinf.ru/Data/816/81673.pdf"
+    ],
+    "gui_ports": [18071,18072],
+    "actual_source": {
+      "path": "target/model-worker-smoke/box.igs",
+      "sha256": "3e88d562c7f727323b48293bd97f58d1915ba7925bccdb43cb370c927d8beb4d",
+      "bytes": 13527,
+      "bbox_mm": [[0,0,0],[10,20,30]],
+      "front_handle": "184",
+      "front_model_mm_per_paper_mm": 0.5,
+      "front_at_mm": [60,130]
+    },
+    "actual_gui_creation": {
+      "method": "Real source selector, designation, scale, insertion and plane fields, Create exact cross-section button",
+      "section_handle": "189",
+      "plane_origin": [0,0,15],
+      "normal": [0,0,1],
+      "kept_side": "positive",
+      "presentation": "detached",
+      "model_mm_per_paper_mm": 2,
+      "at_mm": [140,130],
+      "label": "А12",
+      "caption": "А₁₂—А₁₂ (1:2)",
+      "paper_rectangle_mm": [5,10],
+      "paper_caption_height_mm": 7,
+      "accept_incomplete": false,
+      "source_and_section_raw_uncertain": 8,
+      "raw_analytic_complete": false,
+      "uncertainty_policy": "Existing upstream covered-piece contract; raw quality/provenance retained, no uncovered suppression"
+    },
+    "source_marks": {
+      "native_geometry": {"Line":4,"Solid":2,"MText":2},
+      "terminal_stroke_mm": 10,
+      "arrow_head_mm": 5,
+      "included_angle_degrees": 15,
+      "tips_mm": [[47.5,160],[92.5,160]],
+      "label_height_mm": 7,
+      "source_local_geometry": "Paper geometry converted through actual source INSERT scale and block base"
+    },
+    "actual_imposed_gui_creation": {
+      "handle": "19D",
+      "source_view": "184",
+      "plane_origin": [0,0,20],
+      "scale": 0.5,
+      "at": [80,150],
+      "label": null,
+      "native_target": {"Line":4,"Hatch":1,"Text":0,"MText":0},
+      "contour_layer": "GOST-THIN",
+      "retained_hidden_label_ui_state": "А12 was retained in the hidden detached field; imposed still emitted label:null",
+      "limit": "Proves the non-symmetric mode mechanism, not symmetry classification or normative acceptance of the rectangular example"
+    },
+    "lifecycle": [
+      "Source MOVE carries its block marks without moving the separate section; Undo restores complete native paper entities",
+      "Source scale refusal preserves native paper entities, undo and dirty",
+      "Source and target EXPLODE/Undo restore complete paper entity lists; source EXPLODE exposes missing_source with immutable audit",
+      "Native pair COPY remaps source_view to actual copied source; immutable original_source_view remains 184",
+      "Real top projected child creation succeeds with source marks; family MOVE carries child but not the independent section"
+    ],
+    "clipboard_regressions": 8,
+    "notation_geometry_lifecycle_regressions": 9,
+    "native_model_group_cases": 79,
+    "saved_dxf_bytes": 108818,
+    "gui_reopen": "Complete paper entity lists and all four view metadata equal; both associations and source MOVE/Undo remain active",
+    "cli_reopen": "Exit 0; complete reopened paper entities and all view metadata equal GUI; source EXPLODE yields both missing_source relations; Undo restores complete entities/metadata",
+    "cli_exploded_source_native": {"Line":12,"Solid":4,"MText":2},
+    "actual_exploded_hatch": {"pattern_delta":[0,6],"hatch_scale":0.5,"paper_spacing_mm":3},
+    "full_ci": "Final cargo xtask ci: all 9 gates PASS, 308.84 seconds; existing WASM dead-code warnings retained",
+    "gui_exit_codes": [0,0],
+    "screenshots_read": [
+      "target/coexistence/proof/source-section-ready.png",
+      "target/coexistence/proof/source-section-complete-sheet.png",
+      "target/coexistence/proof/source-section-source-moved.png",
+      "target/coexistence/proof/source-section-imposed-sheet.png",
+      "target/coexistence/proof/source-section-final-nonsymmetric-guidance.png",
+      "target/coexistence/proof/source-section-final-reopened-sheet.png"
+    ],
+    "limits": [
+      "No general symmetry classification or symmetric 7.3 notation mode",
+      "No axial-hole/recess convention 7.9 or automatic source B-Rep rebuild 7.11",
+      "Section position is manual; no new source-to-section MOVE inheritance",
+      "Canonical stepped-shaft Front remains 20 uncertain / 4 uncovered and unaccepted",
+      "Whole section roadmap item stays open; 60/172 accepted, 112 open"
+    ]
+  },
   "checks": {
     "io_section_cases": 9,
     "io_projection_cases": 3,
@@ -295,7 +384,7 @@
   "limits": [
     "One-plane frozen editable exact-source geometry; no automatic B-Rep rebuild or general persistent cut-topology identity.",
     "Omitted bodies disappear entirely; uncut assembly exceptions are not implemented by exclude_bodies.",
-    "Cutting-plane arrows/captions remain separate drafting commands; stepped/aligned/local sections remain open.",
+    "Source-bound cutting-plane arrows/captions are available when source_view is selected; geometry-only sections still need separate drafting notation. Stepped/aligned/local sections remain open.",
     "Generic section rotation/scaling/mirroring, including nested wrappers, refuses to preserve paper hatch style; use section scale/up parameters.",
     "Ordinary stepped-shaft Front benchmark remains unaccepted with four uncovered uncertain fragments."
   ]

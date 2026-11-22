@@ -619,4 +619,63 @@
   Общая parent-view связь, §7.9 и source rebuild остаются открытыми;
   весь пункт вынесенных/наложенных сечений не принят: **60/172**, открыто **112**.
 
+## Source-bound обозначения точных сечений — 22.11.2026
+
+- `gost.model.section` принимает `source_view` и optional `label`. Исходный
+  ordinary view должен соответствовать модели/revision/fingerprint, находиться
+  на том же mm-листе и показывать плоскость с ребра; INSERT положительный,
+  равномерный, без поворота/зеркала/обёртки. Без `source_view` прежний
+  geometry-only контракт сохранён; `label` без исходного вида отклоняется.
+- Общий `CuttingPlane` строит штрихи/стрелки в paper mm с переводом в native
+  source block с учётом base/масштаба. Буквы — свободные либо явно заданные,
+  включая нижние индексы; target caption использует общий actual-ratio formatter.
+  Для несимметричного наложенного режима — стрелки без букв/caption.
+- `section.notation` v1 хранит активный source, original audit и исходный масштаб.
+  MOVE источника переносит его marks, MOVE результата — его caption, без
+  дополнительного наследования перемещения между ними. Scale/rotate/mirror,
+  смена листа, дублирующий INSERT и вложенная обёртка активного источника
+  отклоняются атомарно. Event callbacks не вызывают worker/source I/O.
+- Удаление результата очищает только его marks. Delete/EXPLODE источника даёт
+  `missing_source`; сечение/caption сохраняются. Exploded native primitives
+  теряют association tags, не видимую геометрию. Без восстановления по совпавшему
+  handle, ближайшему виду или `original_source_view`.
+- Clipboard remap использует только реально переданные native views:
+  whole pair → copied source, section-only → missing, source-only → удаление
+  только скопированных orphan marks. Snapshot placeholders не активируют связь.
+  Восемь consumer regressions охватывают COPY, clipboard/system DXF,
+  cross-document collisions, повторное копирование, Undo/Redo.
+- Дополнительные девять consumer cases проверяют бумажные размеры при source
+  scales (model mm/paper mm) **0,25/2/10** и ненулевом base, indexed caption, MOVE, delete/EXPLODE,
+  locked unused text layer, DXF, face-on refusal, alias/wrapper rollback.
+  Native model group — **79 cases**; engine/UI Clippy и i18n прошли.
+  Финальный `cargo xtask ci` после уточнения UI: **9/9 gates**, **308,84 с**;
+  workspace tests/Clippy, i18n, WASM, disabled extension и real worker прошли.
+- Реальный GUI 18071: IGES box **10×20×30 мм**, Front **2:1**,
+  Z=15/+Z, detached **1:2**, source `184`, section `189`, label А12:
+  настоящие source selector, поля и кнопка создания. Получены native
+  **4 LINE + 2 SOLID + 2 MTEXT** marks; штрихи 10 мм, наконечники 5 мм/15°,
+  tips (47,5;160)/(92,5;160), высота букв/caption 7 мм. Caption
+  **А₁₂—А₁₂ (1:2)**, target rectangle **5×10 мм**, HATCH 3 paper mm.
+- GUI imposed branch сохранил `label:null` даже после А12 в скрытом поле:
+  source-scaled Z=20 section — **4 GOST-THIN LINE + HATCH**, без текста.
+  Это проверка механизма несимметричного режима, не доказательство симметрии
+  данного прямоугольника или полной нормативной корректности наложения.
+- Реальные MOVE, scale refusal, source/target EXPLODE, pair COPY и Undo
+  сохранили ожидаемые native entities/metadata; ошибочный scale не изменил
+  entities/undo/dirty. Проекционный top-потомок создан при уже существующих
+  marks; MOVE семьи перенёс его, но не отдельное сечение.
+- DXF **108818 bytes**: GUI reopen сохранил полные paper entity lists и metadata
+  четырёх views, обе source associations и MOVE/Undo. Final GUI 18072 подтвердил
+  повторное открытие и уточнённый русский текст «несимметричные».
+  Обе GUI-сессии завершились **0**. Screenshots формы, листа, MOVE,
+  наложения, final guidance и reopened sheet прочитаны.
+  Standalone CLI завершился 0: полные reopened paper entities и metadata
+  совпали с GUI; source EXPLODE дал **12 LINE + 4 SOLID + 2 MTEXT** для
+  двух групп, обе связи стали missing; Undo восстановил entities/metadata.
+  Фактический HATCH: native delta 6 × scale 0,5 = **3 мм**.
+- Никакой автоматической классификации симметрии, §7.9 или B-Rep rebuild
+  по §7.11 этим не принято. Canonical shaft Front остаётся **20 uncertain /
+  4 uncovered**; его качество не подавлялось. Весь пункт вынесенных/наложенных
+  сечений остаётся открытым: **60/172**, открыто **112**.
+
 Ни один из этих результатов не закрывает полный новый roadmap. Точные B-Rep-проекции, сборки, нормативные профили, полная русификация, кроссплатформенные установки и выпуск остаются в активном плане.
