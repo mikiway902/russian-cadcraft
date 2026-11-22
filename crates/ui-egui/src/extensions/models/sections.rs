@@ -8,6 +8,7 @@ pub(super) struct State {
     revision: u64,
     source_sha256: String,
     source_view: String,
+    projection_link: bool,
     designation: String,
     origin: [f64; 3],
     normal: [f64; 3],
@@ -22,6 +23,7 @@ impl Default for State {
             revision: 0,
             source_sha256: String::new(),
             source_view: String::new(),
+            projection_link: true,
             designation: String::new(),
             origin: [0.0; 3],
             normal: [0.0, 0.0, 1.0],
@@ -41,6 +43,7 @@ impl State {
             "presentation":self.presentation,"exclude_bodies":excluded,"scale":scale,"at":at,"hidden":hidden,"accept_incomplete":accept});
         if !self.source_view.is_empty() {
             params["source_view"] = json!(self.source_view);
+            params["projection_link"] = json!(self.projection_link);
             if self.presentation == "imposed" {
                 params["label"] = Value::Null;
             } else if !self.designation.trim().is_empty() {
@@ -55,6 +58,7 @@ impl State {
             self.revision = model.revision;
             self.source_sha256.clone_from(&model.source.sha256);
             self.source_view.clear();
+            self.projection_link = true;
             self.designation.clear();
             self.excluded = 0;
         }
@@ -88,7 +92,7 @@ impl State {
                 ui.selectable_value(&mut self.presentation, "imposed", crate::tl!("Imposed cross-section — thin contour"));
             });
             if self.presentation != "cutaway" {
-                ui.small(crate::tl!("Cross-sections contain only the cutting-plane regions; position them using the view insertion controls."));
+                ui.small(crate::tl!("Cross-sections contain only the cutting-plane regions."));
             }
             if self.presentation == "imposed" {
                 ui.small(crate::tl!("Imposed cross-sections do not erase the underlying view."));
@@ -112,6 +116,15 @@ impl State {
                 ui.small(crate::tl!("Without a source view, only frozen exact geometry is created; cutting-plane notation is not linked."));
             } else {
                 ui.small(crate::tl!("Use an ordinary view on the same millimetre sheet, with positive uniform unrotated scale and the cutting plane seen edge-on."));
+                ui.checkbox(&mut self.projection_link, crate::tl!("Projection link"));
+                if self.projection_link {
+                    if self.presentation == "imposed" {
+                        ui.small(crate::tl!("Imposed sections stay aligned with the source at the same scale and cannot move independently."));
+                    } else {
+                        ui.small(crate::tl!("Detached sections and cutaways can move only along the source trace; moving the source carries the section."));
+                    }
+                }
+                ui.small(crate::tl!("Disable Projection link for free placement and orientation; cutting-plane notation remains source-bound."));
                 if self.presentation == "imposed" {
                     ui.small(crate::tl!("Non-symmetric imposed sections use source arrows without letters."));
                 } else {

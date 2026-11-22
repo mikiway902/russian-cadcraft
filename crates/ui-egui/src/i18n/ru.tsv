@@ -1428,7 +1428,7 @@
 	Cutaway — retained geometry	Разрез — с геометрией за плоскостью
 	Detached cross-section — thick contour	Вынесенное сечение — основной контур
 	Imposed cross-section — thin contour	Наложенное сечение — тонкий контур
-	Cross-sections contain only the cutting-plane regions; position them using the view insertion controls.	Сечение содержит только фигуру в секущей плоскости; положение задаётся точкой вставки вида.
+	Cross-sections contain only the cutting-plane regions.	Сечение содержит только фигуру в секущей плоскости.
 	Imposed cross-sections do not erase the underlying view.	Наложенное сечение не прерывает контур исходного вида.
 	Detached cross-section created.	Вынесенное сечение создано.
 	Imposed cross-section created.	Наложенное сечение создано.
@@ -1442,3 +1442,7 @@
 	Without a source view, only frozen exact geometry is created; cutting-plane notation is not linked.	Без исходного вида создаётся только снимок точной геометрии; обозначение секущей плоскости не связано с видом.
 	Use an ordinary view on the same millimetre sheet, with positive uniform unrotated scale and the cutting plane seen edge-on.	Выберите обычный вид на том же листе в миллиметрах, с положительным равномерным масштабом без поворота; секущая плоскость должна проецироваться в линию.
 	Non-symmetric imposed sections use source arrows without letters.	Несимметричные наложенные сечения обозначаются на исходном виде стрелками без букв.
+	Projection link	Проекционная связь
+	Imposed sections stay aligned with the source at the same scale and cannot move independently.	Наложенные сечения сохраняют совмещение с исходным видом в том же масштабе и не могут перемещаться независимо.
+	Detached sections and cutaways can move only along the source trace; moving the source carries the section.	Вынесенные сечения и разрезы можно перемещать только вдоль следа секущей плоскости на исходном виде; при перемещении исходного вида они следуют за ним.
+	Disable Projection link for free placement and orientation; cutting-plane notation remains source-bound.	Отключите проекционную связь для свободного размещения и ориентации; обозначение секущей плоскости останется связанным с исходным видом.

@@ -21,6 +21,7 @@ mod clipboard;
 pub mod dimensions;
 pub mod projections;
 mod section_notation;
+mod section_projection;
 pub mod sections;
 
 const RECORD: &str = "CADCRAFT_GOST_LINKED_MODELS";
@@ -40,6 +41,7 @@ pub(super) const EXTENSION: super::Extension = super::Extension {
     document_changed: |s, e| {
         projections::after_command(s, e.before, e.uid)?;
         sections::after_command(s, e.before, e.uid)?;
+        section_projection::after_command(s, e.before, e.uid)?;
         section_notation::after_command(s, e.before, e.uid)?;
         dimensions::after_command(s, e.before, e.uid)
     },
@@ -196,7 +198,8 @@ fn load(d: &Drawing) -> Result<Store> {
         }
         text.push_str(&chunk.value);
     }
-    let store: Store = serde_json::from_str(&text).map_err(|e| err(format!("invalid linked-model XRECORD: {e}")))?;
+    let mut store: Store = serde_json::from_str(&text).map_err(|e| err(format!("invalid linked-model XRECORD: {e}")))?;
+    section_notation::migrate(&mut store)?;
     validate_store(&store)?;
     Ok(store)
 }

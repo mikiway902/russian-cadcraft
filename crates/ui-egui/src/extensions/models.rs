@@ -319,6 +319,7 @@ impl State {
             Act::Section => {
                 let guard = self.selected_guard()?;
                 let params = self.sections.params(&guard, self.scale, self.at, self.hidden, self.accept_incomplete)?;
+                let params = models::sections::prepare_request(&app.session, &params).map_err(|e| e.to_string())?;
                 let request = models::sections::request(&params).map_err(|e| e.to_string())?;
                 let captured = guard.clone();
                 self.start(app, Kind::Section, Some(guard), move || {
@@ -423,11 +424,22 @@ pub(crate) fn tick(app: &mut CadApp, ctx: &egui::Context) {
                     app.set_status(match report["status"].as_str() {
                         Some("empty") => crate::tl!("Section removes every selected body; no view was created."),
                         Some("no_intersection") => crate::tl!("No body interior intersects the plane; no view was created."),
-                        Some("created") => match report["section"]["presentation"].as_str() {
-                            Some("detached") => crate::tl!("Detached cross-section created."),
-                            Some("imposed") => crate::tl!("Imposed cross-section created."),
-                            _ => crate::tl!("Exact section created."),
-                        },
+                        Some("created") => {
+                            let at = report["at"]
+                                .as_array()
+                                .and_then(|at| match at.as_slice() {
+                                    [x, y] => Some([x.as_f64()?, y.as_f64()?]),
+                                    _ => None,
+                                })
+                                .filter(|at| at.iter().all(|coordinate| coordinate.is_finite()))
+                                .ok_or_else(|| "Invalid exact section insertion coordinates".to_string())?;
+                            state.at = at;
+                            match report["section"]["presentation"].as_str() {
+                                Some("detached") => crate::tl!("Detached cross-section created."),
+                                Some("imposed") => crate::tl!("Imposed cross-section created."),
+                                _ => crate::tl!("Exact section created."),
+                            }
+                        }
                         _ => return Err("Invalid exact section completion status".into()),
                     });
                     state.cache = None;

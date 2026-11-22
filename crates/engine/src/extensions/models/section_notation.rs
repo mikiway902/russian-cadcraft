@@ -21,13 +21,14 @@ pub(super) const MARK: &str = "section-cutting-mark";
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct Link {
-    version: u32,
-    source_view: Option<String>,
-    original_source_view: String,
-    status: String,
-    label: Option<String>,
-    source_scale: f64,
+pub(super) struct Link {
+    pub(super) version: u32,
+    pub(super) source_view: Option<String>,
+    pub(super) original_source_view: String,
+    pub(super) status: String,
+    pub(super) label: Option<String>,
+    pub(super) source_scale: f64,
+    pub(super) projection: Option<super::section_projection::Constraint>,
 }
 fn handle(text: &str) -> Result<Handle> {
     if text.is_empty() || text.len() > 16 || !text.bytes().all(|c| c.is_ascii_hexdigit()) {
@@ -35,10 +36,10 @@ fn handle(text: &str) -> Result<Handle> {
     }
     Handle::parse_hex(text).filter(|h| h.0 != 0).ok_or_else(|| err("invalid section notation source handle"))
 }
-fn link(view: &SavedView) -> Result<Option<Link>> {
+pub(super) fn link(view: &SavedView) -> Result<Option<Link>> {
     let Some(value) = view.provenance.get("section").and_then(|s| s.get("notation")) else { return Ok(None) };
     let link = Link::deserialize(value).map_err(|e| err(format!("invalid section notation: {e}")))?;
-    if link.version != 1
+    if link.version != 2
         || !link.source_scale.is_finite()
         || !(1e-6..=1e6).contains(&link.source_scale)
         || !matches!((link.status.as_str(), link.source_view.as_deref()), ("linked", Some(_)) | ("missing_source", None))
@@ -55,6 +56,21 @@ fn link(view: &SavedView) -> Result<Option<Link>> {
 pub(super) fn validate_store(store: &Store) -> Result<()> {
     for section in &store.views {
         let Some(link) = link(section)? else { continue };
+        let enabled = section
+            .parameters
+            .get("projection_link")
+            .and_then(Value::as_bool)
+            .ok_or_else(|| err("saved section projection_link must be explicit boolean"))?;
+        if link.projection.is_some() != enabled {
+            return Err(err("section projection constraint differs from saved projection_link parameter"));
+        }
+        if let Some(constraint) = &link.projection {
+            super::section_projection::validate(constraint)?;
+            let imposed = section.provenance["section"]["presentation"] == "imposed";
+            if (constraint.mode == super::section_projection::Mode::Fixed) != imposed {
+                return Err(err("section projection constraint mode differs from its presentation"));
+            }
+        }
         if let Some(source) = link.source_view.as_deref() {
             if handle(source)? == handle(&section.handle)? {
                 return Err(err("section cannot reference itself as its source view"));
@@ -68,13 +84,36 @@ pub(super) fn validate_store(store: &Store) -> Result<()> {
                 return Err(err("section notation source differs in model/revision or is itself a section"));
             }
         }
-        let parameter = section.parameters.get("source_view").and_then(Value::as_str);
+        let parameter = match section.parameters.get("source_view") {
+            Some(Value::String(source)) => Some(source.as_str()),
+            Some(Value::Null) => None,
+            _ => return Err(err("saved section source_view must be a handle string or orphan null")),
+        };
         if parameter.map(handle).transpose()? != link.source_view.as_deref().map(handle).transpose()? {
             return Err(err("section notation differs from saved source_view parameter"));
         }
     }
     Ok(())
 }
+/// Upgrade legacy free-placement relations without moving native geometry or
+/// implicitly enabling constraints. The next ordinary Store save persists v2.
+pub(super) fn migrate(store: &mut Store) -> Result<()> {
+    for view in &mut store.views {
+        let Some(value) = view.provenance.get_mut("section").and_then(|s| s.get_mut("notation")) else { continue };
+        if value.get("version").and_then(Value::as_u64) != Some(1) {
+            continue;
+        }
+        let old = Link::deserialize(&*value).map_err(|e| err(format!("invalid legacy section notation: {e}")))?;
+        if old.projection.is_some() || view.parameters.get("projection_link").is_some() {
+            return Err(err("legacy section notation cannot carry projection constraints"));
+        }
+        value["version"] = json!(2);
+        value["projection"] = Value::Null;
+        view.parameters["projection_link"] = json!(false);
+    }
+    Ok(())
+}
+
 pub(super) fn mark_owner(common: &Common) -> Result<Option<Handle>> {
     if !marked(common)? {
         return Ok(None);
@@ -133,8 +172,17 @@ pub(super) struct Prepared {
     block: String,
     link: Link,
     marks: Vec<(Common, EntityKind)>,
+    trace: super::section_projection::SourceTrace,
+    projection_enabled: bool,
+    imposed: bool,
 }
 impl Prepared {
+    pub(super) fn align(&mut self, bounds: Bounds2, opts: &mut Options) -> Result<()> {
+        if self.projection_enabled {
+            self.link.projection = Some(super::section_projection::place(&self.trace, self.link.source_scale, bounds, opts, self.imposed)?);
+        }
+        Ok(())
+    }
     pub(super) fn audit(&self) -> Value {
         json!(self.link)
     }
@@ -156,7 +204,35 @@ pub(super) struct Selected<'a> {
     normal: Vec3,
     x: Vec3,
     y: Vec3,
+    sight: Vec3,
     imposed: bool,
+}
+impl Selected<'_> {
+    /// Fold the section frame about the source-plane trace, preserving the source
+    /// trace direction on paper instead of guessing a world-axis up.
+    pub(super) fn canonical_up(&self, request: &SectionRequest, opts: &Options, explicit: bool) -> Result<[f64; 3]> {
+        if self.imposed && (opts.scale * self.insert.scale.x - 1.0).abs() > 1e-10 {
+            return Err(err("projection-linked imposed section must use the source view scale; disable projection_link for free placement"));
+        }
+        let tangent = self.sight.cross(self.normal);
+        let tangent = tangent * (1.0 / tangent.len());
+        let screen = Vec2::new(tangent.dot(self.x), tangent.dot(self.y));
+        let screen = screen * (1.0 / screen.len());
+        let direction = Vec3::new(request.direction[0], request.direction[1], request.direction[2]);
+        let up = tangent * screen.y + tangent.cross(direction) * screen.x;
+        let up = up * (1.0 / up.len());
+        if explicit {
+            let actual = Vec3::new(request.up[0], request.up[1], request.up[2]);
+            if actual.dot(up) < 1.0 - 1e-10 {
+                return Err(err(
+                    "projection-linked section up must preserve the source trace orientation; disable projection_link for a free orientation",
+                ));
+            }
+            Ok(request.up)
+        } else {
+            Ok([up.x, up.y, up.z])
+        }
+    }
 }
 pub(super) fn select<'a>(d: &'a Drawing, store: &'a Store, p: &Value, request: &SectionRequest, opts: &Options) -> Result<Option<Selected<'a>>> {
     let Some(source_value) = p.get("source_view") else {
@@ -211,11 +287,11 @@ pub(super) fn select<'a>(d: &'a Drawing, store: &'a Store, p: &Value, request: &
             return Err(err(format!("{layer} must be unlocked, visible and printable")));
         }
     }
-    Ok(Some(Selected { view: source, insert, origin, normal, x, y, imposed }))
+    Ok(Some(Selected { view: source, insert, origin, normal, x, y, sight, imposed }))
 }
 
 pub(super) fn prepare(d: &Drawing, store: &Store, p: &Value, request: &SectionRequest, opts: &Options) -> Result<Option<Prepared>> {
-    let Some(Selected { view, insert, origin, normal, x, y, imposed }) = select(d, store, p, request, opts)? else { return Ok(None) };
+    let Some(Selected { view, insert, origin, normal, x, y, imposed, .. }) = select(d, store, p, request, opts)? else { return Ok(None) };
     let source_handle = handle(&view.handle)?;
     let label = if imposed {
         None
@@ -254,14 +330,18 @@ pub(super) fn prepare(d: &Drawing, store: &Store, p: &Value, request: &SectionRe
         source: source_handle,
         block: d.block(&insert.block).ok_or_else(|| err("section source block missing"))?.name.clone(),
         link: Link {
-            version: 1,
+            version: 2,
             source_view: Some(source_handle.hex()),
             original_source_view: source_handle.hex(),
             status: "linked".into(),
             label,
             source_scale: insert.scale.x,
+            projection: None,
         },
         marks,
+        trace: super::section_projection::SourceTrace { origin, bounds, point: on, axis: tangent },
+        projection_enabled: super::flag(p, "projection_link", true)?,
+        imposed,
     }))
 }
 
@@ -289,7 +369,13 @@ pub(super) fn install(d: &mut Drawing, section: Handle, prepared: Prepared) -> R
     Ok(())
 }
 
-fn relevant_changes(before: &Drawing, d: &Drawing) -> Result<bool> {
+fn paper_unit(d: &Drawing, handle: Handle) -> Option<f64> {
+    let space = d.space_of(handle)?;
+    let layout = d.layout(space.layout()?)?;
+    Some(cadcraft_render::paper::page_unit_mm(d, &layout.page))
+}
+
+pub(super) fn relevant_changes(before: &Drawing, d: &Drawing) -> Result<bool> {
     let mut any = false;
     for drawing in [before, d] {
         for e in super::entities(drawing) {
@@ -309,6 +395,7 @@ fn relevant_changes(before: &Drawing, d: &Drawing) -> Result<bool> {
                         || a.common.xdata != b.common.xdata
                         || a.common.extrusion != b.common.extrusion
                         || before.space_of(e.handle) != d.space_of(e.handle)
+                        || paper_unit(before, e.handle) != paper_unit(d, e.handle)
                         || !blocks_unchanged
                     {
                         return Ok(true);
@@ -402,6 +489,9 @@ pub(super) fn after_command(s: &mut Session, before: Option<&Arc<Drawing>>, uid:
         if d.space_of(section_handle).as_ref() != Some(&source_space)
             || before.entity(source_handle).is_some_and(|_| before.space_of(source_handle).as_ref() != Some(&source_space))
         {
+            return Err(policy());
+        }
+        if paper_unit(d, source_handle) != Some(1.0) {
             return Err(policy());
         }
         if (insert.scale.x - relation.source_scale).abs() > relation.source_scale * 1e-10 {

@@ -55,7 +55,7 @@ fn presentation(p: &Value) -> Result<Presentation> {
 
 pub(super) fn specs() -> Vec<CommandSpec> {
     vec![CommandSpec::new("gost.model.section", "Create Exact Model Section", section)
-        .params("{id,plane:{origin:[x,y,z],normal:[x,y,z]},kept_side:positive|negative,presentation?:cutaway|detached|imposed,source_view?:HEX,label?:string|null,up?,layout?,at?,scale?,hidden?,accept_incomplete?,exclude_bodies?}; frozen exact native geometry; optional cutting-plane marks follow the selected source view")]
+        .params("{id,plane:{origin:[x,y,z],normal:[x,y,z]},kept_side:positive|negative,presentation?:cutaway|detached|imposed,source_view?:HEX,label?:string|null,projection_link?:bool (source-bound default true),up?,layout?,at?,scale?,hidden?,accept_incomplete?,exclude_bodies?}; frozen native geometry; source-linked section placement and MOVE are constrained unless projection_link:false")]
 }
 fn vec(v: [f64; 3]) -> Vec3 {
     Vec3::new(v[0], v[1], v[2])
@@ -82,6 +82,7 @@ pub fn request(p: &Value) -> Result<SectionRequest> {
             "presentation",
             "source_view",
             "label",
+            "projection_link",
             "up",
             "layout",
             "at",
@@ -103,6 +104,12 @@ pub fn request(p: &Value) -> Result<SectionRequest> {
     }
     if p.get("label").is_some_and(|v| !v.is_null() && !v.is_string()) {
         return Err(err("section label must be a designation string or null"));
+    }
+    if p.get("projection_link").is_some() {
+        if p.get("source_view").is_none() {
+            return Err(err("section projection_link requires source_view"));
+        }
+        super::flag(p, "projection_link", true)?;
     }
     let plane_value = p.get("plane").ok_or_else(|| err("section plane required"))?;
     keys(plane_value, &["origin", "normal"])?;
@@ -159,15 +166,37 @@ pub fn request(p: &Value) -> Result<SectionRequest> {
     }
     Ok(SectionRequest { plane: Plane { origin, normal: array(normal) }, kept_side, direction: array(direction), up: array(up), exclude_bodies })
 }
-fn section(s: &mut Session, p: &Value) -> Result<Value> {
-    let request = request(p)?;
-    // Validate drawing prerequisites before invoking synchronous host I/O.
-    let opts = options_for_basis(s, p, request.direction, request.up)?;
+/// Resolve drawing-dependent source orientation before host work. The returned
+/// parameters are the request sent to the worker and checked again at completion.
+pub fn prepare_request(s: &Session, p: &Value) -> Result<Value> {
     let store = load(s.doc()?)?;
-    super::section_notation::select(s.doc()?, &store, p, &request, &opts)?;
-    let m = model(&store, text(p, "id")?)?;
+    Ok(canonical_request(s, p, &store)?.0)
+}
+fn canonical_request(s: &Session, p: &Value, store: &super::Store) -> Result<(Value, SectionRequest, super::Options)> {
+    let mut request = request(p)?;
+    let mut opts = options_for_basis(s, p, request.direction, request.up)?;
+    model(store, text(p, "id")?)?;
+    let source = super::section_notation::select(s.doc()?, store, p, &request, &opts)?;
+    let mut canonical = p.clone();
+    if let Some(source) = source {
+        let enabled = super::flag(p, "projection_link", true)?;
+        canonical["projection_link"] = json!(enabled);
+        if enabled {
+            let up = source.canonical_up(&request, &opts, p.get("up").is_some())?;
+            canonical["up"] = json!(up);
+            request.up = up;
+            opts.up = up;
+        }
+    }
+    Ok((canonical, request, opts))
+}
+
+fn section(s: &mut Session, p: &Value) -> Result<Value> {
+    let store = load(s.doc()?)?;
+    let (canonical, request, _) = canonical_request(s, p, &store)?;
+    let m = model(&store, text(&canonical, "id")?)?;
     let result = (hooks()?.section)(&m.path, &m.source.sha256, &request).map_err(err)?;
-    install(s, &m.id, &m.source.sha256, p, result)
+    install(s, &m.id, &m.source.sha256, &canonical, result)
 }
 
 /// Complete host work through the normal guarded transaction, including Undo/Redo.
@@ -280,16 +309,16 @@ fn circular_centers(section: &Section) -> BTreeMap<(u64, u64), CircularAxes> {
 }
 
 fn install(s: &mut Session, id: &str, expected_sha: &str, p: &Value, mut section: Section) -> Result<Value> {
-    let request = request(p)?;
+    let store = load(s.doc()?)?;
+    let (mut canonical, request, mut opts) = canonical_request(s, p, &store)?;
+    let p = &canonical;
     let presentation = presentation(p)?;
     if text(p, "id")? != id {
         return Err(err("section completion model ID mismatch"));
     }
-    let opts = options_for_basis(s, p, request.direction, request.up)?;
     if s.doc()?.layer("GOST-HATCH").is_none() {
         return Err(err("GOST-HATCH layer required; run gost.setup first"));
     }
-    let store = load(s.doc()?)?;
     let m = model(&store, id)?;
     if m.source.sha256 != expected_sha || section.projection.source_sha256 != expected_sha || section.projection.source_bytes != m.source.bytes {
         return Err(err("stale_source: exact section source does not match the linked revision"));
@@ -416,7 +445,7 @@ fn install(s: &mut Session, id: &str, expected_sha: &str, p: &Value, mut section
             }
         }
     }
-    let notation = super::section_notation::prepare(s.doc()?, &store, p, &request, &opts)?;
+    let mut notation = super::section_notation::prepare(s.doc()?, &store, p, &request, &opts)?;
     let mut angles = BTreeMap::new();
     for cap in &section.caps {
         angles.entry(cap.source_body).or_insert_with(|| hatch_angle(&section, cap.source_body));
@@ -457,10 +486,7 @@ fn install(s: &mut Session, id: &str, expected_sha: &str, p: &Value, mut section
         "presentation":presentation.name(),
         "visible_geometry":if presentation.draws_projection() {"cut_caps_and_retained_body_projection"}else{"intersection_regions_only"},
         "circular_center_axes":{"groups":centers.len(),"entities":axis_count,"extension_policy":"automatic_3_to_4_5_paper_mm","association":"frozen_with_view"}});
-    if let Some(notation) = &notation {
-        audit["notation"] = notation.audit();
-    }
-    let caption = if let Some(notation) = &notation {
+    let caption = if let Some(notation) = &mut notation {
         let mut bounds = cadcraft_geom::Bounds2::EMPTY;
         for edge in section.caps.iter().flat_map(|cap| &cap.loops).flat_map(|ring| &ring.edges) {
             bounds = bounds.union(&super::projections::curve_bounds(&outline(edge))?);
@@ -472,6 +498,8 @@ fn install(s: &mut Session, id: &str, expected_sha: &str, p: &Value, mut section
                 }
             }
         }
+        notation.align(bounds, &mut opts)?;
+        audit["notation"] = notation.audit();
         notation.caption(s.doc()?, bounds, opts.scale)?
     } else {
         None
@@ -527,7 +555,12 @@ fn install(s: &mut Session, id: &str, expected_sha: &str, p: &Value, mut section
         entities.push(caption);
     }
     let scale = 1. / opts.scale;
-    let mut out = install_view_options(s, id, expected_sha, p, section.projection, opts, Some(SectionOverlay { entities, audit, presentation }))?;
+    let at = json!([opts.at.x, opts.at.y]);
+    if notation.is_some() {
+        canonical["at"] = at.clone();
+    }
+    let mut out =
+        install_view_options(s, id, expected_sha, &canonical, section.projection, opts, Some(SectionOverlay { entities, audit, presentation }))?;
     let handle = Handle::parse_hex(text(&out, "handle")?).ok_or_else(|| err("section insertion handle missing"))?;
     s.doc_mut()?.modify_entity(handle, |e| {
         e.common.xdata.extend([tag(1001, STYLE), tag(1070, "1"), tag(1040, scale.to_string())]);
@@ -536,6 +569,7 @@ fn install(s: &mut Session, id: &str, expected_sha: &str, p: &Value, mut section
         super::section_notation::install(s.doc_mut()?, handle, notation)?;
     }
     out["status"] = json!("created");
+    out["at"] = at;
     Ok(out)
 }
 

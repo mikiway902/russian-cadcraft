@@ -284,6 +284,7 @@
   },
   "source_bound_section_notation": {
     "date": "2026-11-22",
+    "verified_revision": "83973cb6980888f10c12f7cd05afedccdf173186",
     "norm": "ГОСТ 2.305-2008 7.4-7.6; ГОСТ Р 2.316-2023 5.9-5.11",
     "norm_sources": [
       "https://docs.guap.ru/regdocs/stands/gost_2-305-2008_ver-2020.pdf",
@@ -366,7 +367,95 @@
     "limits": [
       "No general symmetry classification or symmetric 7.3 notation mode",
       "No axial-hole/recess convention 7.9 or automatic source B-Rep rebuild 7.11",
-      "Section position is manual; no new source-to-section MOVE inheritance",
+      "Historical baseline at verified_revision: manual section position, no source-to-section MOVE inheritance; superseded for new requests by section_projection_links",
+      "Canonical stepped-shaft Front remains 20 uncertain / 4 uncovered and unaccepted",
+      "Whole section roadmap item stays open; 60/172 accepted, 112 open"
+    ]
+  },
+  "section_projection_links": {
+    "date": "2026-11-22",
+    "kompas_source": "https://help.ascon.ru/KOMPAS/24/ru-RU/cm_create_section_view.html",
+    "default": "New source-bound sections enable projection_link; explicit false preserves free placement",
+    "migration": "Notation v1 becomes v2 independent: projection null, projection_link false, no geometry movement or automatic binding",
+    "native_model_group_cases": 90,
+    "new_consumer_cases": 11,
+    "checks": "Engine/UI Clippy, i18n and desktop/CLI debug build PASS",
+    "full_ci": "cargo xtask ci: all 9 gates PASS, 331.06 seconds; existing WASM dead-code warnings retained",
+    "actual_gui_port": 18073,
+    "source": {
+      "path": "target/model-worker-smoke/box.igs",
+      "sha256": "3e88d562c7f727323b48293bd97f58d1915ba7925bccdb43cb370c927d8beb4d",
+      "bbox_mm": [[0,0,0],[10,20,30]],
+      "handle": "184",
+      "at": [60,130],
+      "model_mm_per_paper_mm": 0.5,
+      "raw_analytic_complete": false,
+      "raw_uncertain": 8,
+      "accept_incomplete": false,
+      "quality_policy": "Existing covered-piece contract; raw quality retained, no uncovered suppression"
+    },
+    "actual_gui_detached": {
+      "handle": "189",
+      "requested_at": [140,130],
+      "actual_at": [140,165],
+      "visible_fields_updated": true,
+      "plane_origin": [0,0,15],
+      "direction": [0,0,1],
+      "up": [0,-1,0],
+      "scale": 2,
+      "auto_label": "А",
+      "caption": "А—А (1:2)",
+      "paper_bbox": [[140,155],[145,165]],
+      "caption_height_mm": 7,
+      "hatch_spacing_mm": 3,
+      "constraint": {"version":1,"mode":"along_trace","axis":[1,0],"offset":[80,35]}
+    },
+    "actual_gui_imposed": {
+      "handle": "1A7",
+      "requested_at": [200,200],
+      "actual_at": [60,190],
+      "visible_fields_updated": true,
+      "plane_origin": [0,0,20],
+      "scale": 0.5,
+      "label": null,
+      "paper_bbox": [[60,150],[80,190]],
+      "native_geometry": {"Line":4,"Hatch":1,"Text":0,"MText":0},
+      "contour_layer": "GOST-THIN",
+      "hatch_spacing_mm": 3,
+      "constraint": {"version":1,"mode":"fixed","axis":[1,0],"offset":[0,60]},
+      "invalid_scale_refusal": "Actual GUI request; entities/undo/dirty unchanged"
+    },
+    "actual_gui_lifecycle": [
+      "Source MOVE carries detached and imposed; common selection does not double movement",
+      "Detached MOVE along trace succeeds; perpendicular MOVE refuses atomically",
+      "Imposed independent MOVE refuses atomically",
+      "Explicit opt-out remains stationary on source MOVE; opt-out view erased from final sheet",
+      "Empty plane Z100 reports completed empty status and preserves requested fields [123,111], entities/undo/dirty",
+      "Native EXPLODE measurements and Undo preserve complete paper entity lists and full metadata",
+      "DXF reopen preserves complete paper entity lists and full metadata; both constraints remain active on MOVE/Undo"
+    ],
+    "saved_dxf": "target/coexistence/proof/default-section-projection.dxf",
+    "saved_dxf_bytes": 109158,
+    "cli": "Exit 0; full paper entities and metadata equal GUI; both constraints carry source MOVE, Undo restores exact entities/metadata",
+    "actual_legacy_cli": {
+      "path": "target/coexistence/proof/source-bound-section.dxf",
+      "bytes": 108818,
+      "exit": 0,
+      "result": "Both real v1 sections migrate to independent v2 without moving; source MOVE leaves sections fixed while ordinary top child still follows; Undo restores complete entities/metadata"
+    },
+    "gui_exit": 0,
+    "screenshots_read": [
+      "target/coexistence/proof/section-projection-created-canonical-fields.png",
+      "target/coexistence/proof/section-projection-source-carries-section.png",
+      "target/coexistence/proof/section-projection-empty-started.png",
+      "target/coexistence/proof/section-projection-imposed-scale-refusal.png",
+      "target/coexistence/proof/section-projection-imposed-canonical-fields.png",
+      "target/coexistence/proof/section-projection-linked-imposed-sheet.png",
+      "target/coexistence/proof/section-projection-final-reopened.png"
+    ],
+    "limits": [
+      "No general symmetry classification or symmetric 7.3 notation mode",
+      "No axial-hole/recess convention 7.9 or automatic source B-Rep rebuild 7.11",
       "Canonical stepped-shaft Front remains 20 uncertain / 4 uncovered and unaccepted",
       "Whole section roadmap item stays open; 60/172 accepted, 112 open"
     ]

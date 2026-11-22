@@ -173,7 +173,7 @@ Legacy polyhedral caption вычисляет печатное отношение
 Назначение — §7.5; геометрическая симметрия и parent-view связь не подразумеваются.
 
 `models::section_notation` хранит source-bound обозначение в
-`SavedView.provenance.section.notation` v1. Активен только `source_view`;
+`SavedView.provenance.section.notation` v2. Активен только `source_view`;
 `original_source_view` — неизменяемый audit, `missing_source` не перепривязывается.
 Source и target — native paper INSERT одной модели/ревизии на одном mm-layout.
 Малый handle-free XDATA marker проверяется до декодирования Store и mark payload;
@@ -186,7 +186,21 @@ source-local координаты с учётом base блока. Caption ис�
 Clipboard переносит активную связь только между реально переданными native views,
 не snapshot placeholders; source-only копия очищает только скопированные
 осиротевшие marks. Frozen geometry и raw HLR quality остаются отдельным контрактом.
-
+`models::section_projection` добавляет optional immutable axis/offset constraint:
+along-trace для вынесенных сечений/разрезов, fixed для наложенных. Новые
+source-bound запросы включают его по умолчанию; явный `projection_link:false`
+сохраняет независимое положение. v1 notation при bounded decode мигрирует в v2
+именно с independent placement, без движения native geometry и без перепривязки.
+`sections::prepare_request` до worker I/O складывает frame вокруг следа секущей
+плоскости в source basis; installer совмещает bbox точной геометрии со следом,
+а для наложения — с центром исходного вида и его фактическим масштабом.
+Канонический `at` возвращается в UI и сохранённые parameters.
+Event order: ordinary projection family → section style → section projection
+translation → source notation cleanup → exact dimensions. Так MOVE предка
+попадает в section source до переноса результата, а общая selection не двигает
+результат дважды. В callback меняется только INSERT; 3D rebuild не подразумевается.
+Prefilter замечает effective paper-unit изменения marked layouts, в том числе
+header fallback; unrelated model units не меняют explicit-mm sheets.
 
 `models::projections` хранит first-angle DAG в `SavedView.provenance.projection_link`
 (version 1). Активная ссылка — `parent`; `original_parent` остаётся только audit.

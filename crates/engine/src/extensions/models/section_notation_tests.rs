@@ -40,7 +40,7 @@ fn setup(source_scale: f64) -> (Session, String, Handle) {
 }
 fn parameters(id: &str, source: Handle, presentation: &str) -> Value {
     json!({"id":id,"plane":{"origin":[0,6,0],"normal":[0,1,0]},"kept_side":"positive","presentation":presentation,
-        "source_view":source.hex(),"layout":"GOST1","at":[160,100],"scale":2})
+        "source_view":source.hex(),"projection_link":false,"layout":"GOST1","at":[160,100],"scale":2})
 }
 fn add(s: &mut Session, id: &str, p: &Value) -> (Handle, Value) {
     let mut section = sections::tests::fixture();

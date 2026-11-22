@@ -1596,7 +1596,7 @@ menu	View	视图
 	Cutaway — retained geometry	剖视图 — 保留剖切面后方的几何
 	Detached cross-section — thick contour	移出断面 — 粗轮廓
 	Imposed cross-section — thin contour	重合断面 — 细轮廓
-	Cross-sections contain only the cutting-plane regions; position them using the view insertion controls.	断面仅包含剖切面内的区域；使用视图插入控件设置位置。
+	Cross-sections contain only the cutting-plane regions.	断面仅包含剖切面内的区域。
 	Imposed cross-sections do not erase the underlying view.	重合断面不会擦除原视图的轮廓。
 	Detached cross-section created.	移出断面已创建。
 	Imposed cross-section created.	重合断面已创建。
@@ -1611,3 +1611,7 @@ menu	View	视图
 	Without a source view, only frozen exact geometry is created; cutting-plane notation is not linked.	未选择源视图时，仅创建冻结的精确几何；剖切平面标记不与视图关联。
 	Use an ordinary view on the same millimetre sheet, with positive uniform unrotated scale and the cutting plane seen edge-on.	请选择同一毫米图纸上的普通视图，使用正的等比缩放且不旋转，并使剖切平面在视图中投影为线。
 	Non-symmetric imposed sections use source arrows without letters.	不对称重合断面在源视图上仅使用箭头，不带字母。
+	Projection link	投影关联
+	Imposed sections stay aligned with the source at the same scale and cannot move independently.	重合断面与源视图保持对齐并使用相同比例，不能独立移动。
+	Detached sections and cutaways can move only along the source trace; moving the source carries the section.	移出断面和剖视图只能沿源视图上的剖切平面迹线移动；移动源视图时剖切视图随之移动。
+	Disable Projection link for free placement and orientation; cutting-plane notation remains source-bound.	关闭投影关联即可自由放置和定向；剖切平面标记仍与源视图关联。
