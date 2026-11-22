@@ -78,6 +78,72 @@
     "generated_native_hatch_edit": "Actual HATCHEDIT changed the generated 1:1 cap angle to 30 degrees without changing either exact loop; Undo restored the whole HATCH.",
     "multiscale_gui_exit": 0
   },
+  "cross_sections": {
+    "status": "verified_geometric_presentations_not_full_section_standard_acceptance",
+    "creation": "Actual manager mode selectors and real create button for both detached and imposed, original shaft Z=50, normal +Z, scale 1:2, accept_incomplete:false.",
+    "control_port": 18064,
+    "detached": {
+      "handle": "184",
+      "at_paper_mm": [80, 150],
+      "exploded_entities": ["Circle", "Circle", "Hatch"],
+      "outline_layer": "GOST-OUTLINE",
+      "paper_radii_mm": [7.500000000000003, 1.4999999999999996]
+    },
+    "imposed": {
+      "handle": "196",
+      "at_paper_mm": [140, 150],
+      "underlying_real_cutaway": "188",
+      "all_previous_native_entities_unchanged": true,
+      "exploded_entities": ["Circle", "Circle", "Hatch"],
+      "outline_layer": "GOST-THIN",
+      "paper_radii_mm": [7.500000000000003, 1.4999999999999996]
+    },
+    "hatch": {
+      "loops": 2,
+      "polygon_vertices": 0,
+      "outer_arc": "CCW",
+      "hole_arc": "CW",
+      "background": null,
+      "pattern_delta_mm": [0, 6],
+      "paper_scale": 0.5,
+      "paper_spacing_mm": 3
+    },
+    "raw_quality_preserved": true,
+    "underlying_projection_provenance_retained_but_not_drawn": true,
+    "explode_undo_restores_full_model_list": true,
+    "saved_dxf_bytes": 107525,
+    "gui_and_cli_reopen_full_model_list_equal": true,
+    "source_sha_unchanged": true,
+    "gui_exit": 0,
+    "final_review_warning": {
+      "control_port": 18065,
+      "representation": "frozen-editable-exact-detached-section",
+      "observed": "Geometric cross-section: add cutting-plane marks or symmetry axes and check the axial hole/recess convention (GOST 2.305-2008 7.3-7.9); automatic source rebuild is not implemented.",
+      "saved_dxf_bytes": 117425,
+      "full_gui_and_cli_reopen_equality": true,
+      "mode_specific_button_screenshot_read": "target/coexistence/proof/cross-section-final-button.png",
+      "gui_exit": 0
+    },
+    "checks": {
+      "engine_model_cases": "61 PASS",
+      "engine_ui_all_target_clippy": "PASS",
+      "i18n": "PASS; Russian fallback count remains 346",
+      "full_ci": "all 9 gates PASS",
+      "final_multiple_region_fixture": "narrow regression PASS after replacing overlapping duplicate with truly separated region"
+    },
+    "screenshots_read": [
+      "target/coexistence/proof/cross-section-detached-created.png",
+      "target/coexistence/proof/cross-section-imposed-created.png",
+      "target/coexistence/proof/cross-section-sheet.png"
+    ],
+    "limits": [
+      "Geometric cap regions only; cutting-plane marks, letters and symmetry axes are not created automatically.",
+      "Axial hole/recess convention GOST 2.305-2008 7.9 requires engineering review.",
+      "Imposed placement is explicit at, not an automatic parent-view attachment.",
+      "Multiple cap regions for one source body conservatively refuse pending coplanar union and clauses 7.9-7.10 review; not every multi-cap case is disconnected.",
+      "The complete detached/imposed roadmap task remains open."
+    ]
+  },
   "checks": {
     "io_section_cases": 9,
     "io_projection_cases": 3,

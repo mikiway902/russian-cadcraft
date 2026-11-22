@@ -17,9 +17,45 @@ const STYLE: &str = "CADCRAFTGOST_SECTION_STYLE";
 const MAX_COORD: f64 = 1_000_000.;
 const MAX_CAP_EDGES: usize = 10_000;
 
+#[derive(Clone, Copy, Default, PartialEq, Eq)]
+pub(super) enum Presentation {
+    #[default]
+    Cutaway,
+    Detached,
+    Imposed,
+}
+impl Presentation {
+    pub(super) fn draws_projection(self) -> bool {
+        self == Self::Cutaway
+    }
+    pub(super) fn name(self) -> &'static str {
+        match self {
+            Self::Cutaway => "cutaway",
+            Self::Detached => "detached",
+            Self::Imposed => "imposed",
+        }
+    }
+    pub(super) fn representation(self) -> &'static str {
+        match self {
+            Self::Cutaway => "frozen-editable-exact-half-space-section",
+            Self::Detached => "frozen-editable-exact-detached-section",
+            Self::Imposed => "frozen-editable-exact-imposed-section",
+        }
+    }
+}
+fn presentation(p: &Value) -> Result<Presentation> {
+    match p.get("presentation").and_then(Value::as_str) {
+        None if p.get("presentation").is_none() => Ok(Presentation::Cutaway),
+        Some("cutaway") => Ok(Presentation::Cutaway),
+        Some("detached") => Ok(Presentation::Detached),
+        Some("imposed") => Ok(Presentation::Imposed),
+        _ => Err(err("presentation must be cutaway, detached or imposed")),
+    }
+}
+
 pub(super) fn specs() -> Vec<CommandSpec> {
     vec![CommandSpec::new("gost.model.section", "Create Exact Model Section", section)
-        .params("{id,plane:{origin:[x,y,z],normal:[x,y,z]},kept_side:positive|negative,up?,layout?,at?,scale?,hidden?,accept_incomplete?,exclude_bodies?}; frozen editable exact native section, result-local topology; no mesh fallback")]
+        .params("{id,plane:{origin:[x,y,z],normal:[x,y,z]},kept_side:positive|negative,presentation?:cutaway|detached|imposed,up?,layout?,at?,scale?,hidden?,accept_incomplete?,exclude_bodies?}; frozen editable exact native section, result-local topology; no mesh fallback")]
 }
 fn vec(v: [f64; 3]) -> Vec3 {
     Vec3::new(v[0], v[1], v[2])
@@ -37,7 +73,8 @@ fn unit(v: [f64; 3]) -> Result<Vec3> {
 
 /// Validate host input and derive a perpendicular sight ray into the retained half-space.
 pub fn request(p: &Value) -> Result<SectionRequest> {
-    keys(p, &["id", "plane", "kept_side", "up", "layout", "at", "scale", "hidden", "accept_incomplete", "exclude_bodies"])?;
+    keys(p, &["id", "plane", "kept_side", "presentation", "up", "layout", "at", "scale", "hidden", "accept_incomplete", "exclude_bodies"])?;
+    presentation(p)?;
     text(p, "id")?;
     let plane_value = p.get("plane").ok_or_else(|| err("section plane required"))?;
     keys(plane_value, &["origin", "normal"])?;
@@ -168,8 +205,29 @@ fn hatch_angle(section: &Section, source_body: usize) -> f64 {
     [45_f64, 30., 60.].into_iter().map(|d| sign * d.to_radians()).find(|a| !conflict(*a)).unwrap_or(sign * 30_f64.to_radians())
 }
 
+fn outline(edge: &HatchEdge) -> EntityKind {
+    match edge {
+        HatchEdge::Segment(Segment::Line(line)) => EntityKind::Line(cadcraft_doc::Line { a: line.a.to3(0.), b: line.b.to3(0.) }),
+        HatchEdge::Segment(Segment::Arc { arc, .. }) if arc.sweep() >= cadcraft_geom::TAU => {
+            EntityKind::Circle(cadcraft_doc::Circle { center: arc.center.to3(0.), radius: arc.radius })
+        }
+        HatchEdge::Segment(Segment::Arc { arc, .. }) => {
+            EntityKind::Arc(cadcraft_doc::Arc { center: arc.center.to3(0.), radius: arc.radius, start: arc.start, end: arc.end })
+        }
+        HatchEdge::Ellipse { ellipse, .. } => EntityKind::Ellipse(cadcraft_doc::Ellipse {
+            center: ellipse.center.to3(0.),
+            major: ellipse.major.to3(0.),
+            ratio: ellipse.ratio,
+            start: ellipse.start,
+            end: ellipse.end,
+        }),
+        HatchEdge::Spline(spline) => EntityKind::Spline(spline.clone()),
+    }
+}
+
 fn install(s: &mut Session, id: &str, expected_sha: &str, p: &Value, mut section: Section) -> Result<Value> {
     let request = request(p)?;
+    let presentation = presentation(p)?;
     if text(p, "id")? != id {
         return Err(err("section completion model ID mismatch"));
     }
@@ -295,6 +353,15 @@ fn install(s: &mut Session, id: &str, expected_sha: &str, p: &Value, mut section
             "drawing_mutated":false,"plane":section.plane,"kept_side":section.kept_side,"bodies":section.bodies,
             "quality":section.projection.quality,"topology_identity":"section_result_local_only"}));
     }
+    if !presentation.draws_projection() {
+        for body in &section.bodies {
+            // Adjacent caps are not yet unioned and axial-hole conventions can join a
+            // geometric split: do not classify every multi-cap payload as clause 7.10.
+            if section.caps.iter().filter(|cap| cap.source_body == body.source_body).count() > 1 {
+                return Err(err("multiple cross-section cap regions need component/convention review (GOST 2.305-2008 7.9-7.10); use cutaway"));
+            }
+        }
+    }
     let mut angles = BTreeMap::new();
     for cap in &section.caps {
         angles.entry(cap.source_body).or_insert_with(|| hatch_angle(&section, cap.source_body));
@@ -325,32 +392,47 @@ fn install(s: &mut Session, id: &str, expected_sha: &str, p: &Value, mut section
         .collect();
     let audit = json!({"plane":section.plane,"kept_side":section.kept_side,"exclude_bodies":request.exclude_bodies,
         "bodies":section.bodies,"caps":audit_caps,"topology_identity":"section_result_local_only",
-        "association":"frozen_editable_not_associative_topology","hatch_spacing_paper_mm":3.,"model_units_per_paper_mm":opts.scale});
-    let entities = section
+        "association":"frozen_editable_not_associative_topology","hatch_spacing_paper_mm":3.,"model_units_per_paper_mm":opts.scale,
+        "presentation":presentation.name(),
+        "visible_geometry":if presentation.draws_projection() {"cut_caps_and_retained_body_projection"}else{"intersection_regions_only"}});
+    let outline_count = if presentation.draws_projection() { 0 } else { edge_budget };
+    let entity_count = section
         .caps
-        .into_iter()
-        .map(|cap| {
-            (
-                Common { layer: "GOST-HATCH".into(), ..Common::default() },
-                EntityKind::Hatch(Hatch {
-                    pattern: "GOST-METAL".into(),
-                    solid: false,
-                    loops: cap.loops,
-                    scale: 1.,
-                    angle: angles[&cap.source_body],
-                    associative: false,
-                    style: 0,
-                    elevation: 0.,
-                    gradient: None,
-                    origin: Vec2::ZERO,
-                    background: None,
-                    pattern_lines: vec![PatternLine { angle: 0., origin: (0., 0.), delta: (0., 3. * opts.scale), dashes: Vec::new() }],
-                }),
-            )
-        })
-        .collect();
+        .len()
+        .checked_add(outline_count)
+        .filter(|n| *n <= super::MAX_ENTITIES)
+        .ok_or_else(|| err("section native entity count limit"))?;
+    let outline_layer = if presentation == Presentation::Imposed { "GOST-THIN" } else { "GOST-OUTLINE" };
+    if !presentation.draws_projection() && s.doc()?.layer(outline_layer).is_none() {
+        return Err(err("section outline layer required; run gost.setup first"));
+    }
+    let mut entities = Vec::with_capacity(entity_count);
+    for cap in section.caps {
+        if !presentation.draws_projection() {
+            for edge in cap.loops.iter().flat_map(|ring| &ring.edges) {
+                entities.push((Common { layer: outline_layer.into(), ..Common::default() }, outline(edge)));
+            }
+        }
+        entities.push((
+            Common { layer: "GOST-HATCH".into(), ..Common::default() },
+            EntityKind::Hatch(Hatch {
+                pattern: "GOST-METAL".into(),
+                solid: false,
+                loops: cap.loops,
+                scale: 1.,
+                angle: angles[&cap.source_body],
+                associative: false,
+                style: 0,
+                elevation: 0.,
+                gradient: None,
+                origin: Vec2::ZERO,
+                background: None,
+                pattern_lines: vec![PatternLine { angle: 0., origin: (0., 0.), delta: (0., 3. * opts.scale), dashes: Vec::new() }],
+            }),
+        ));
+    }
     let scale = 1. / opts.scale;
-    let mut out = install_view_options(s, id, expected_sha, p, section.projection, opts, Some(SectionOverlay { entities, audit }))?;
+    let mut out = install_view_options(s, id, expected_sha, p, section.projection, opts, Some(SectionOverlay { entities, audit, presentation }))?;
     let handle = Handle::parse_hex(text(&out, "handle")?).ok_or_else(|| err("section insertion handle missing"))?;
     s.doc_mut()?.modify_entity(handle, |e| {
         e.common.xdata.extend([tag(1001, STYLE), tag(1070, "1"), tag(1040, scale.to_string())]);
@@ -463,6 +545,7 @@ pub(super) fn validate_source_anchor(audit: &Value, placement: u64, point: [f64;
     let plane = audit.get("plane").ok_or_else(|| err("section plane audit missing"))?;
     let origin = vector(plane.get("origin").ok_or_else(|| err("section origin audit missing"))?)?;
     let normal = vector(plane.get("normal").ok_or_else(|| err("section normal audit missing"))?)?;
+    let presentation = presentation(audit)?;
     if (vec(normal).len() - 1.).abs() > 1e-8 {
         return Err(err("section audit plane is not normalized"));
     }
@@ -493,14 +576,18 @@ pub(super) fn validate_source_anchor(audit: &Value, placement: u64, point: [f64;
             return Err(err("removed section body has result-local topology"));
         }
         if i as u64 == placement {
-            target = Some(retained);
+            target = Some(retained && (presentation.draws_projection() || body["status"] == "cut"));
         }
     }
     if target != Some(true) {
         return Err(err("source anchor body is removed, excluded or absent from the section"));
     }
-    if !vec(point).is_finite() || (vec(point) - vec(origin)).dot(vec(normal)) * sign < -1e-6 {
+    let distance = (vec(point) - vec(origin)).dot(vec(normal));
+    if !vec(point).is_finite() || distance * sign < -1e-6 {
         return Err(err("source anchor lies in the removed section half-space"));
+    }
+    if !presentation.draws_projection() && distance.abs() > 1e-6 {
+        return Err(err("source anchor is outside the visible cross-section plane"));
     }
     Ok(())
 }

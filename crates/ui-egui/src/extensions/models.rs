@@ -423,7 +423,11 @@ pub(crate) fn tick(app: &mut CadApp, ctx: &egui::Context) {
                     app.set_status(match report["status"].as_str() {
                         Some("empty") => crate::tl!("Section removes every selected body; no view was created."),
                         Some("no_intersection") => crate::tl!("No body interior intersects the plane; no view was created."),
-                        Some("created") => crate::tl!("Exact section created."),
+                        Some("created") => match report["section"]["presentation"].as_str() {
+                            Some("detached") => crate::tl!("Detached cross-section created."),
+                            Some("imposed") => crate::tl!("Imposed cross-section created."),
+                            _ => crate::tl!("Exact section created."),
+                        },
                         _ => return Err("Invalid exact section completion status".into()),
                     });
                     state.cache = None;

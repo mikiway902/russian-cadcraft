@@ -446,6 +446,7 @@ struct Options {
 struct SectionOverlay {
     entities: Vec<(Common, EntityKind)>,
     audit: Value,
+    presentation: sections::Presentation,
 }
 fn vector(v: &Value) -> Result<[f64; 3]> {
     let a = v.as_array().filter(|a| a.len() == 3).ok_or_else(|| err("expected [x,y,z]"))?;
@@ -625,7 +626,7 @@ fn install_view_options(
     {
         return Err(err("projection basis differs from requested sight direction/up"));
     }
-    let is_section = section_overlay.is_some();
+    let presentation = section_overlay.as_ref().map(|overlay| overlay.presentation);
     let mut kinds = section_overlay.as_mut().map_or_else(Vec::new, |overlay| std::mem::take(&mut overlay.entities));
     for e in projection.entities {
         let line = projection.lines.get(e.line_index).ok_or_else(|| err("projection line provenance missing"))?;
@@ -641,7 +642,7 @@ fn install_view_options(
         if !matches!(&e.kind, EntityKind::Line(_) | EntityKind::Circle(_) | EntityKind::Arc(_) | EntityKind::Ellipse(_) | EntityKind::Spline(_)) {
             return Err(err("exact model view contains a non-curve entity"));
         }
-        if e.covered || (e.visibility == Visibility::Hidden && !opts.hidden) {
+        if presentation.is_some_and(|mode| !mode.draws_projection()) || e.covered || (e.visibility == Visibility::Hidden && !opts.hidden) {
             continue;
         }
         let uncertain = e.visibility == Visibility::Uncertain || !matches!(e.accuracy, Accuracy::Analytic);
@@ -680,6 +681,9 @@ fn install_view_options(
     if covered_uncertain > 0 {
         warnings.push(format!("{covered_uncertain} raw uncertain pieces coincide with known visible pieces and were omitted under the upstream coverage contract; the raw quality report and provenance remain unchanged"));
     }
+    if presentation.is_some_and(|mode| !mode.draws_projection()) {
+        warnings.push("Geometric cross-section: add cutting-plane marks or symmetry axes and check the axial hole/recess convention (GOST 2.305-2008 7.3-7.9); automatic source rebuild is not implemented.".into());
+    }
     let mut provenance = json!({"lines":projection.lines,"unsupported":projection.unsupported,"prepare_reports":projection.prepare_reports,
         "drawing_stats":projection.drawing_stats,"source_mapping":projection.source_mapping,"visibility_contract":projection.visibility_contract});
     if let Some(overlay) = section_overlay {
@@ -713,8 +717,8 @@ fn install_view_options(
         block.units = 4;
         block.description = if incomplete {
             "INCOMPLETE exact-source model view; manual engineering review required"
-        } else if is_section {
-            "Frozen editable exact half-space section; result-local topology"
+        } else if let Some(presentation) = presentation {
+            presentation.representation()
         } else {
             "Frozen editable exact-source model view (not associative topology)"
         }
@@ -731,8 +735,8 @@ fn install_view_options(
             e.kind = EntityKind::Insert(insert);
         })?;
         let mut result = json!({"id":id,"handle":saved.handle,"revision":saved.revision,"source":saved.source,"basis":saved.basis,"quality":saved.quality,
-            "warnings":saved.warnings,"stale":false,"entities":count,"representation":if is_section {"frozen-editable-exact-half-space-section"}else{"frozen-editable-exact-source-curves"}});
-        if is_section {
+            "warnings":saved.warnings,"stale":false,"entities":count,"representation":presentation.map_or("frozen-editable-exact-source-curves", sections::Presentation::representation)});
+        if presentation.is_some() {
             result["section"] = saved.provenance["section"].clone();
         }
         store.views.push(saved);

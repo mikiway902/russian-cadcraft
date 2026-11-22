@@ -128,6 +128,14 @@ scale. Малый отдельный style marker переживает clipboard
 отклоняет нарушающие стиль generic/nested transforms без чтения большого Store.
 Source-anchor validation отвергает удалённые/исключённые тела и точки вне kept side.
 GUI section completion использует тот же UID/revision/space/source guard, что и вид.
+Presentation `cutaway` сохраняет прежний вид за плоскостью; `detached`/`imposed`
+устанавливают только native cap outlines и HATCH с основным/тонким контуром.
+Общий installer всё равно проверяет полный projection payload и сохраняет raw
+quality/provenance, даже если retained-body curves не рисуются. Структурная
+валидация и отказ на uncertainty не обходятся переключением presentation.
+Cross-section dimensions дополнительно ограничены рассечённым body и плоскостью.
+Два новых представления не вводят иной worker protocol и не подменяют отсутствующее
+автоматическое оформление/перестроение; требования ручной проверки сохраняются.
 
 `models::projections` хранит first-angle DAG в `SavedView.provenance.projection_link`
 (version 1). Активная ссылка — `parent`; `original_parent` остаётся только audit.

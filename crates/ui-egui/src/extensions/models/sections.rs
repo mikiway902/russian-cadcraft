@@ -9,11 +9,20 @@ pub(super) struct State {
     origin: [f64; 3],
     normal: [f64; 3],
     kept_side: KeptSide,
+    presentation: &'static str,
     excluded: u32,
 }
 impl Default for State {
     fn default() -> Self {
-        Self { model_id: String::new(), revision: 0, origin: [0.0; 3], normal: [0.0, 0.0, 1.0], kept_side: KeptSide::Positive, excluded: 0 }
+        Self {
+            model_id: String::new(),
+            revision: 0,
+            origin: [0.0; 3],
+            normal: [0.0, 0.0, 1.0],
+            kept_side: KeptSide::Positive,
+            presentation: "cutaway",
+            excluded: 0,
+        }
     }
 }
 impl State {
@@ -23,7 +32,7 @@ impl State {
         }
         let excluded: Vec<usize> = (0..32).filter(|i| self.excluded & (1_u32 << i) != 0).collect();
         Ok(json!({"id":guard.id,"plane":{"origin":self.origin,"normal":self.normal},"kept_side":self.kept_side,
-            "exclude_bodies":excluded,"scale":scale,"at":at,"hidden":hidden,"accept_incomplete":accept}))
+            "presentation":self.presentation,"exclude_bodies":excluded,"scale":scale,"at":at,"hidden":hidden,"accept_incomplete":accept}))
     }
     pub(super) fn show(&mut self, ui: &mut egui::Ui, model: &Linked) -> Option<Act> {
         if self.model_id != model.id || self.revision != model.revision {
@@ -33,6 +42,23 @@ impl State {
         }
         let mut action = None;
         ui.collapsing(crate::tl!("Exact model section"), |ui| {
+            ui.label(crate::tl!("Section presentation"));
+            let label = match self.presentation {
+                "detached" => crate::tl!("Detached cross-section — thick contour"),
+                "imposed" => crate::tl!("Imposed cross-section — thin contour"),
+                _ => crate::tl!("Cutaway — retained geometry"),
+            };
+            craft_ui::ComboBox::from_id_salt("exact-section-presentation").selected_text(label).show_ui(ui, |ui| {
+                ui.selectable_value(&mut self.presentation, "cutaway", crate::tl!("Cutaway — retained geometry"));
+                ui.selectable_value(&mut self.presentation, "detached", crate::tl!("Detached cross-section — thick contour"));
+                ui.selectable_value(&mut self.presentation, "imposed", crate::tl!("Imposed cross-section — thin contour"));
+            });
+            if self.presentation != "cutaway" {
+                ui.small(crate::tl!("Cross-sections contain only the cutting-plane regions; position them using the view insertion controls."));
+            }
+            if self.presentation == "imposed" {
+                ui.small(crate::tl!("Imposed cross-sections do not erase the underlying view."));
+            }
             ui.label(crate::tl!("Plane origin (mm)"));
             ui.horizontal(|ui| {
                 for coordinate in &mut self.origin {
@@ -74,7 +100,8 @@ impl State {
             }
             ui.small(crate::tl!("Hatching: 3 mm on paper; scale and insertion use the view controls above."));
             ui.small(crate::tl!("Frozen exact geometry; cutting-plane labels are separate."));
-            if ui.add_enabled(valid_body_count, egui::Button::new(crate::tl!("Create exact section"))).clicked() {
+            let create = if self.presentation == "cutaway" { crate::tl!("Create exact section") } else { crate::tl!("Create exact cross-section") };
+            if ui.add_enabled(valid_body_count, egui::Button::new(create)).clicked() {
                 action = Some(Act::Section);
             }
         });

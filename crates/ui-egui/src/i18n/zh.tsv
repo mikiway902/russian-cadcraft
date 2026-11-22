@@ -1592,3 +1592,12 @@ menu	View	视图
 	Create Linked Projected View	创建投影关联视图
 	Projecting linked exact view…	正在生成精确投影关联视图…
 	Linked projected view created.	投影关联视图已创建。
+	Section presentation	剖切表示方式
+	Cutaway — retained geometry	剖视图 — 保留剖切面后方的几何
+	Detached cross-section — thick contour	移出断面 — 粗轮廓
+	Imposed cross-section — thin contour	重合断面 — 细轮廓
+	Cross-sections contain only the cutting-plane regions; position them using the view insertion controls.	断面仅包含剖切面内的区域；使用视图插入控件设置位置。
+	Imposed cross-sections do not erase the underlying view.	重合断面不会擦除原视图的轮廓。
+	Detached cross-section created.	移出断面已创建。
+	Imposed cross-section created.	重合断面已创建。
+	Create exact cross-section	创建精确断面

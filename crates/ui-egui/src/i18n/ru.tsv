@@ -1398,7 +1398,7 @@
 	Paper offset, mm	Отступ на листе, мм
 	Create exact dimension	Создать точный размер
 	Computing exact section…	Вычисление точного разреза…
-	Exact model section	Точный разрез модели
+	Exact model section	Точный разрез или сечение модели
 	Plane origin (mm)	Точка секущей плоскости (мм)
 	Plane normal	Нормаль секущей плоскости
 	Keep positive half-space	Сохранить положительное полупространство
@@ -1424,3 +1424,12 @@
 	Create Linked Projected View	Создать проекционно-связанный вид
 	Projecting linked exact view…	Построение проекционно-связанного вида…
 	Linked projected view created.	Проекционно-связанный вид создан.
+	Section presentation	Способ изображения
+	Cutaway — retained geometry	Разрез — с геометрией за плоскостью
+	Detached cross-section — thick contour	Вынесенное сечение — основной контур
+	Imposed cross-section — thin contour	Наложенное сечение — тонкий контур
+	Cross-sections contain only the cutting-plane regions; position them using the view insertion controls.	Сечение содержит только фигуру в секущей плоскости; положение задаётся точкой вставки вида.
+	Imposed cross-sections do not erase the underlying view.	Наложенное сечение не прерывает контур исходного вида.
+	Detached cross-section created.	Вынесенное сечение создано.
+	Imposed cross-section created.	Наложенное сечение создано.
+	Create exact cross-section	Создать точное сечение

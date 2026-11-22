@@ -406,3 +406,88 @@ fn request_validation_and_source_anchor_half_space_guards() {
     invalid["bodies"].as_array_mut().unwrap().push(audit["bodies"][0].clone());
     assert!(validate_source_anchor(&invalid, 0, [1., 2., 3.]).is_err());
 }
+
+#[test]
+fn cross_sections_keep_only_exact_plane_regions_and_preserve_underlying_view() {
+    for (mode, layer) in [("detached", "GOST-OUTLINE"), ("imposed", "GOST-THIN")] {
+        let (mut s, id) = setup();
+        let underlying = s
+            .doc_mut()
+            .unwrap()
+            .add(&Space::Paper("GOST1".into()), Common::default(), EntityKind::Line(Line { a: Vec3::ZERO, b: Vec3::new(20., 20., 0.) }))
+            .unwrap();
+        let underlying_entity = s.doc().unwrap().entity(underlying).unwrap().clone();
+        let mut p = parameters(&id);
+        p["presentation"] = json!(mode);
+        let mut section = fixture();
+        // Geometry behind the section plane must not leak into a cross-section.
+        section.projection.entities[0].kind = EntityKind::Line(Line { a: Vec3::new(100., 100., 0.), b: Vec3::new(200., 200., 0.) });
+        let raw_lines = json!(section.projection.lines);
+        let original_loops = section.caps[0].loops.clone();
+        let out = apply(&mut s, &id, &"a".repeat(64), &p, section).unwrap();
+        let h = Handle::parse_hex(out["handle"].as_str().unwrap()).unwrap();
+        let block = s.doc().unwrap().block(&insert(&s, h).block).unwrap();
+        assert_eq!(block.entities.len(), 6);
+        assert_eq!(block.entities.iter().filter(|e| e.common.layer == layer).count(), 5);
+        let circles: Vec<_> =
+            block.entities.iter().filter_map(|e| if let EntityKind::Circle(circle) = &e.kind { Some(circle) } else { None }).collect();
+        assert_eq!(circles.len(), 1);
+        assert_eq!(circles[0].center, Vec3::new(10., 10., 0.));
+        assert_eq!(circles[0].radius, 3.);
+        assert!(!block.entities.iter().any(|e| matches!(&e.kind,EntityKind::Line(line) if line.a.x >= 100.)));
+        let native_hatch = hatch_in_block(block);
+        assert_eq!(native_hatch.loops, original_loops);
+        assert!((native_hatch.pattern_lines[0].delta.1 * insert(&s, h).scale.x - 3.).abs() < 1e-12);
+        assert_eq!(s.doc().unwrap().entity(underlying).unwrap(), &underlying_entity);
+        assert_eq!(out["section"]["presentation"], mode);
+        assert_eq!(out["section"]["visible_geometry"], "intersection_regions_only");
+        let saved = s.execute("gost.model.inspect", &json!({"id":id})).unwrap();
+        assert_eq!(saved["views"][0]["provenance"]["lines"], raw_lines);
+        assert!(validate_source_anchor(&out["section"], 0, [1., 0., 3.]).is_ok());
+        assert!(validate_source_anchor(&out["section"], 0, [1., 2., 3.]).is_err());
+        let created = s.doc().unwrap().clone();
+        s.execute("undo", &json!({})).unwrap();
+        assert!(s.doc().unwrap().entity(h).is_none());
+        assert_eq!(s.doc().unwrap().entity(underlying).unwrap(), &underlying_entity);
+        s.execute("redo", &json!({})).unwrap();
+        assert_eq!(s.doc().unwrap(), &created);
+        let reopened = cadcraft_io::read_dxf(cadcraft_io::write_dxf(s.doc().unwrap()).as_bytes()).unwrap();
+        s.open_drawing(reopened, "cross-section DXF", None);
+        assert_eq!(s.execute("gost.model.inspect", &json!({"id":id})).unwrap(), saved);
+        assert_eq!(hatch_in_block(s.doc().unwrap().block(&insert(&s, h).block).unwrap()).loops, original_loops);
+    }
+}
+
+fn hatch_in_block(block: &Block) -> &Hatch {
+    block.entities.iter().find_map(|e| if let EntityKind::Hatch(h) = &e.kind { Some(h) } else { None }).unwrap()
+}
+
+#[test]
+fn cross_sections_do_not_bypass_raw_quality_or_payload_integrity() {
+    for mode in ["detached", "imposed"] {
+        for bad in ["quality", "provenance", "disconnected"] {
+            let (mut s, id) = setup();
+            let mut p = parameters(&id);
+            p["presentation"] = json!(mode);
+            let mut section = fixture();
+            match bad {
+                "quality" => section.projection.quality.unsupported_faces = 1,
+                "provenance" => section.projection.entities[0].line_index = 99,
+                _ => {
+                    let mut cap = section.caps[0].clone();
+                    cap.face = 4;
+                    cap.loops = vec![ring(&[Vec2::new(40., 0.), Vec2::new(60., 0.), Vec2::new(60., 20.), Vec2::new(40., 20.)])];
+                    section.caps.push(cap);
+                }
+            }
+            let before = s.doc().unwrap().clone();
+            assert!(apply(&mut s, &id, &"a".repeat(64), &p, section).is_err(), "{mode}/{bad}");
+            assert_eq!(s.doc().unwrap(), &before);
+        }
+    }
+    for bad in [Value::Null, json!(42), json!("silhouette")] {
+        let mut p = parameters("1");
+        p["presentation"] = bad;
+        assert!(request(&p).is_err());
+    }
+}
