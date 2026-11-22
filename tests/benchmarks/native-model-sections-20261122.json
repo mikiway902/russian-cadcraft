@@ -137,11 +137,57 @@
       "target/coexistence/proof/cross-section-sheet.png"
     ],
     "limits": [
-      "Geometric cap regions only; cutting-plane marks, letters and symmetry axes are not created automatically.",
+      "At this earlier creation, cutting-plane marks, letters and symmetry axes were not automatic; the later automatic_center_axes evidence below supersedes circular-feature axes only.",
       "Axial hole/recess convention GOST 2.305-2008 7.9 requires engineering review.",
       "Imposed placement is explicit at, not an automatic parent-view attachment.",
       "Multiple cap regions for one source body conservatively refuse pending coplanar union and clauses 7.9-7.10 review; not every multi-cap case is disconnected.",
       "The complete detached/imposed roadmap task remains open."
+    ]
+  },
+  "automatic_center_axes": {
+    "date": "2026-11-22",
+    "control_port": 18066,
+    "creation": "Actual native shaft import and gost.model.section requests without any axes parameter; defaults generate circular outer-cap axes.",
+    "large": {
+      "scale": "1:2",
+      "view_handle": "184",
+      "paper_diameter_mm": 15,
+      "native_axis_lines": 12,
+      "layer": "GOST-CENTER",
+      "positive_half_axis_paper_intervals_mm": [[0,2.5],[3.75,4.25],[5.5,10.5]],
+      "central_and_terminal_long_dash_mm": 5,
+      "complete_interval_including_dot_mm": 3,
+      "paper_extension_mm": 3
+    },
+    "small": {
+      "scale": "1:4",
+      "view_handle": "194",
+      "paper_diameter_mm": 7.5,
+      "native_axis_lines": 4,
+      "layer": "GOST-THIN",
+      "paper_extension_mm": 3
+    },
+    "ordinary_associative_circle": {
+      "diameter_mm": 12,
+      "actual_automatic_extension_mm": 4.5,
+      "explicit_extension_3_mm_refused_atomically": true,
+      "refusal_preserved_entities_undo_and_dirty": true,
+      "after_dxf_reopen_resize_to_diameter_11_mm": "four solid GOST-THIN axes, extension 3 mm; Undo restored"
+    },
+    "visual_proof_read": [
+      "target/coexistence/proof/automatic-section-axes-sheet.png",
+      "target/coexistence/proof/automatic-section-axes-zoom.png"
+    ],
+    "native_explode_and_undo": "Both section views preserve exact circles and hatch; Undo restores complete model metadata.",
+    "dxf_bytes": 94332,
+    "gui_and_cli_complete_model_list_equal_after_reopen": true,
+    "gui_exit": 0,
+    "narrow_checks": "71 GOST cases, 62 model cases, all-target engine Clippy and desktop/CLI build PASS",
+    "full_ci": "PASS all 9 gates: fmt, workspace Clippy, tests, i18n, assets, layers, WASM, extensions, models",
+    "limits": [
+      "Only native full circular outer cap boundaries; no NURBS or ellipse fitting.",
+      "Feature centre axes are not a proof of symmetry of a shape containing eccentric or noncircular holes.",
+      "Cap axes remain frozen with the view; source B-Rep rebuild and general section notation remain open."
     ]
   },
   "checks": {

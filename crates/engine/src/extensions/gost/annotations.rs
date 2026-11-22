@@ -14,7 +14,7 @@ pub(super) fn specs() -> Vec<CommandSpec> {
     vec![
         CommandSpec::new("gost.center", "GOST Center Axes", center)
             .menu(&["Format", "GOST", "GOST Center Axes"])
-            .params("{handles?: circle/arc handles (else selection), scale?: model units per paper mm, extension?: paper mm (3..5, default 3)}; native associative axes follow source geometry and survive DXF")
+            .params("{handles?: circle/arc handles (else selection), scale?: model units per paper mm, extension?: paper mm (3..5; omitted: automatic 3..4.5 to fit the dash pattern)}; native associative axes follow source geometry and survive DXF")
             .interactive(|_| Ok(Box::new(SelectRun::new("gost.center", "GOST.CENTER")))),
         CommandSpec::new("gost.section", "GOST Cutting Plane", section)
             .menu(&["Format", "GOST", "GOST Cutting Plane"])
@@ -110,8 +110,8 @@ pub(super) fn center(s: &mut Session, p: &Value) -> Result<Value> {
     let cmd = "gost.center";
     ready(s, cmd, "GOST-CENTER")?;
     let scale = annotation_scale(s, p, cmd)?;
-    let ext = size_param(cmd, p, "extension", false)?.unwrap_or(3.0);
-    if !(3.0..=5.0).contains(&ext) {
+    let ext = size_param(cmd, p, "extension", false)?;
+    if ext.is_some_and(|value| !(3.0..=5.0).contains(&value)) {
         return Err(bad(cmd, "extension must be 3..5 paper mm"));
     }
     let hs = targets(s, p)?;
@@ -132,7 +132,13 @@ pub(super) fn center(s: &mut Session, p: &Value) -> Result<Value> {
         }
         circles.push((h, c, r));
     }
-    let work: f64 = circles.iter().map(|(_, _, r)| (r / scale + ext) * 2.0 + 4.0).sum();
+    let work = circles.iter().try_fold(0.0, |work, (_, _, radius)| -> Result<f64> {
+        let extension = match ext {
+            Some(value) => value,
+            None => super::axes::default_extension(*radius, scale)?,
+        };
+        Ok(work + (radius / scale + extension) * 2.0 + 4.0)
+    })?;
     if work > 16_384.0 {
         return Err(bad(cmd, "axis segment limit exceeded; select fewer objects or use the intended drawing scale"));
     }

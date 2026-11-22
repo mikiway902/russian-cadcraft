@@ -225,6 +225,31 @@ fn outline(edge: &HatchEdge) -> EntityKind {
     }
 }
 
+struct CircularAxes {
+    center: Vec2,
+    radius: f64,
+    extension: f64,
+}
+
+fn circular_centers(section: &Section) -> BTreeMap<(u64, u64), CircularAxes> {
+    let mut centers = BTreeMap::new();
+    for cap in &section.caps {
+        let Some(ring) = cap.loops.first() else { continue };
+        let [HatchEdge::Segment(Segment::Arc { arc, .. })] = ring.edges.as_slice() else { continue };
+        if arc.sweep() < cadcraft_geom::TAU {
+            continue;
+        }
+        // Native full circles only; no ellipse/spline fitting or symmetry claim.
+        // Canonical zero prevents +0/-0 from duplicating concentric feature axes.
+        let bits = |v: f64| if v == 0.0 { 0 } else { v.to_bits() };
+        centers
+            .entry((bits(arc.center.x), bits(arc.center.y)))
+            .and_modify(|group: &mut CircularAxes| group.radius = group.radius.max(arc.radius))
+            .or_insert(CircularAxes { center: arc.center, radius: arc.radius, extension: 3. });
+    }
+    centers
+}
+
 fn install(s: &mut Session, id: &str, expected_sha: &str, p: &Value, mut section: Section) -> Result<Value> {
     let request = request(p)?;
     let presentation = presentation(p)?;
@@ -390,16 +415,24 @@ fn install(s: &mut Session, id: &str, expected_sha: &str, p: &Value, mut section
             "face":c.face,"loops":c.loops.len(),"hatch_angle":angles[&c.source_body],"provenance":provenance})
         })
         .collect();
+    let mut centers = circular_centers(&section);
+    let axis_count = centers.values_mut().try_fold(0_usize, |sum, group| {
+        group.extension = crate::extensions::gost::axes::default_extension(group.radius, opts.scale)?;
+        let count = crate::extensions::gost::axes::entity_count(group.radius, opts.scale, group.extension)?;
+        sum.checked_add(count).filter(|n| *n <= super::MAX_ENTITIES).ok_or_else(|| err("section axis entity limit"))
+    })?;
     let audit = json!({"plane":section.plane,"kept_side":section.kept_side,"exclude_bodies":request.exclude_bodies,
         "bodies":section.bodies,"caps":audit_caps,"topology_identity":"section_result_local_only",
         "association":"frozen_editable_not_associative_topology","hatch_spacing_paper_mm":3.,"model_units_per_paper_mm":opts.scale,
         "presentation":presentation.name(),
-        "visible_geometry":if presentation.draws_projection() {"cut_caps_and_retained_body_projection"}else{"intersection_regions_only"}});
+        "visible_geometry":if presentation.draws_projection() {"cut_caps_and_retained_body_projection"}else{"intersection_regions_only"},
+        "circular_center_axes":{"groups":centers.len(),"entities":axis_count,"extension_policy":"automatic_3_to_4_5_paper_mm","association":"frozen_with_view"}});
     let outline_count = if presentation.draws_projection() { 0 } else { edge_budget };
     let entity_count = section
         .caps
         .len()
         .checked_add(outline_count)
+        .and_then(|n| n.checked_add(axis_count))
         .filter(|n| *n <= super::MAX_ENTITIES)
         .ok_or_else(|| err("section native entity count limit"))?;
     let outline_layer = if presentation == Presentation::Imposed { "GOST-THIN" } else { "GOST-OUTLINE" };
@@ -430,6 +463,15 @@ fn install(s: &mut Session, id: &str, expected_sha: &str, p: &Value, mut section
                 pattern_lines: vec![PatternLine { angle: 0., origin: (0., 0.), delta: (0., 3. * opts.scale), dashes: Vec::new() }],
             }),
         ));
+    }
+    for group in centers.into_values() {
+        let first = entities.len();
+        crate::extensions::gost::axes::geometry(&mut entities, group.center, group.radius, opts.scale, group.extension)?;
+        if let Some((common, _)) = entities.get(first)
+            && s.doc()?.layer(&common.layer).is_none()
+        {
+            return Err(err("section centre-axis layer required; run gost.setup first"));
+        }
     }
     let scale = 1. / opts.scale;
     let mut out = install_view_options(s, id, expected_sha, p, section.projection, opts, Some(SectionOverlay { entities, audit, presentation }))?;

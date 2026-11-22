@@ -491,3 +491,49 @@ fn cross_sections_do_not_bypass_raw_quality_or_payload_integrity() {
         assert!(request(&p).is_err());
     }
 }
+
+#[test]
+fn circular_caps_get_paper_sized_axes_by_default_without_changing_exact_boundaries() {
+    for (scale, radius, extension, layer, dotted) in
+        [(2., 15., 3., "GOST-CENTER", true), (4., 15., 3., "GOST-THIN", false), (1., 6., 4.5, "GOST-CENTER", true)]
+    {
+        let (mut s, id) = setup();
+        let mut p = parameters(&id);
+        p["presentation"] = json!("detached");
+        p["scale"] = json!(scale);
+        let mut section = fixture();
+        let center = Vec2::new(10., 10.);
+        section.caps[0].loops[0].edges =
+            vec![HatchEdge::Segment(Segment::Arc { arc: cadcraft_geom::Arc { center, radius, start: 0., end: 0. }, ccw: true })];
+        let loops = section.caps[0].loops.clone();
+        let out = apply(&mut s, &id, &"a".repeat(64), &p, section).unwrap();
+        let h = Handle::parse_hex(out["handle"].as_str().unwrap()).unwrap();
+        let block = s.doc().unwrap().block(&insert(&s, h).block).unwrap();
+        let axes: Vec<_> = block
+            .entities
+            .iter()
+            .filter_map(|entity| {
+                if entity.common.layer == layer
+                    && let EntityKind::Line(line) = &entity.kind
+                {
+                    Some(line)
+                } else {
+                    None
+                }
+            })
+            .collect();
+        assert!(!axes.is_empty());
+        let reach = axes.iter().flat_map(|line| [line.a, line.b]).map(|point| (point.xy() - center).len()).fold(0., f64::max);
+        assert!(((reach - radius) / scale - extension).abs() < 1e-12);
+        assert_eq!(axes.iter().any(|line| line.a.xy().dist(center) > 1e-9), dotted);
+        assert_eq!(hatch_in_block(block).loops, loops);
+        assert_eq!(out["section"]["circular_center_axes"]["groups"], 1);
+        let saved = s.execute("gost.model.inspect", &json!({"id":id})).unwrap();
+        s.execute("move", &json!({"handles":[h.hex()],"delta":[15,10]})).unwrap();
+        s.execute("undo", &json!({})).unwrap();
+        assert_eq!(s.execute("gost.model.inspect", &json!({"id":id})).unwrap(), saved);
+        let reopened = cadcraft_io::read_dxf(cadcraft_io::write_dxf(s.doc().unwrap()).as_bytes()).unwrap();
+        s.open_drawing(reopened, "automatic axes DXF", None);
+        assert_eq!(s.execute("gost.model.inspect", &json!({"id":id})).unwrap(), saved);
+    }
+}

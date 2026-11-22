@@ -13,6 +13,8 @@ struct Record {
     source: Handle,
     scale: f64,
     extension: f64,
+    #[serde(default)]
+    extension_auto: bool,
     center: Vec2,
     radius: f64,
 }
@@ -28,39 +30,91 @@ fn circle(d: &Drawing, h: Handle) -> Result<(Vec2, f64)> {
     }
     Ok((c, r))
 }
-fn geometry(r: &Record) -> Result<Vec<(Common, EntityKind)>> {
-    if !r.scale.is_finite() || r.scale <= 0.0 || r.scale > 10000.0 || !(3.0..=5.0).contains(&r.extension) {
+fn settings(radius: f64, scale: f64, extension: f64) -> Result<(f64, bool)> {
+    if !radius.is_finite() || radius <= 0.0 || radius > 1e9 || !scale.is_finite() || scale <= 0.0 || scale > 1e6 || !(3.0..=5.0).contains(&extension)
+    {
         return Err(bad("gost.center", "invalid centre object settings"));
     }
-    let length = r.radius / r.scale + r.extension;
+    let length = radius / scale + extension;
     if !length.is_finite() || length * 8.0 > 16384.0 {
         return Err(bad("gost.center", "axis segment limit exceeded"));
     }
-    let small = 2.0 * r.radius / r.scale < 12.0;
-    let mut result = Vec::new();
+    Ok((length, 2.0 * radius / scale < 12.0))
+}
+
+pub(in crate::extensions) fn default_extension(radius: f64, scale: f64) -> Result<f64> {
+    let (_, small) = settings(radius, scale, 3.0)?;
+    // A 12..15 mm circle needs up to 4.5 mm extension to fit three >=5 mm
+    // dashes and two >=3 mm dot intervals without moving the centre crossing.
+    Ok(if small { 3.0 } else { (10.5 - radius / scale).max(3.0) })
+}
+
+fn pattern(length: f64) -> Result<(usize, f64, f64)> {
+    if length < 10.5 - 1e-10 {
+        return Err(bad("gost.center", "extension too short for the GOST dash pattern; omit extension for automatic sizing or increase it"));
+    }
+    // settings() bounds finite paper length to 2048 mm before this conversion.
+    let count = ((length - 7.5) / 19.0).round().max(1.0) as usize;
+    let n = count as f64;
+    // Table 1: long dashes 5..30 mm, the complete interval including the dot
+    // 3..5 mm. This interval is NOT a 3..5 mm gap on each side of the dot.
+    let low = ((length - 30.0 * (n + 0.5)) / n).max(3.0);
+    let high = ((length - 5.0 * (n + 0.5)) / n).min(5.0);
+    if low > high + 1e-10 {
+        return Err(bad("gost.center", "cannot fit a bounded GOST dash pattern"));
+    }
+    let interval = 4.0_f64.max(low).min(high.max(low));
+    let dash = (length - n * interval) / (n + 0.5);
+    Ok((count, dash, interval))
+}
+
+pub(in crate::extensions) fn entity_count(radius: f64, scale: f64, extension: f64) -> Result<usize> {
+    let (length, small) = settings(radius, scale, extension)?;
+    Ok(if small { 4 } else { 4 + 8 * pattern(length)?.0 })
+}
+
+/// Append the same paper-sized native axes used by GOST.CENTER, without a temporary
+/// block or an intermediate geometry allocation for a managed model view.
+pub(in crate::extensions) fn geometry(result: &mut Vec<(Common, EntityKind)>, center: Vec2, radius: f64, scale: f64, extension: f64) -> Result<()> {
+    if !center.is_finite() || center.x.abs() > 1e9 || center.y.abs() > 1e9 {
+        return Err(bad("gost.center", "invalid axis centre"));
+    }
+    let (length, small) = settings(radius, scale, extension)?;
+    // Fit complete symmetric periods: equal long dashes, a dash at the centre
+    // crossing and at both ends. Never turn a short large-circle axis solid.
+    let (periods, dash, gap) = if small {
+        (0, 0.0, 0.0)
+    } else {
+        let (count, dash, interval) = pattern(length)?;
+        (count, dash, (interval - 0.5) * 0.5)
+    };
     for dir in [Vec2::X, -Vec2::X, Vec2::Y, -Vec2::Y] {
-        let mut start = 0.0;
-        let mut long = true;
-        let mut end = if small { length } else { 5.0_f64.min(length) };
-        loop {
-            if length - end <= 8.0 {
-                end = length;
-            }
+        let mut add = |start: f64, end: f64| {
             let common =
                 Common { layer: if small { "GOST-THIN" } else { "GOST-CENTER" }.into(), linetype: "Continuous".into(), ..Default::default() };
-            result.push((common, EntityKind::Line(Line { a: (dir * (start * r.scale)).to3(0.0), b: (dir * (end * r.scale)).to3(0.0) })));
-            if end >= length {
-                break;
-            }
-            start = end + 3.0;
-            long = !long;
-            end = (start + if long { 15.0 } else { 1.0 }).min(length);
+            result
+                .push((common, EntityKind::Line(Line { a: (center + dir * (start * scale)).to3(0.0), b: (center + dir * (end * scale)).to3(0.0) })));
+        };
+        if small {
+            add(0.0, length);
+            continue;
+        }
+        let mut end = dash * 0.5;
+        add(0.0, end);
+        for index in 0..periods {
+            let dot_start = end + gap;
+            let dot_end = dot_start + 0.5;
+            add(dot_start, dot_end);
+            let start = dot_end + gap;
+            end = if index + 1 == periods { length } else { start + dash };
+            add(start, end);
         }
     }
-    Ok(result)
+    Ok(())
 }
 fn rebuild(d: &mut Drawing, h: Handle, r: &Record) -> Result<()> {
-    let prepared = geometry(r)?;
+    let mut prepared = Vec::new();
+    geometry(&mut prepared, Vec2::ZERO, r.radius, r.scale, r.extension)?;
     let e = d.entity(h).ok_or_else(|| bad("gost.center", "axes object missing"))?;
     let EntityKind::Insert(i) = &e.kind else { return Err(bad("gost.center", "axes must remain a block reference")) };
     let old = i.block.clone();
@@ -90,13 +144,17 @@ fn rebuild(d: &mut Drawing, h: Handle, r: &Record) -> Result<()> {
     }
     Ok(())
 }
-pub(super) fn create(s: &mut Session, sources: Vec<Handle>, scale: f64, extension: f64) -> Result<Value> {
+pub(super) fn create(s: &mut Session, sources: Vec<Handle>, scale: f64, extension: Option<f64>) -> Result<Value> {
     let mut records = Vec::with_capacity(sources.len());
     let mut total = 0;
     for source in sources {
         let (center, radius) = circle(s.doc()?, source)?;
-        let record = Record { source, scale, extension, center, radius };
-        total += geometry(&record)?.len();
+        let actual_extension = match extension {
+            Some(value) => value,
+            None => default_extension(radius, scale)?,
+        };
+        let record = Record { source, scale, extension: actual_extension, extension_auto: extension.is_none(), center, radius };
+        total += entity_count(radius, scale, actual_extension)?;
         if total > 16384 {
             return Err(bad("gost.center", "aggregate axis segment limit exceeded"));
         }
@@ -177,7 +235,10 @@ pub(super) fn after_command(s: &mut Session, before: Option<&Arc<Drawing>>, uid:
         if center != r.center || radius != r.radius || transformed || copied {
             r.center = center;
             r.radius = radius;
-            geometry(&r)?;
+            if r.extension_auto {
+                r.extension = default_extension(radius, r.scale)?;
+            }
+            settings(r.radius, r.scale, r.extension)?;
             changes.push((e.handle, r));
         }
     }
