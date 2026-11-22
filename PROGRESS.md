@@ -768,4 +768,44 @@
   canonical shaft Front остаётся **20 uncertain / 4 uncovered**.
   Полный пункт сечений не принят: **60/172**, открыто **112**.
 
+## Native multi-span spline-границы сечений — 22.11.2026
+
+- Устранён предыдущий отказ наклонного цилиндра: public checked
+  `NurbsCurve::pieces` выполняет homogeneous knot insertion. Polynomial
+  degree ≤9 и positive-weight rational quadratic spans выдаются как Seg2;
+  endpoint weights нормализуются projective reparameterization.
+  Нет sampled geometry, ellipse recognition, fitting или polygonization.
+  Controls/spans ограничены до decomposition; прежние cap/deadline/provenance
+  guards сохранены. Иные rational degrees остаются явным отказом.
+- **2 geometry unit cases** проверили площадь/кривизну semicircle с неединичными
+  endpoint weights и polynomial span с реально вставленным узлом.
+  **9 worker section cases прошли**. Прежний oblique test больше не принимает
+  отказ как успех: проверяет настоящий curved cap, площадь и 3D locus.
+  Новый native test проверяет обе kept sides и source geometry/reference
+  snapshots. Worker Clippy и native worker build прошли.
+- Финальный `cargo xtask ci`: **9/9 gates**, **953,11 с**; workspace,
+  i18n/assets/layers, WASM, disabled extension и весь real worker прошли.
+  Существующие четыре WASM dead-code warnings не подавлялись.
+- GUI 18075, public `gost.model.section` через `engine.execute`: та же fixture
+  `off-centre-inclined-cylinder.sc`, Front `184` [60;100], 2:1, plane Z=20/+Z,
+  imposed `18D` в **[60;140]** без accept-incomplete. Raw section HLR:
+  **analytic_complete=true**, uncertain/bounded/sampled/unsupported/import/open
+  — **0**; source raw 4 uncertain не переписывался.
+- EXPLODE: **5 native rational quadratic SPLINE + HATCH**, без LINE подмены.
+  Paper ellipse center [90;140], radii 12,5/10 мм,
+  bbox **[77,5;130]..[102,5;150]**, GOST-THIN, hatch 3 paper mm.
+  Native numerical AREA **392,6990733607209 мм²**; reference 125π,
+  проверенный допуск сравнения 1e-4 мм². Это numerical inquiry, не certificate.
+  Reported native planar-read tolerance **8,343353085309888e-5 мм** сохранён.
+- Source/common MOVE, EXPLODE/Undo и GUI DXF reopen сохранили полные paper
+  entities/metadata. После DXF совпали также **полные geometry objects всех
+  native SPLINE** и native HATCH AREA. DXF **95492 bytes**; обе screenshots
+  native surface/reopened detail прочитаны, GUI завершился **0**.
+- Настоящий CLI заново создал сечение через новый worker с analytic_complete=true
+  и теми же полными paper entities, что GUI. Отдельный CLI reopen/MOVE/Undo
+  сохранил entities/metadata; оба вызова exit **0**.
+- Это не вся поддержка freeform, симметрия §7.3, §7.9 или B-Rep rebuild §7.11.
+  Canonical shaft Front остаётся **20 uncertain / 4 uncovered**.
+  Пункт сечений открыт: **60/172**, открыто **112**.
+
 Ни один из этих результатов не закрывает полный новый roadmap. Точные B-Rep-проекции, сборки, нормативные профили, полная русификация, кроссплатформенные установки и выпуск остаются в активном плане.

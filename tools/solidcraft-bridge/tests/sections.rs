@@ -129,7 +129,7 @@ fn tangent_and_complete_removal_never_reuse_old_caps_or_body() {
 }
 
 #[test]
-fn oblique_plane_retains_exact_curves_or_explicitly_refuses_without_mutation() {
+fn oblique_plane_retains_native_curves_without_fitting_or_source_mutation() {
     kernel_test(|| {
         let fixture = Fixture::new();
         let body = solidcraft_kernel::cylinder(Vec3::ZERO, Vec3::Z, 5., 20.).unwrap();
@@ -137,28 +137,55 @@ fn oblique_plane_retains_exact_curves_or_explicitly_refuses_without_mutation() {
         let before = geometry_snapshot(&mut worker, &loaded);
         let request = json!({"source_sha256":loaded["source"]["sha256"],"plane":{"origin":[0,0,10],"normal":[1,0,1]},
             "kept_side":"positive","direction":[1,0,1],"up":[0,1,0]});
-        match worker.call("v1.section", request) {
-            Ok(section) => {
-                let caps = section["section"]["caps"].as_array().unwrap();
-                assert_eq!(caps.len(), 1, "a through-cut cannot silently lose its cap: {section}");
-                let region: Region2 = serde_json::from_value(caps[0]["region"].clone()).unwrap();
-                let view = hlr::View::new(Vec3::new(1., 0., 1.), Vec3::Y).unwrap();
-                let normal = Vec3::new(1., 0., 1.).normalized().unwrap();
-                assert!(
-                    region.outer.segs.iter().any(|s| matches!(s, Seg2::Conic { .. } | Seg2::Arc { .. })),
-                    "oblique exact conic required: {region:?}"
-                );
-                for segment in &region.outer.segs {
-                    for t in [0., 0.25, 0.5, 0.75, 1.] {
-                        let p = segment.point_at(t);
-                        let world = view.x * p.x + view.y * p.y + normal * (10. / 2_f64.sqrt());
-                        assert!((world.x * world.x + world.y * world.y - 25.).abs() < 1e-4, "{world:?}");
-                        assert!((world.x + world.z - 10.).abs() < 1e-8);
-                    }
+        let section = worker.call("v1.section", request).unwrap();
+        let caps = section["section"]["caps"].as_array().unwrap();
+        assert_eq!(caps.len(), 1, "a through-cut cannot silently lose its cap: {section}");
+        let region: Region2 = serde_json::from_value(caps[0]["region"].clone()).unwrap();
+        let view = hlr::View::new(Vec3::new(1., 0., 1.), Vec3::Y).unwrap();
+        let normal = Vec3::new(1., 0., 1.).normalized().unwrap();
+        assert!(region.outer.is_closed(1e-6));
+        assert!((region.outer.signed_area() - 25. * std::f64::consts::PI * 2_f64.sqrt()).abs() < 1e-4);
+        assert!(region.outer.segs.iter().all(|s| !matches!(s, Seg2::Line { .. })), "cap must not be polygonized: {region:?}");
+        for segment in &region.outer.segs {
+            for t in [0., 0.25, 0.5, 0.75, 1.] {
+                let p = segment.point_at(t);
+                let world = view.x * p.x + view.y * p.y + normal * (10. / 2_f64.sqrt());
+                assert!((world.x * world.x + world.y * world.y - 25.).abs() < 1e-4, "{world:?}");
+                assert!((world.x + world.z - 10.).abs() < 1e-8);
+            }
+        }
+        assert_eq!(geometry_snapshot(&mut worker, &loaded), before);
+    });
+}
+
+#[test]
+fn inclined_native_cylinder_cap_preserves_world_profile_for_both_kept_sides() {
+    kernel_test(|| {
+        let fixture = Fixture::new();
+        let path = fixture.0.join("inclined.sc");
+        fs::write(&path, include_bytes!("../../../tests/fixtures/models/off-centre-inclined-cylinder.sc")).unwrap();
+        let mut worker = Worker::new(vec![fixture.0.clone()]).unwrap();
+        let loaded = worker.call("v1.load", json!({"path":path})).unwrap();
+        let before = geometry_snapshot(&mut worker, &loaded);
+        for side in ["positive", "negative"] {
+            let request = query(&loaded, 20., side);
+            let section = worker.call("v1.section", request).unwrap();
+            let caps = section["section"]["caps"].as_array().unwrap();
+            assert_eq!(caps.len(), 1);
+            let region: Region2 = serde_json::from_value(caps[0]["region"].clone()).unwrap();
+            assert!(region.holes.is_empty());
+            assert!(region.outer.is_closed(1e-6));
+            assert!((region.outer.signed_area() - 31.25 * std::f64::consts::PI).abs() < 1e-4);
+            assert!(region.outer.segs.iter().all(|s| !matches!(s, Seg2::Line { .. })), "no tessellated ellipse: {region:?}");
+            let direction = if side == "positive" { Vec3::Z } else { -Vec3::Z };
+            let view = hlr::View::new(direction, Vec3::Y).unwrap();
+            for segment in &region.outer.segs {
+                for t in [0., 0.25, 0.5, 0.75, 1.] {
+                    let p = segment.point_at(t);
+                    let world = view.x * p.x + view.y * p.y + Vec3::new(0., 0., 20.);
+                    assert!(((0.8 * world.x - 0.6 * world.z).powi(2) + world.y.powi(2) - 25.).abs() < 1e-4, "{world:?}");
                 }
             }
-            Err(Error::Geometry(reason)) => assert!(reason.contains("section"), "refusal must identify the actual section operation: {reason}"),
-            Err(error) => panic!("oblique cut must produce exact curves or an explicit geometry refusal: {error}"),
         }
         assert_eq!(geometry_snapshot(&mut worker, &loaded), before);
     });

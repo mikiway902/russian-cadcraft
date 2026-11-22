@@ -121,6 +121,13 @@ GUI discovery/resolve выполняются в фоне, completion прове�
 плоскость/basis, compact mapping, topology bounds, provenance и directed cap loops;
 входные кривые не аппроксимируются. Worker вычитает исходные outward coplanar
 области из merged cut faces перед выдачей крышек.
+Multi-span planar splines преобразуются через public checked `NurbsCurve::pieces`:
+homogeneous knot insertion, polynomial spans до degree 9 и positive-weight
+rational quadratic spans с projective endpoint-weight normalization.
+Выборки, polygonization, распознавания эллипса и fitting нет. Это сохраняет
+native planar-read tolerance contract, не вводит symbolic/global-error certificate.
+Более высокие rational degrees без поддерживаемого Seg2-представления отклоняются;
+число controls/spans ограничено до decomposition, каждая выдача входит в общий cap budget.
 `models::sections` добавляет HATCH overlay в общий installer, сохраняет audit
 в SavedView.provenance.section и явно возвращает empty/no_intersection без мутации.
 3 мм бумажного шага хранятся как model-space pattern delta с reciprocal INSERT

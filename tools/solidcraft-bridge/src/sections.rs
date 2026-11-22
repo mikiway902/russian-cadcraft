@@ -3,9 +3,13 @@
 use super::{Budget, Error, LoadedBody, MAX_BODIES, MAX_TOPOLOGY, ViewQuery, Worker, ensure_response_size, params, projection, vector};
 use serde::Deserialize;
 use serde_json::{Value, json};
-use solidcore_record::{Loop2, Plane, Region2, Vec3, brep::Loop};
-use solidcraft_geom::{Loop2Geom, PlaneGeom, Seg2Geom, Vec3Geom, hlr};
-use solidcraft_kernel::{Body, PlanarPiece, history::FaceOrigin, watch};
+use solidcore_record::{Loop2, MAX_BEZIER_CTRL, MAX_BEZIER_DEGREE, Plane, Region2, Seg2, Vec2, Vec3, brep::Loop};
+use solidcraft_geom::{
+    Loop2Geom, PlaneGeom, Seg2Geom, Vec3Geom,
+    bspline::{HPoint, NurbsCurve},
+    hlr,
+};
+use solidcraft_kernel::{Body, PlanarPiece, PlanarSpline, history::FaceOrigin, watch};
 use std::{collections::BTreeSet, sync::Arc};
 
 pub(super) const MAX_COORD: f64 = 1_000_000.0;
@@ -240,6 +244,69 @@ fn facing_out_on(body: &Body, face: usize, plane: &Plane) -> bool {
         .is_some_and(|on| on.normal().dot(plane.normal()) <= -FACING && plane.height(on.origin).abs() <= body.planar_edges_tolerance())
 }
 
+fn cap_segment(segment: Seg2, segs: &mut Vec<Seg2>, count: &mut usize) -> Result<(), Error> {
+    segment.check(MAX_COORD).map_err(|why| Error::Geometry(format!("invalid cap segment: {why}")))?;
+    if *count >= MAX_CAP_SEGMENTS {
+        return Err(Error::Limit("section cap segments"));
+    }
+    *count += 1;
+    segs.push(segment);
+    Ok(())
+}
+
+/// Knot insertion only: no sampled points, curve recognition or fitting.
+/// Positive-weight rational quadratics have an exact projective reparameterization
+/// with endpoint weights one. Higher rational degrees have no Seg2 representation.
+fn cap_spline(spline: PlanarSpline, segs: &mut Vec<Seg2>, count: &mut usize, budget: &Budget) -> Result<(), Error> {
+    let n = spline.points.len();
+    let degree = spline.degree;
+    if !(1..=MAX_BEZIER_DEGREE).contains(&degree) || n > MAX_CAP_SEGMENTS * MAX_BEZIER_DEGREE + 1 || spline.knots.len() != n + degree + 1 {
+        return Err(Error::Limit("section cap spline degree or controls"));
+    }
+    if (!spline.weights.is_empty() && spline.weights.len() != n) || spline.weights.iter().any(|w| !w.is_finite() || *w < f64::MIN_POSITIVE) {
+        return Err(Error::Geometry("cap spline requires one positive finite weight per control, or no weights".into()));
+    }
+    let polynomial = spline.weights.first().is_none_or(|first| spline.weights.iter().all(|w| w == first));
+    if !polynomial && degree > 2 {
+        return Err(Error::Geometry("cap spline rational degree above two has no exact Seg2 representation (no fitting)".into()));
+    }
+    let (&lo, &hi) = spline.knots.get(degree).zip(spline.knots.get(n)).ok_or_else(|| Error::Geometry("cap spline domain missing".into()))?;
+    let spans = spline.knots.windows(2).filter(|w| w[0] >= lo && w[1] <= hi && w[1] > w[0]).count();
+    if spans > MAX_CAP_SEGMENTS.saturating_sub(*count) {
+        return Err(Error::Limit("section cap spline spans"));
+    }
+    let mut controls = Vec::with_capacity(n);
+    for (i, p) in spline.points.into_iter().enumerate() {
+        budget.check()?;
+        let weight = if polynomial { 1. } else { *spline.weights.get(i).ok_or_else(|| Error::Geometry("cap spline weight missing".into()))? };
+        controls.push(HPoint::weighted(Vec3::new(p.x, p.y, 0.), weight));
+    }
+    let curve = NurbsCurve::from_homogeneous(degree, spline.knots, &controls).map_err(|e| Error::Geometry(format!("invalid cap spline: {e}")))?;
+    drop(controls);
+    budget.check()?;
+    let pieces = curve.pieces().map_err(|e| Error::Geometry(format!("cap spline knot insertion: {e}")))?;
+    segs.try_reserve(pieces.len()).map_err(|_| Error::Limit("section cap spline allocation"))?;
+    for piece in pieces {
+        budget.check()?;
+        let mut points = [Vec2::ZERO; MAX_BEZIER_CTRL];
+        let mut weights = [0.; MAX_BEZIER_CTRL];
+        for (i, control) in piece.ctrl().enumerate() {
+            let point = control.project().ok_or_else(|| Error::Geometry("nonfinite cap spline control".into()))?;
+            let slot = points.get_mut(i).ok_or(Error::Limit("section cap Bezier controls"))?;
+            *slot = Vec2::new(point.x, point.y);
+            *weights.get_mut(i).ok_or(Error::Limit("section cap Bezier weights"))? = control.w;
+        }
+        let segment = if polynomial || degree == 1 {
+            let points = points.get(..=degree).ok_or(Error::Limit("section cap Bezier degree"))?;
+            solidcraft_geom::bezier(points).ok_or_else(|| Error::Geometry("cap polynomial span unavailable".into()))?
+        } else {
+            Seg2::Conic { a: points[0], apex: points[1], b: points[2], w: (weights[1] / weights[0].sqrt()) / weights[2].sqrt() }
+        };
+        cap_segment(segment, segs, count)?;
+    }
+    Ok(())
+}
+
 fn cap_region(body: &Body, loops: &[Loop], basis: &Plane, count: &mut usize, budget: &Budget) -> Result<Region2, Error> {
     if loops.len() > MAX_CAP_SEGMENTS {
         return Err(Error::Limit("section cap loops"));
@@ -263,18 +330,10 @@ fn cap_region(body: &Body, loops: &[Loop], basis: &Plane, count: &mut usize, bud
                 .ok_or_else(|| Error::Geometry(format!("cap edge {} has no exact planar read", used.edge)))?;
             let start = segs.len();
             for piece in pieces {
-                let PlanarPiece::Seg(segment) = piece else {
-                    return Err(Error::Geometry(format!(
-                        "cap edge {} is a multi-span spline; exact Seg2 hatch boundary unavailable (no fitting)",
-                        used.edge
-                    )));
-                };
-                segment.check(MAX_COORD).map_err(|why| Error::Geometry(format!("invalid cap segment: {why}")))?;
-                *count = count.checked_add(1).ok_or(Error::Limit("section cap segment overflow"))?;
-                if *count > MAX_CAP_SEGMENTS {
-                    return Err(Error::Limit("section cap segments"));
+                match piece {
+                    PlanarPiece::Seg(segment) => cap_segment(segment, &mut segs, count)?,
+                    PlanarPiece::Spline(spline) => cap_spline(spline, &mut segs, count, budget)?,
                 }
-                segs.push(segment);
             }
             if !used.forward {
                 let along = segs.get_mut(start..).ok_or_else(|| Error::Geometry("cap edge traversal range unavailable".into()))?;
@@ -307,4 +366,50 @@ fn cap_region(body: &Body, loops: &[Loop], basis: &Plane, count: &mut usize, bud
         return Err(Error::Geometry("cap topology has inconsistent outer/hole loop orientations".into()));
     }
     Ok(Region2 { outer: outer.ccw(), holes: rings.into_iter().map(|ring| ring.ccw().reversed()).collect() })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rational_multi_span_cap_keeps_semicircle_with_nonunit_endpoint_weights() {
+        let spline = PlanarSpline {
+            degree: 2,
+            knots: vec![0., 0., 0., 1., 1., 2., 2., 2.],
+            points: vec![Vec2::new(1., 0.), Vec2::new(1., 1.), Vec2::new(0., 1.), Vec2::new(-1., 1.), Vec2::new(-1., 0.)],
+            weights: vec![4., 2_f64.sqrt(), 1., 2_f64.sqrt(), 4.],
+        };
+        let mut segs = Vec::new();
+        cap_spline(spline, &mut segs, &mut 0, &Budget::new()).unwrap();
+        for segment in &segs {
+            assert!(matches!(segment, Seg2::Conic { .. }));
+            for t in [0., 0.25, 0.5, 0.75, 1.] {
+                let p = segment.point_at(t);
+                assert!((p.x * p.x + p.y * p.y - 1.).abs() < 1e-12);
+                assert!(p.y >= 0.);
+            }
+        }
+        segs.push(Seg2::Line { a: Vec2::new(-1., 0.), b: Vec2::new(1., 0.) });
+        let ring = Loop2 { segs };
+        assert!(ring.is_closed(1e-12));
+        assert!((ring.signed_area() - std::f64::consts::FRAC_PI_2).abs() < 1e-9);
+    }
+
+    #[test]
+    fn polynomial_cap_inserts_knots_without_losing_area_or_native_curvature() {
+        let spline = PlanarSpline {
+            degree: 2,
+            knots: vec![0., 0., 0., 1., 2., 2., 2.],
+            points: vec![Vec2::ZERO, Vec2::new(1., 2.), Vec2::new(3., 2.), Vec2::new(4., 0.)],
+            weights: vec![8.; 4],
+        };
+        let mut segs = Vec::new();
+        cap_spline(spline, &mut segs, &mut 0, &Budget::new()).unwrap();
+        assert!(segs.iter().all(|s| matches!(s, Seg2::Conic { .. })));
+        segs.push(Seg2::Line { a: Vec2::new(4., 0.), b: Vec2::ZERO });
+        let ring = Loop2 { segs };
+        assert!(ring.is_closed(1e-12));
+        assert!((ring.signed_area() + 16. / 3.).abs() < 1e-12);
+    }
 }
